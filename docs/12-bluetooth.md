@@ -115,4 +115,5 @@ ignored while routed and for 500 ms after a change, because switching the pins f
   I2S1 `TXCR` `0x401F` and `CKR` `0x00033F3F` (identical to Podium at 44.1 kHz), I2S1 pins on group A.
   GPIO2.1 reads **high while the jacks play**, so it is not an active-high mute here.
 - Silent: GPIO2.1 high with GPIO2.14 low or untouched, each with GPIO2.9 low or not.
-- Stage 23 tries GPIO2.1 low (with GPIO2.14 low / untouched) and GPIO2.2 (DAC B enable) low.
+- Stage 23 (round 2): GPIO2.1 low with GPIO2.14 low / untouched, GPIO2.2 (DAC B enable) low, and all
+  three low: all silent. Pin routing is ruled out; next step is FiiO's stock Echo firmware itself.

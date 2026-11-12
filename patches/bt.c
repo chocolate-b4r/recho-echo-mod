@@ -610,10 +610,10 @@ STATE volatile u32 bt_stock_done = 0;
  *   1  GPIO2.1 low,  GPIO2.14 untouched
  *   2  GPIO2.1 high, GPIO2.14 untouched, GPIO2.2 (DAC B enable) low
  *   3  GPIO2.1 low,  GPIO2.14 low,       GPIO2.2 low */
-#define V_MUTE_HIGH(v)  ((v) == 2u)
-#define V_WIRED_LOW(v)  ((v) == 0u || (v) == 3u)
+#define V_MUTE_HIGH(v)  ((v) == 2u || (v) == 4u)
+#define V_WIRED_LOW(v)  ((v) == 0u || (v) == 3u || (v) == 4u)   /* 4: Podium's routing, the default */
 #define V_DACB_LOW(v)   ((v) == 2u || (v) == 3u)
-STATE volatile u32 bt_variant = 0;
+STATE volatile u32 bt_variant = 4;      /* both test rounds were silent: Podium's routing, fixed */
 STATE volatile u32 bt_variant_used = 0;
 
 static void log_audio_state(const char *when)
@@ -646,7 +646,6 @@ void bt_route(u32 on)
     }
     if (on) {
         bt_variant_used = bt_variant;
-        bt_variant = (bt_variant + 1u) & 3u;
         log_audio_state("before");
     }
     u32 v = bt_variant_used;

@@ -183,6 +183,63 @@ static char *put_num(char *p, u32 v, char *end)
     return p;
 }
 
+/* ---- position in the play order ----------------------------------------------------
+ * RECHO's queue index is the file order. With shuffle, the songs play in a fixed scrambled
+ * order per pass; its "next" routine (0x3065FE4, also used by Up Next) walks it. Songs left
+ * to the end of the pass = n - position, so position = n - remaining. Infinite shuffle is
+ * walked as plain shuffle (the current pass). Cached until the track or the queue changes. */
+#define queue_next_entry FN(0x03065FE4, int (*)(volatile void *q, u32 cur, u32 mode, u32 flag))
+#define QUEUE_OBJ        PTR(volatile void *, 0x0303AB90)
+#define QUEUE_SEED       REG(0x0303AB98)
+#define QUEUE_PASS       REG(0x0303ABA8)
+#define QUEUE_ACTIVE     REG(0x0303BD74)
+#define QUEUE_CURRENT    REG(0x0303BD78)
+STATE volatile u32 qp_key[5] = {0xFFFFFFFFu, 0, 0, 0, 0};
+STATE volatile u32 qp_pos = 0;
+
+static u32 play_position(u32 *count)
+{
+    const volatile int *qi = queue_info();
+    u32 n = (qi && qi[1] > 0) ? (u32)qi[1] : 0u;
+    *count = n;
+    if (!n)
+        return 0;
+    u32 cur = QUEUE_ACTIVE ? QUEUE_CURRENT : (u32)queue_index();
+    u32 mode = PLAY_MODE;
+    if (mode != 1u && mode != 4u)
+        return cur + 1u;                        /* in order: the file order is the play order */
+    u32 key[5] = {cur, QUEUE_SEED, QUEUE_PASS, n, mode};
+    int same = 1;
+    for (int i = 0; i < 5; i++)
+        if (key[i] != qp_key[i])
+            same = 0;
+    if (same)
+        return qp_pos;
+    for (int i = 0; i < 5; i++)
+        qp_key[i] = key[i];
+    u32 c = cur, left = 0;
+    for (u32 i = 0; i < n; i++) {
+        int nx = queue_next_entry(QUEUE_OBJ, c, 1u, 0);
+        if (nx < 0 || (u32)nx == c || (u32)nx >= n)
+            break;
+        c = (u32)nx;
+        left++;
+    }
+    qp_pos = left < n ? n - left : cur + 1u;    /* no end found: fall back to the file order */
+    return qp_pos;
+}
+
+/* "3/500" */
+static char *put_qpos(char *p, char *end)
+{
+    u32 n, pos = play_position(&n);
+    if (!n)
+        return p;
+    p = put_num(p, pos, end);
+    p = put_str(p, "/", end);
+    return put_num(p, n, end);
+}
+
 static void play_glyph(int cx, int y, u32 c)        /* right-pointing triangle, 16 x 16 */
 {
     for (int i = 0; i < 16; i++) {
@@ -437,10 +494,7 @@ void np_draw(void)
     qpos[0] = 0;
     char *p = qpos;
     if (loaded) {
-        const volatile int *qi = queue_info();
-        p = put_num(qpos, (u32)queue_index() + 1u, qpos + 23);
-        p = put_str(p, " / ", qpos + 23);
-        p = put_num(p, qi ? (u32)qi[1] : 0u, qpos + 23);
+        p = put_qpos(qpos, qpos + 23);
     }
 #ifdef ECHO_PORT
     /* draft C: output in the top bar; "BT <headphones>" in green while Bluetooth is connected */
@@ -498,13 +552,12 @@ void np_draw(void)
             char *q = info, *qe = info + sizeof info - 1;
             while (*q)
                 q++;
-            const volatile int *qi = queue_info();
-            if (qi && qi[1] > 0) {
+            u32 qn;
+            play_position(&qn);
+            if (qn) {
                 if (q != info)
                     q = put_str(q, SEP, qe);
-                q = put_num(q, (u32)queue_index() + 1u, qe);
-                q = put_str(q, "/", qe);
-                q = put_num(q, (u32)qi[1], qe);
+                q = put_qpos(q, qe);
             }
             *q = 0;
         }
@@ -840,13 +893,12 @@ void menu_draw(void)
     case 2:
         if (queue_loaded()) {
             track_line_xy(16, 72, paused);
-            const volatile int *qi = queue_info();
             char *p = put_str(tmp, paused ? "Paused" : "Playing", tmp + 47);
-            if (qi && qi[1] > 0) {
+            u32 qn;
+            play_position(&qn);
+            if (qn) {
                 p = put_str(p, SEP, tmp + 47);
-                p = put_num(p, (u32)queue_index() + 1u, tmp + 47);
-                p = put_str(p, "/", tmp + 47);
-                p = put_num(p, (u32)qi[1], tmp + 47);
+                p = put_qpos(p, tmp + 47);
             }
             *p = 0;
             hint = tmp;

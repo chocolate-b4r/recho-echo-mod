@@ -84,3 +84,8 @@ See [NOTICE.md](NOTICE.md). RECHO is © its author ([recho.atzkey.workers.dev](h
 the players and their stock firmware are © FiiO / Snowsky. Facts about the
 full-size Echo (panel init table, pin map, maskrom procedure) were learnt from the Podium project
 (GPL). This repository's own code and documents are MIT licensed ([LICENSE](LICENSE)).
+
+## Design mock-ups
+
+`tools/render_mockups.py` draws the main menu at each panel's real size from the patch sources
+(`docs/design/`: 1x, 4x and a blank zone template per player). The typeface is a stand-in.
