@@ -257,17 +257,32 @@ static void top_bar(const char *right)
     top_bar_c(right, SOFT);
 }
 
-static void top_bar_c(const char *right, u32 right_colour)
+static void top_bar_2(const char *right, u32 right_colour, const char *last, u32 last_colour)
 {
     char t[8], d[16];
     clock_strings(t, d);
     int x = 8 + text_at(1, 8, 10, t, 60, WHITE);
-    text_at(1, x + 6, 10, d, 120, SOFT);
+    fill_rect(x + 5, 4, x + 5, 16, GREY);                 /* "21:47 | Fri 13 Nov" */
+    text_at(1, x + 11, 10, d, 120, SOFT);
+    int xr = W - 8;
+    if (last && *last) {
+        int w = text_width(1, last);
+        xr -= w;
+        text_at(1, xr, 10, last, 60, last_colour);
+        xr -= 8;
+    }
     if (right && *right) {
         int w = text_width(1, right);
-        text_at(1, W - 8 - w, 10, right, 140, right_colour);
+        if (w > 140)
+            w = 140;
+        text_at(1, xr - w, 10, right, 140, right_colour);
     }
     fill_rect(0, 21, W - 1, 21, RULE);
+}
+
+static void top_bar_c(const char *right, u32 right_colour)
+{
+    top_bar_2(right, right_colour, 0, 0);
 }
 
 /* ---- Now Playing ------------------------------------------------------------- */
@@ -346,11 +361,14 @@ static void format_line_ex(char *out, int n, u32 *rg_colour_from, int full)
         *p = 0;
         return;
     }
-    const char *out_name = output_name();
-    if (out_name) {
-        if (p != out)
-            p = put_str(p, SEP, end);
-        p = put_str(p, out_name, end);
+    {                                     /* Mini: queue position here; the output is in the top bar */
+        u32 qn;
+        play_position(&qn);
+        if (qn) {
+            if (p != out)
+                p = put_str(p, SEP, end);
+            p = put_qpos(p, end);
+        }
     }
     *rg_colour_from = 0;
     int mode = rg_mode();
@@ -486,6 +504,8 @@ static void format_at(int y, int paused)
 }
 #endif
 
+static const char *output_label(char *buf, int n, u32 *colour);
+
 void np_draw(void)
 {
     fill_rect(0, 0, W - 1, 169, BLACK);
@@ -507,28 +527,34 @@ void np_draw(void)
         p = put_str(qpos, loaded ? output_name() : 0, qpos + 23);
     }
 #else
-    if (p != qpos) {                      /* Mini: play-mode glyph in front (Up Next has it on the Echo) */
+    /* Mini: play-mode glyph and the output ("3.5 mm", "BT <headphones>" in green), then the
+     * battery in white; the queue position moved to the format line */
+    u32 right_colour = SOFT;
+    {
         static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
                                         "\xee\x80\x86", "\xee\x80\xab"};
+        char out[40];
+        const char *o = output_label(out, sizeof out, &right_colour);
         u32 m = PLAY_MODE;
-        char tmp[24], *t = tmp;
-        if (m < 5u) {
-            t = put_str(t, MODE[m], tmp + 23);
-            t = put_str(t, " ", tmp + 23);
+        p = qpos;
+        if (loaded && m < 5u) {
+            p = put_str(p, MODE[m], qpos + 23);
+            if (o)
+                p = put_str(p, " ", qpos + 23);
         }
-        t = put_str(t, qpos, tmp + 23);
-        *t = 0;
-        p = put_str(qpos, tmp, qpos + 23);
+        p = put_str(p, o, qpos + 23);
     }
-    if (p != qpos)                        /* Mini: no Up Next column, battery % goes here */
-        p = put_str(p, "   ", qpos + 23);
-    p = put_pct(p, qpos + 23);
 #endif
     *p = 0;
 #ifdef ECHO_PORT
     top_bar_c(qpos, right_colour);
 #else
-    top_bar(qpos);
+    {
+        char pct[8];
+        char *q = put_pct(pct, pct + 7);
+        *q = 0;
+        top_bar_2(qpos, right_colour, pct, WHITE);
+    }
 #endif
 
     if (!loaded) {
@@ -574,6 +600,8 @@ void np_draw(void)
     if (now - VOLUME_AT < 2000u) {
         char v[16], *q = v;
         int db = VOLUME_DB;
+        if (db > -128)
+            db += 90;                     /* shown from 0 dB (RECHO's quietest step) upward */
         if (db <= -128) {
             q = put_str(q, "muted", v + 15);
         } else {
@@ -769,21 +797,6 @@ static const char *const ICON_PLAY[12] = {"............", "....#.......", "....#
 static const char *const ICON_BT[12] = {"............", ".....#......", ".....##.....", "..#..#.#....", "...#.#.#....", "....###.....", "....###.....", "...#.#.#....", "..#..#.#....", ".....##.....", ".....#......", "............"};
 static const char *const ICON_SETTINGS[12] = {"............", ".....##.....", "..#.####.#..", "..########..", "...##..##...", ".###....###.", ".###....###.", "...##..##...", "..########..", "..#.####.#..", ".....##.....", "............"};
 
-static void icon2x(const char *const *rows, int x, int y, u32 c)
-{
-    for (int r = 0; r < 12; r++) {
-        const char *s = rows[r];
-        for (int col = 0; col < 12; col++) {
-            if (s[col] != '#')
-                continue;
-            int run = col;
-            while (run + 1 < 12 && s[run + 1] == '#')
-                run++;
-            fill_rect(x + col * 2, y + r * 2, x + run * 2 + 1, y + r * 2 + 1, c);
-            col = run;
-        }
-    }
-}
 
 /* the large font at 2x: drawn into the tab rows first (cleared again after), then doubled */
 static void text2x(int x, int y_top, const char *s, u32 c)
@@ -841,6 +854,24 @@ static const struct menu_item MENU_ITEMS[5] = {
     {"Now playing", ICON_PLAY, "Playing"}, {"Bluetooth", ICON_BT, "Bluetooth"},
     {"Settings", ICON_SETTINGS, "Settings"}};
 
+/* tab glyphs: RECHO's own icons (folder U+E012, disc U+E011, wrench U+E015), "sys" for the
+ * USB disk, and the pixel Bluetooth rune; the selected one between "<" and ">" */
+static void menu_tab(u32 i, int cx, int cy, u32 c)
+{
+    static const char *const GLYPH[5] = {"\xee\x80\x92", "sys", "\xee\x80\x91", 0, "\xee\x80\x95"};
+    if (i == 3u) {                        /* Bluetooth rune, 12 x 12 at 1x */
+        const char *const *rows = ICON_BT;
+        for (int r = 0; r < 12; r++)
+            for (int col = 0; col < 12; col++)
+                if (rows[r][col] == '#')
+                    fill_rect(cx - 6 + col, cy - 6 + r, cx - 6 + col, cy - 6 + r, c);
+        return;
+    }
+    const char *g = GLYPH[i];
+    int w = text_width(1, g);
+    text_at(1, cx - w / 2, cy, g, 40, c);
+}
+
 void menu_draw(void)
 {
     if (MENU_STATE[6] || MENU_STATE[8]) {
@@ -860,22 +891,16 @@ void menu_draw(void)
     char right[40];
     u32 rc;
     const char *r = output_label(right, sizeof right, &rc);
-#ifndef ECHO_PORT
-    {
-        char *p = right;
-        if (r && r != right)
-            p = put_str(right, r, right + 39);
-        else if (r)
-            while (*p)
-                p++;
-        if (p != right)
-            p = put_str(p, "   ", right + 39);
-        p = put_pct(p, right + 39);
-        *p = 0;
-        r = right;
+#ifdef ECHO_PORT
+    top_bar_c(r, rc);
+#else
+    {                                       /* Mini: output in its colour, then the battery in white */
+        char pct[8];
+        char *q = put_pct(pct, pct + 7);
+        *q = 0;
+        top_bar_2(r, rc, pct, WHITE);
     }
 #endif
-    top_bar_c(r, rc);
 
     int paused = player_state() == 2;
     const char *sub = 0, *hint = 0;
@@ -892,16 +917,18 @@ void menu_draw(void)
         break;
     case 2:
         if (queue_loaded()) {
-            track_line_xy(16, 72, paused);
-            char *p = put_str(tmp, paused ? "Paused" : "Playing", tmp + 47);
-            u32 qn;
-            play_position(&qn);
-            if (qn) {
-                p = put_str(p, SEP, tmp + 47);
-                p = put_qpos(p, tmp + 47);
+            const char *artist;
+            const char *title = track_title(&artist);
+            char *p = tmp;
+            if (artist) {
+                p = put_str(p, artist, tmp + 47);
+                p = put_str(p, " - ", tmp + 47);
             }
+            p = put_str(p, title, tmp + 47);
             *p = 0;
-            hint = tmp;
+            sub = tmp;
+            sc = paused ? GREY : SOFT;
+            hint = paused ? "Paused" : "Playing";
         } else {
             sub = "Nothing playing";
             hint = "Pick a song in Files";
@@ -922,22 +949,35 @@ void menu_draw(void)
         hint = "About is at the bottom";
         break;
     }
+#ifdef ECHO_PORT
+    /* Echo (drawing): small coloured line, larger grey tip, rule, one row of tabs */
     if (sub)
-        text_at(1, 16, 72, sub, W - 32, sc);
-    if (hint)                               /* large font too: easier to read */
-        text_at(1, 16, 91, hint, W - 32, GREY);
-
-    fill_rect(0, 104, W - 1, 104, RULE);
+        text_at(0, 16, 70, sub, W - 32, sc);
+    if (hint)
+        text_at(1, 16, 96, hint, W - 32, GREY);
+    fill_rect(0, 136, W - 1, 136, RULE);
+    const int tab_y = 153;
+#else
+    /* Mini (drawing): both lines small, one row of tabs, the progress bar under them */
+    if (sub)
+        text_at(0, 16, 70, sub, W - 32, sc);
+    if (hint)
+        text_at(0, 16, 87, hint, W - 32, GREY);
+    const int tab_y = 125;
+#endif
     for (u32 i = 0; i < 5u; i++) {
-        int x = (int)i * 64, on = i == cur;
-        u32 c = on ? WHITE : TAB_DIM;
-        icon2x(MENU_ITEMS[i].icon, x + 20, 114, c);
-        int f = text_width(1, MENU_ITEMS[i].tab) <= 62 ? 1 : 0;   /* large font when it fits */
-        int w = text_width(f, MENU_ITEMS[i].tab);
-        text_at(f, x + (64 - w) / 2, 152, MENU_ITEMS[i].tab, 63, c);
-        if (on)
-            fill_rect(x + 12, 165, x + 51, 166, WHITE);
+        int cx = (int)i * 64 + 32;
+        u32 on = i == cur;
+        menu_tab(i, cx, tab_y, on ? WHITE : GREY);
+        if (on) {
+            text_at(1, cx - 22, tab_y, "<", 10, WHITE);
+            text_at(1, cx + 16, tab_y, ">", 10, WHITE);
+        }
     }
+#ifndef ECHO_PORT
+    if (queue_loaded())
+        progress_at(158, paused);
+#endif
 }
 
 /* Settings -> About: RECHO's own About panel in the menu module, back to Settings after */
@@ -951,8 +991,18 @@ void about_request_open(void)
     about_state = 1;
 }
 
+STATE volatile u32 menu_last_module = 0;
+
 void about_tick(void)
 {
+    u32 m = CURRENT_MODULE_ID;
+    if (m == 47u && menu_last_module != 47u && about_state == 0u) {
+        MENU_STATE[1] = 2u;                 /* the menu opens on Now playing */
+        const volatile u32 *scr0 = current_screen();
+        if (scr0)
+            request_redraw((const void *)scr0);
+    }
+    menu_last_module = m;
     if (about_state == 1) {
         if (CURRENT_MODULE_ID != 47u) {
             set_module_id(47);
@@ -971,4 +1021,21 @@ void about_tick(void)
             set_module_id(48);
         }
     }
+}
+
+/* RECHO's "%d dB" volume text (menu bar 0x30594D4, volume message 0x305A4B0) goes through here:
+ * shown from 0 dB at RECHO's quietest step (-90 dB) upward, so -43 dB reads "47 dB". */
+int vol_text(char *buf, u32 size, const char *fmt, int v)
+{
+    (void)fmt;
+    char *p = buf, *end = buf + (size ? size - 1u : 0u);
+    v += 90;
+    if (v < 0) {
+        p = put_str(p, "-", end);
+        v = -v;
+    }
+    p = put_num(p, (u32)v, end);
+    p = put_str(p, " dB", end);
+    *p = 0;
+    return (int)(p - buf);
 }

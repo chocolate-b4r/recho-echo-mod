@@ -88,4 +88,5 @@ full-size Echo (panel init table, pin map, maskrom procedure) were learnt from t
 ## Design mock-ups
 
 `tools/render_mockups.py` draws the main menu at each panel's real size from the patch sources
-(`docs/design/`: 1x, 4x and a blank zone template per player). The typeface is a stand-in.
+(`docs/design/`: 1x, 4x and a blank zone template per player). The typeface is a stand-in, and the
+mock-ups show the v23 / stage 24 menu, before the owner's redesign.

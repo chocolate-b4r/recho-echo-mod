@@ -134,3 +134,13 @@ Same RKnano container. The load row at `0x200` gives the main code: loaded from 
 
 So FiiO's Bluetooth steps are what stage 21 already does. Stage 25 logs the module's raw reply to
 every `CY0` (the parser used to keep only `CY`), to see whether it answers with an error.
+
+### Stage 26 findings (2026-11-13)
+
+- The module answers every `CY0` with `CKKK` `CYOK`: the stream command is accepted.
+- No sound at any volume, so the module does not take the analog DAC output.
+- The headphones (Nothing Ear (2)) streamed fine with FiiO's own firmware, so the hardware path works.
+- GRF / CRU / GPIO snapshot while routed: `logs/echo-bt-dump.txt` (I2S1 pins on function 1, UART1 on
+  GPIO2.16/17, audio clock `CRU+0x20` = `0x8004` as Podium, GPIO2 data `0x80C7` / dir `0x3C2D7`).
+- FiiO's module reset (overlay at `0x307E8C0`, file `0x...`): power off, 200 ms, UART set-up, 100 ms,
+  then `0x307E986`: GPIO2.7 high and wait up to 5 s for `CV1`. Nothing beyond what we do.

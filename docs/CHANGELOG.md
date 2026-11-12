@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v24 | menu to the owner's drawing (one row of tabs: folder, sys, disc, Bluetooth rune, wrench; selected between < >; progress bar under the tabs), opens on Now playing; top bar "21:47 \| Fri 13 Nov", battery % in white; Now Playing: output in the top bar, queue position in the format line; volume shown from 0 dB (RECHO's -90 dB) upward | built, verified |
 | v23 | queue number = position in the play order (shuffle-aware), not the file order | built, verified |
 | v22 | earbud pause / play work again (no longer tied to Bluetooth streaming) | built, verified |
 | v21 | smaller 12 x 12 menu icons (2x), narrower play icon | built, verified |
@@ -39,6 +40,8 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 27 | menu to the owner's drawing (tabs in one row, larger grey tip), opens on Now playing; volume shown from 0 dB upward; top bar with a divider | built, verified |
+| 26 | Bluetooth: one-off GRF / CRU / GPIO dump while streaming (module answers `CYOK`; volume makes no difference) | device |
 | 25 | Bluetooth diagnostic: raw module reply to each `CY0` logged | built, verified |
 | 24 | queue number = position in the play order; Bluetooth routing fixed to Podium's (no test variants) | built, verified |
 | 23 | Bluetooth audio test round 2 (GPIO2.1 low, GPIO2.2 low variants); earbud pause / play not tied to streaming | built, verified |

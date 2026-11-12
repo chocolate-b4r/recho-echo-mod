@@ -233,6 +233,7 @@ def main(orig_path, new_path):
     for addr, n, what in ((0x0305C4B8, 2, "content area bottom (1)"), (0x0305C4EE, 2, "content area bottom (2)"),
                           (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer"),
                           (0x03059504, 4, "menu bar headphone glyph"),
+                          (0x030594D4, 4, "menu bar volume text"), (0x0305A4B0, 4, "volume message text"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
                            "menu header play time" if ECHO else "menu bar battery glyph")):
         allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
@@ -513,6 +514,11 @@ def main(orig_path, new_path):
         bg = 0x03059474 - RAM_OF_IMG
         check(a[bg:bg + 4] == bytes.fromhex("53f82250") and bl_target(b, bg, 0x03059474) == entl["battery_pct_shim"],
               "menu bar: battery glyph load -> bl battery_pct_shim (percentage text)")
+    for site, kind in ((0x030594D4, "bl"), (0x0305A4B0, "b.w")):
+        o = site - RAM_OF_IMG
+        t0 = bl_target(a, o, site) if kind == "bl" else bw_target(a, o, site)
+        t1 = bl_target(b, o, site) if kind == "bl" else bw_target(b, o, site)
+        check(t0 == 0x0305C09E and t1 == entl["vol_text"], f"volume text at {site:#x}: {kind} 0x305c09e -> vol_text")
     print("[13] buttons (both players)")
     M45k = 0x2A494
     entk = {k: int(v, 16) for k, v in entries.items()}

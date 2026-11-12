@@ -190,6 +190,18 @@ TIMECODE_BRANCH = 0x03059B3A   # menu header: `bhi.n 0x3059b8a` skips "▶ m:ss"
 BATTERY_GLYPH_LOAD = 0x03059474  # menu bar: `ldr.w r5,[r3,r2,lsl #2]` = battery glyph string by level
 
 
+VOL_TEXT_BAR = 0x030594D4    # menu bar: bl 0x305C09E (snprintf "%d dB", volume)
+VOL_TEXT_MSG = 0x0305A4B0    # volume message: b.w 0x305C09E ("%d dB")
+
+
+def volume_text(d, e):
+    """Both players: volume shown from 0 dB (RECHO's -90 dB) upward."""
+    put(d, VOL_TEXT_BAR - RAM_OF_IMG, thumb_bl(VOL_TEXT_BAR, 0x0305C09E), thumb_bl(VOL_TEXT_BAR, e["vol_text"]),
+        "menu bar volume text -> vol_text")
+    put(d, VOL_TEXT_MSG - RAM_OF_IMG, thumb_bw(VOL_TEXT_MSG, 0x0305C09E), thumb_bw(VOL_TEXT_MSG, e["vol_text"]),
+        "volume message text -> vol_text")
+
+
 def menu_bar(d, e, echo):
     """Menu bars: no headphone glyph (both); no play time on the Echo (the player strip has it);
     battery as a percentage on the Mini (the Echo's Up Next shows it)."""
@@ -254,6 +266,7 @@ def add_hooks(d, animation=True, echo=False):
             "POWER service tick pointer")
     key_remap(d, e)
     menu_bar(d, e, echo)
+    volume_text(d, e)
     ui_layout(d, e)
     if echo:
         if not animation:
