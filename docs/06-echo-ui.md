@@ -40,7 +40,7 @@ while RECHO is drawing. Each pass does at most one line or one cell. With the sc
 - **Storage safety:** before USB-disk mode RECHO clears queue-active and closes the store
   (`0x305BC30`), so the sidebar never reads storage while the PC owns it.
 
-## Now Playing (`patches/echo_np.c`, `np_draw`)
+## Now Playing (`patches/ui_np.c`, `np_draw`, both players)
 
 Module m45's draw entry `0x307A1F0` is replaced by `b.w np_draw`. The rest of m45 (key handler,
 labels) stays. `np_draw` draws the whole 320 × 170 frame buffer from RECHO's player data
@@ -58,7 +58,7 @@ labels) stays. `np_draw` draws the whole 320 × 170 frame buffer from RECHO's pl
 RECHO asks for a redraw every second while playing. The clock code asks once a minute so the time
 stays right while paused.
 
-## Cable chooser (`usb_draw`)
+## Cable chooser (`usb_draw`, both players)
 
 The `USBSEL` screen's draw pointer (`0x3060AD4`, was `0x3059EDD`) → `usb_draw`. Two halves in RECHO's
 style: Charge only (battery glyph, countdown from `0x030399BC`) and USB disk (drive glyph). The
@@ -73,7 +73,7 @@ cursor at `0x030041B4` picks the outlined, bright half. Key handling is RECHO's 
 - The band then shows `0x305AE28`'s message, if there is one, centred in orange on rows 245–270.
   Otherwise the line stays black.
 
-## Clock
+## Clock (`patches/clock.c`, both players)
 
 `clock_strings()` reads the clock chip with RECHO's own routines (`0x305DA2C` read, `0x305DAC4`
 decode). It reads at boot or wake and every 5 minutes, and counts from the ms clock in between. When
@@ -83,3 +83,16 @@ the date rolls over it reads again. Set the time in Settings → Clock.
 
 Blanks the whole panel, then pushes the 320 × 170 picture to columns 80–399, rows 75–244: the exact
 centre.
+
+## Echo Mini
+
+The Mini shares `ui_np.c` and `clock.c`. Its Now Playing top bar shows `time date … 1 / 9   87%`, since
+there is no Up Next column, and the 4.4 mm test is inverted (GPIO2.8 low = plugged). There is no space
+outside its 320 × 170 panel, so `hints_stub` on the Mini lets RECHO draw its bar only while it has a
+message, over the bottom rows. When the message ends it asks the screen to repaint those rows.
+
+## RECHO's own top bar on the Echo
+
+Menus, Files and Settings keep RECHO's top bar. On the Echo its battery glyph is skipped:
+`bl draw_text` at `0x30594A4` becomes two NOPs, and `rsb r4,r4,#304` at `0x30594A8` becomes
+`mov.w r4,#312`, so the volume moves to the right edge. The % in Up Next replaces it.

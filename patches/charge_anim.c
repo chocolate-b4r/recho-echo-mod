@@ -63,6 +63,10 @@ u32 power_tick_wrap(void)
         if (screen)
             request_redraw(screen);
     }
+    {
+        extern void clock_tick(void);     /* clock.c: top bars follow the minute */
+        clock_tick();
+    }
 #ifdef ECHO_PORT
     {
         extern void echo_hatch_tick(void);

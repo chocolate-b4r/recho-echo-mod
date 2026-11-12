@@ -141,7 +141,7 @@ ECHO_UPDATE_PREFIX = b"RECHOE"                     # -> RECHOEnn.IMG
 
 
 # Layout (stage 4): RECHO's button bar ("HINTS" layer) moves to the bottom of the panel,
-# screens keep rows 144..169 for content, Now Playing is centred (patches/echo_np.c).
+# screens keep rows 144..169 for content; Now Playing and cable chooser are drawn by patches/ui_np.c.
 CONTENT_BOTTOM_SITES = (0x0305C4B8, 0x0305C4EE)    # `movs r2,#143` (content ends above the bar)
 HINTS_DRAW_SLOT = 0x03060BBC                       # HINTS layer draw pointer (0x0305AEED)
 M45_IMG = 0x2A494                                  # module m45 (Now Playing), runs at MOD_BASE
@@ -154,7 +154,12 @@ NP_LABEL_MENU = 0x0307A1D8                         # m45 literal -> "menu"  (men
 HOLD_MENU_CALL = 0x0305BF18                        # fw1: hold menu -> bl 0x305BA3C (main menu)
 
 
-def echo_layout(d, e):
+BATTERY_GLYPH_DRAW = 0x030594A4                    # status bar: bl draw_text (battery glyph)
+VOLUME_X_BASE = 0x030594A8                         # status bar: rsb r4, r4, #304 (left of the glyph)
+
+
+def ui_layout(d, e):
+    """Both players: no button bar (content to row 169), new Now Playing and cable chooser."""
     for site in CONTENT_BOTTOM_SITES:
         put(d, site - RAM_OF_IMG, bytes([143, 0x22]), bytes([169, 0x22]), "content area to row 169")
     put(d, HINTS_DRAW_SLOT - RAM_OF_IMG, struct.pack("<I", 0x0305AEED), struct.pack("<I", e["hints_stub"] | 1),
@@ -164,6 +169,14 @@ def echo_layout(d, e):
     reseal_module(d, M45_IMG)
     put(d, USBSEL_DRAW_SLOT - RAM_OF_IMG, struct.pack("<I", 0x03059EDD), struct.pack("<I", e["usb_draw"] | 1),
         "USBSEL draw -> usb_draw")
+
+
+def echo_status_bar(d):
+    """Echo: the battery % in Up Next replaces the battery glyph in RECHO's own top bars."""
+    put(d, BATTERY_GLYPH_DRAW - RAM_OF_IMG, thumb_bl(BATTERY_GLYPH_DRAW, 0x03058D84), bytes.fromhex("00bf00bf"),
+        "status bar battery glyph -> nop")
+    put(d, VOLUME_X_BASE - RAM_OF_IMG, bytes.fromhex("c4f59874"), bytes.fromhex("4ff49c74"),
+        "status bar volume x base: rsb r4,r4,#304 -> mov.w r4,#312")
 
 
 
@@ -217,11 +230,12 @@ def add_hooks(d, animation=True, echo=False):
         put(d, s, struct.pack("<I", POWER_TICK_ORIG), struct.pack("<I", e["power_tick_wrap"] | 1),
             "POWER service tick pointer")
     key_remap(d, e)
+    ui_layout(d, e)
     if echo:
         if not animation:
             raise SystemExit("the Echo escape hatch rides on the POWER tick wrapper; keep the animation on")
         echo_port(d, e)
-        echo_layout(d, e)
+        echo_status_bar(d)
 
 
 

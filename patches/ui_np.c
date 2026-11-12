@@ -1,5 +1,5 @@
 /*
- * RECHO on the full-size Echo — screens drawn by the port (stage 5).
+ * Screens drawn by the mod (both players; Echo-only parts under ECHO_PORT).
  *
  *   np_draw      Now Playing, replaces module m45's draw (b.w at 0x307A1F0). Draws RECHO's
  *                320 x 170 frame buffer: top bar (time, date, queue position), "Artist - Song",
@@ -7,7 +7,9 @@
  *                a change), progress bar (red when paused), and one format line.
  *   usb_draw     cable chooser (USBSEL) draw, replaces the pointer at 0x3060AD4: two halves,
  *                Charge only / USB disk, the selected one outlined and bright.
- *   hints_stub   HINTS layer draw (0x3060BBC): the bar is drawn full width by echo_band.c.
+ *   hints_stub   HINTS layer draw (0x3060BBC). No button labels any more. Echo: notes that
+ *                the message line (echo_band.c) should update. Mini: draws RECHO's own bar only
+ *                while it has a message, over the bottom rows, and redraws the screen after.
  *
  * Data, all RECHO's own (read only):
  *   0x3057BD0 player state (1 playing, 2 paused)    0x3057BE4 elapsed ms
@@ -73,7 +75,27 @@ STATE volatile u32 hints_dirty = 1;
 STATE char title_buf[96] = {0};
 STATE char album_buf[96] = {0};
 
-extern void clock_strings(char *time, char *date);  /* echo_band.c */
+extern void clock_strings(char *time, char *date);  /* clock.c */
+
+#define current_screen FN(0x0305C41C, const volatile u32 *(*)(void))
+#define request_redraw FN(0x0305C51C, void (*)(const void *screen))
+#define bar_message    FN(0x0305AE28, const char *(*)(void))
+#define hints_draw     FN(0x0305AEEC, void (*)(void))
+STATE volatile u32 msg_shown = 0;
+
+/* 4.4 mm jack plugged? GPIO2.8: high on the Echo, low on the Echo Mini */
+static int jack_44(void)
+{
+#ifdef ECHO_PORT
+    return gpio_read(2, 8) != 0;
+#else
+    return gpio_read(2, 8) == 0;
+#endif
+}
+
+#ifndef ECHO_PORT
+static char *put_pct(char *p, char *end);
+#endif
 
 /* ---- helpers ------------------------------------------------------------------ */
 
@@ -199,7 +221,7 @@ static void format_line(char *out, int n, u32 *rg_colour_from)
         }
         p = put_str(p, SEP, end);
     }
-    p = put_str(p, gpio_read(2, 8) ? "4.4 mm" : "3.5 mm", end);
+    p = put_str(p, jack_44() ? "4.4 mm" : "3.5 mm", end);
     *rg_colour_from = 0;
     int mode = rg_mode();
     if (mode >= 1 && mode <= 3) {
@@ -223,14 +245,21 @@ void np_draw(void)
 {
     fill_rect(0, 0, W - 1, 169, BLACK);
     int loaded = queue_loaded();
-    char qpos[16] = {0};
+    char qpos[24];
+    qpos[0] = 0;
+    char *p = qpos;
     if (loaded) {
         const volatile int *qi = queue_info();
-        char *p = put_num(qpos, (u32)queue_index() + 1u, qpos + 15);
-        p = put_str(p, " / ", qpos + 15);
-        p = put_num(p, qi ? (u32)qi[1] : 0u, qpos + 15);
-        *p = 0;
+        p = put_num(qpos, (u32)queue_index() + 1u, qpos + 23);
+        p = put_str(p, " / ", qpos + 23);
+        p = put_num(p, qi ? (u32)qi[1] : 0u, qpos + 23);
     }
+#ifndef ECHO_PORT
+    if (p != qpos)                        /* Mini: no Up Next column, battery % goes here */
+        p = put_str(p, "   ", qpos + 23);
+    p = put_pct(p, qpos + 23);
+#endif
+    *p = 0;
     top_bar(qpos);
 
     if (!loaded) {
@@ -395,10 +424,33 @@ void usb_draw(void)
     text_centred(0, 3 * W / 4, 126, "files on the computer", 140, sel ? SOFT : DIM);
 }
 
-/* ---- HINTS layer: only note that the bar should be redrawn --------------------- */
+#ifndef ECHO_PORT
+static char *put_pct(char *p, char *end)
+{
+    int pm = BATTERY[1];
+    u32 pct = pm <= 0 ? 0u : (pm >= 1000 ? 100u : (u32)pm / 10u);
+    p = put_num(p, pct, end);
+    return put_str(p, "%", end);
+}
+#endif
+
+/* ---- HINTS layer -------------------------------------------------------------------- */
 
 void hints_stub(void)
 {
+#ifdef ECHO_PORT
     hints_dirty = 1;
+#else
+    const char *m = bar_message();
+    if (m && *m) {
+        hints_draw();                     /* RECHO's own bar: with a message it draws only that */
+        msg_shown = 1;
+    } else if (msg_shown) {
+        msg_shown = 0;                    /* message gone: let the screen repaint those rows */
+        const volatile u32 *scr = current_screen();
+        if (scr)
+            request_redraw((const void *)scr);
+    }
+#endif
 }
 

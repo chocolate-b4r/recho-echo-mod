@@ -1,7 +1,8 @@
 # recho-echo-mod
 
-Binary patches for **RECHO 0.10.1** (build `2d11bdcd`), a custom firmware for the FiiO / Snowsky
-**Echo Mini**, plus a port of the same firmware to the full-size **Snowsky Echo**.
+Binary patches for **[RECHO](https://recho.atzkey.workers.dev/) 0.10.1** (build `2d11bdcd`), an independent
+custom firmware for the FiiO / Snowsky **Echo Mini**, plus a port of it to the full-size **Snowsky Echo**.
+RECHO is not made by FiiO or Snowsky; they make the players and their stock firmware.
 
 Everything here is a script, C source or document. **No firmware image is included.** You patch
 your own copy of RECHO 0.10.1 and get a new image that a verifier checks byte by byte before you
@@ -9,8 +10,8 @@ flash anything.
 
 | Player | What you get |
 |---|---|
-| Echo Mini | Off-state charging screen, charging animation, 19 × 7 battery glyphs, menu without Spectrum / Supporters / Debug, shorter Settings, cable chooser "Charge only / USB disk" (no DAC) that powers off into the charging screen after 5 s, button remap |
-| Echo (full size) | All of the above, plus ST7796S panel support, Echo pin map, Up Next column, own Now Playing screen, two-halves cable chooser, centred charging screen, clock and battery in the top bars, no button-hint bar, RECHO's own updater re-enabled under Echo-only file names |
+| Echo Mini | Off-state charging screen, charging animation, 19 × 7 battery glyphs, menu without Spectrum / Supporters / Debug, shorter Settings, cable chooser "Charge only / USB disk" (no DAC) that powers off into the charging screen after 5 s, button remap, no button-hint bar, own Now Playing screen (clock, queue position, battery %, red paused state), two-halves cable chooser |
+| Echo (full size) | All of the above, plus ST7796S panel support, Echo pin map, Up Next column with battery %, centred layout and charging screen, RECHO's bar messages on their own line, battery glyph removed from RECHO's top bars, RECHO's own updater re-enabled under Echo-only file names |
 
 > **Use at your own risk.** Flashing custom firmware can leave a player unable to start until it
 > is recovered over USB. Read [docs/10-install-and-recovery.md](docs/10-install-and-recovery.md)
@@ -78,6 +79,7 @@ docs/      everything above
 
 ## Credits and licences
 
-See [NOTICE.md](NOTICE.md). RECHO is © its author; FiiO / Snowsky firmware is © FiiO. Facts about the
+See [NOTICE.md](NOTICE.md). RECHO is © its author ([recho.atzkey.workers.dev](https://recho.atzkey.workers.dev/));
+the players and their stock firmware are © FiiO / Snowsky. Facts about the
 full-size Echo (panel init table, pin map, maskrom procedure) were learnt from the Podium project
 (GPL). This repository's own code and documents are MIT licensed ([LICENSE](LICENSE)).

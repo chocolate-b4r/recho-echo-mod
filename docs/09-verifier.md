@@ -7,7 +7,7 @@ python tools/verify_image.py ORIGINAL.IMG PATCHED.IMG --echo   # full Echo
 
 It compares the patched image with the original **byte by byte**. It prints one line per check
 and exits non-zero with "do not flash" if any check fails. It also fails on the unpatched original
-(negative test). Current counts: 56 checks for the Mini, 86 for the Echo.
+(negative test). Current counts: 63 checks for the Mini, 85 for the Echo.
 
 | Section | What it checks | Why |
 |---|---|---|

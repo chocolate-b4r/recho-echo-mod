@@ -26,6 +26,18 @@ ALLOWED_CALLS = {0x03051E28, 0x03051C84, 0x03051638, 0x03051C48, 0x03051C60, 0x0
 ALLOWED_CALLS |= {0x0305B234, 0x0305BA3C}   # key remap (patches/keys.c): open module n, go to main menu
 ALLOWED_DATA = {0x03004000, 0x030401EC, 0x0303E73C, 0x030399C8}  # + current module id (key remap)  # base reg for the brightness read: ldr r7, [base, #0x1d4] = 0x030041D4
 
+# Both players: screens drawn by the mod (patches/ui_np.c) and the clock (patches/clock.c)
+UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, text width, RECHO's HINTS draw
+            0x03057BD0, 0x03057BE4, 0x03057BDC, 0x0305A194, 0x0305A1B0, 0x0305A1BC, 0x0305A8F8,
+            0x0305A1CC, 0x0305A1C4, 0x03057DB4, 0x03057DC0, 0x03059AE8,  # player / queue / tag / format
+            0x0305C41C, 0x0305AE28,                                       # current screen, bar message
+            0x0305DA2C, 0x0305DAC4}                                       # clock chip read / decode
+UI_DATA = {0x03034B48,                                                    # font table
+           0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
+           0x030041B4, 0x030399B8, 0x030399BC}                            # chooser cursor, countdown
+ALLOWED_CALLS |= UI_CALLS
+ALLOWED_DATA |= UI_DATA
+
 ECHO = False          # set by --echo: verify a full-size Echo stage-1 image
 HOOKS = "hooks"
 # Extra firmware routines / data / registers the Echo hooks may use (see patches/echo_port.c)
@@ -168,15 +180,16 @@ def main(orig_path, new_path):
     allowed.append((0x2BDD8, 0x2BDD8 + u32(a, 0x2BDD8 + 12), "module m48 (Settings)"))
     allowed.append((0x2A494, 0x2A494 + u32(a, 0x2A494 + 12), "module m45 (Now Playing)"))
     allowed.append((0x0305BF18 - RAM_OF_IMG, 0x0305BF18 - RAM_OF_IMG + 4, "hold-menu call"))
+    for addr, n, what in ((0x0305C4B8, 2, "content area bottom (1)"), (0x0305C4EE, 2, "content area bottom (2)"),
+                          (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer")):
+        allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
     if ECHO:
         for addr, n, what in ((0x0306B9F4, 4, "echo: panel init (boot)"), (0x0306C206, 4, "echo: panel init (wake)"),
                               (0x0306B20C, 4, "echo: window row offsets"), (0x03051590, 4, "echo: GPIO set entry"),
                               (0x03055EE8, 4, "echo: 4.4 mm read"), (0x03055F6A, 4, "echo: GPIO2.0 read"),
                               (0x03050FBE, 4, "echo: FW1 repair call"), (0x0305F3BF, 11, "echo: update file name"),
                               (0x0305F3CB, 6, "echo: update file prefix"),
-                              (0x0305C4B8, 2, "echo: content area bottom (1)"), (0x0305C4EE, 2, "echo: content area bottom (2)"),
-                              (0x03060BBC, 4, "echo: HINTS layer draw pointer"),
-                              (0x03060AD4, 4, "echo: cable chooser draw pointer")):
+                              (0x030594A4, 8, "echo: status-bar battery glyph and volume x")):
             allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
     io, isz = u32(a, 0x78 + 8 * ICONS_PART), u32(a, 0x7C + 8 * ICONS_PART)
     allowed.append((io, io + isz, "icon pack"))
@@ -244,9 +257,9 @@ def main(orig_path, new_path):
     check(hw <= hw_ok, f"hook touches only the expected hardware registers ({len(hw)})"
           + ("" if hw <= hw_ok else f" (also {[hex(x) for x in hw - hw_ok]})"))
     banned = {0x03058D84, 0x030599EC, 0x03059AB0, 0x03058D20, 0x030583A8, 0x0306C9EC, 0x03052806}
-    if ECHO:
-        # Which function's literal pool holds each banned call? Only the Up Next sidebar may draw
-        # text or read the queue; the charging screen, status bar and power paths still may not.
+    if True:
+        # Which function's literal pool holds each banned call? Screens may draw text; the
+        # charging screen and the power paths may not; storage only where intended.
         owner, where = None, {}
         for ln in dis.splitlines():
             m = re.match(r"^([0-9a-f]+) <(\w+)>:", ln)
@@ -262,9 +275,10 @@ def main(orig_path, new_path):
         tags = where.get(0x0305A8F8, set())
         check(tags and tags <= TAG_FNS, f"tag record read only by the Now Playing screen ({sorted(tags)})")
         qread = where.get(0x03064B64, set())
-        check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar tick ({sorted(qread)})")
-    else:
-        check(not (calls & banned), "hook draws no text, logs nothing, reads no storage")
+        if ECHO:
+            check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar tick ({sorted(qread)})")
+        else:
+            check(not qread, "no queue reads on the Echo Mini")
     sbw = struct.unpack_from("<HH", b, 0x0305945A - RAM_OF_IMG)
     check(struct.unpack_from("<HH", a, 0x0305945A - RAM_OF_IMG) == (0xF040, 0x8084) and sbw == (0xBF00, 0xBF00),
           "status bar: on-cable branch to the bolt glyph replaced by two NOPs")
@@ -389,6 +403,22 @@ def main(orig_path, new_path):
     check(row_of(b, 0x0307A0BA) == l1.index("Restore defaults"), "Restore-defaults hint follows its row")
     check(b[A0 + 0x0307A736 - B0] == n1 - 1, "select bound = row count - 1")
 
+    print("[12] layout (both players): no button bar, Now Playing and cable chooser screens")
+    entl = {k: int(v, 16) for k, v in entries.items()}
+    def atl(addr):
+        return addr - RAM_OF_IMG
+    for site in (0x0305C4B8, 0x0305C4EE):
+        check(a[atl(site):atl(site) + 2] == bytes([143, 0x22]) and b[atl(site):atl(site) + 2] == bytes([169, 0x22]),
+              f"content area bottom at {site:#x}: movs r2,#143 -> #169")
+    check(u32(a, atl(0x03060BBC)) == 0x0305AEED and u32(b, atl(0x03060BBC)) == (entl["hints_stub"] | 1)
+          and a[atl(0x03060B98):atl(0x03060B9D)] == b"HINTS",
+          "HINTS layer draw pointer -> hints_stub (labels gone; messages kept)")
+    o = 0x2A494 + 0x0307A1F0 - 0x0307A000
+    check(a[o:o + 4] == bytes.fromhex("2de9f04f") and bw_target(b, o, 0x0307A1F0) == entl["np_draw"],
+          "m45 draw entry 0x307a1f0: push {r4-r11,lr} -> b.w np_draw")
+    check(u32(a, atl(0x03060AD4)) == 0x03059EDD and u32(b, atl(0x03060AD4)) == (entl["usb_draw"] | 1)
+          and a[atl(0x03060AB0):atl(0x03060AB6)] == b"USBSEL",
+          "cable chooser (USBSEL) draw pointer -> usb_draw")
     print("[13] buttons (both players)")
     M45k = 0x2A494
     entk = {k: int(v, 16) for k, v in entries.items()}
@@ -408,8 +438,7 @@ def main(orig_path, new_path):
     body_a, body_b = a[M45k:M45k + u32(a, M45k + 12)], b[M45k:M45k + u32(b, M45k + 12)]
     diff = {k for k in range(len(body_a)) if body_a[k] != body_b[k]}
     ok_sites = set(range(24, 28)) | set(range(0x12C, 0x132)) | set(range(0x1D8, 0x1DC)) | set(range(0x1E8, 0x1EC))
-    if ECHO:
-        ok_sites |= set(range(0x1F0, 0x1F4))
+    ok_sites |= set(range(0x1F0, 0x1F4))
     check(diff <= ok_sites, f"m45 changed only at the patch sites and its CRC ({len(diff)} bytes)")
 
     if ECHO:
@@ -471,24 +500,10 @@ def main(orig_path, new_path):
         check(steps == pod, f"panel init in the image == Podium's ST7796S_STEPS ({len(steps)} commands)")
     if ECHO:
 
-        print("[12] full-size Echo layout (no button bar, Now Playing and cable chooser screens)")
-        for site in (0x0305C4B8, 0x0305C4EE):
-            check(a[at(site):at(site) + 2] == bytes([143, 0x22]) and b[at(site):at(site) + 2] == bytes([169, 0x22]),
-                  f"content area bottom at {site:#x}: movs r2,#143 -> #169")
-        check(u32(a, at(0x03060BBC)) == 0x0305AEED and u32(b, at(0x03060BBC)) == (ent["hints_stub"] | 1)
-              and a[at(0x03060B98):at(0x03060B9D)] == b"HINTS",
-              "HINTS layer draw pointer -> hints_stub (RECHO's routine is called by the band instead)")
-        M45 = 0x2A494
-        o = M45 + 0x0307A1F0 - 0x0307A000
-        check(a[o:o + 4] == bytes.fromhex("2de9f04f") and bw_target(b, o, 0x0307A1F0) == ent["np_draw"],
-              "m45 draw entry 0x307a1f0: push {r4-r11,lr} -> b.w np_draw")
-        body_a, body_b = a[M45:M45 + u32(a, M45 + 12)], b[M45:M45 + u32(b, M45 + 12)]
-        diff = [k for k in range(len(body_a)) if body_a[k] != body_b[k]]
-        sites = set(range(0x1F0, 0x1F4)) | set(range(24, 28)) | set(range(0x12C, 0x132))             | set(range(0x1D8, 0x1DC)) | set(range(0x1E8, 0x1EC))
-        check(set(diff) <= sites, f"m45 changed only at its draw entry, back-key tap, two labels and CRC ({len(diff)} bytes)")
-        check(u32(a, at(0x03060AD4)) == 0x03059EDD and u32(b, at(0x03060AD4)) == (ent["usb_draw"] | 1)
-              and a[at(0x03060AB0):at(0x03060AB6)] == b"USBSEL",
-              "cable chooser (USBSEL) draw pointer -> usb_draw")
+        print("[12b] Echo top bars")
+        check(bl_target(a, at(0x030594A4), 0x030594A4) == 0x03058D84 and b[at(0x030594A4):at(0x030594A8)] == bytes.fromhex("00bf00bf")
+              and a[at(0x030594A8):at(0x030594AC)] == bytes.fromhex("c4f59874") and b[at(0x030594A8):at(0x030594AC)] == bytes.fromhex("4ff49c74"),
+              "status bar: battery glyph not drawn (Up Next shows %), volume moves to the right edge")
         print("[11] full-size Echo stage 2 (Up Next sidebar)")
         bufs = [(0x03044000, 160 * 52 * 2, "shared strip"), (0x03048200, 276, "name buffer")]
         for lo, n, what in bufs:
