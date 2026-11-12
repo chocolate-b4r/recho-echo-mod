@@ -106,3 +106,13 @@ ignored while routed and for 500 ms after a change, because switching the pins f
   streaming, `CC` resumes it after such a pause (`0x3057C94`), ignoring echoes for 3 s.
 - Volume: RECHO sets the volume in the DAC chip, after the point the module listens on, so the
   module plays at its own fixed level (0x1E).
+
+### Device results so far (Echo)
+
+- Stage 21/22 (2026-11-13): connect, `CY0 1E` (answered `CY`), routing and the earbud buttons work;
+  no sound. Before routing RECHO already had every stock setting Podium lists (GRF `+0xC4` bit 0
+  clear, CRU `+0x84` `0xCD92`, `+0xA0` `0x7CF2`, `+0xC0` `0x026F`), GPIO2.9 low, GPIO2.0 high,
+  I2S1 `TXCR` `0x401F` and `CKR` `0x00033F3F` (identical to Podium at 44.1 kHz), I2S1 pins on group A.
+  GPIO2.1 reads **high while the jacks play**, so it is not an active-high mute here.
+- Silent: GPIO2.1 high with GPIO2.14 low or untouched, each with GPIO2.9 low or not.
+- Stage 23 tries GPIO2.1 low (with GPIO2.14 low / untouched) and GPIO2.2 (DAC B enable) low.

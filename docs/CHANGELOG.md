@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v22 | earbud pause / play work again (no longer tied to Bluetooth streaming) | built, verified |
 | v21 | smaller 12 x 12 menu icons (2x), narrower play icon | built, verified |
 | v20 | main menu keys work again (menu_draw sets the row count RECHO's own draw used to set); tip line and tab labels in the large font | built, verified |
 | v19 | **new main menu** (pixel-art tabs: Files, USB disk, Now playing, Bluetooth, Settings; big title, live details); About moved to the bottom of Settings (RECHO's About panel); Spectrum and Debug modules blanked | built, verified |
@@ -37,6 +38,8 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 23 | Bluetooth audio test round 2 (GPIO2.1 low, GPIO2.2 low variants); earbud pause / play not tied to streaming | built, verified |
+| 22 | Bluetooth audio test round 1 (variants, register log); quicker earbud play / pause | device: silent in all 4 |
 | 21 | **Bluetooth audio (first try)**: streams while connected, playing and no jack in use (DAC mute + wired output off, stock settings once, CY0 0x1E); headphone buttons skip / pause; next Up Next song brighter; menu icons as Mini v21 | built, verified |
 | 20 | as Mini v20 | built, verified |
 | 19 | as Mini v19 | built, verified |

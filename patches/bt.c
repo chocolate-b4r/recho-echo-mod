@@ -584,7 +584,7 @@ static void follow_player(u32 now)
             player_skip(-1);
         else if (r == 2u)
             player_skip(1);
-        else if (r == 3u && settled && bt_streamed && playing) {
+        else if (r == 3u && settled && playing) {
             player_pause(1);
             bt_buds_paused = 1;
         } else if (r == 4u && settled && bt_buds_paused && player_state() == 2) {
@@ -600,14 +600,19 @@ static void follow_player(u32 now)
 /* Route the music to the module (on) or back to the jacks. Podium's route_to_module() and
  * match_stock_housekeeping() (board/bluetooth.c), Echo pins from Podium's board_pins.c. */
 extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
-extern volatile u32 echo_mute_level, echo_wired_level;   /* echo_port.c: what RECHO last asked for */
+extern volatile u32 echo_mute_level, echo_wired_level, echo_dacb_level;   /* echo_port.c: RECHO's last requests */
 STATE volatile u32 bt_stock_done = 0;
 #define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
-/* Test build: each time streaming starts, the next routing variant is tried and logged.
- *   0  DAC mute GPIO2.1 high, wired output GPIO2.14 low   (Podium's route_to_module)
- *   1  DAC mute high, GPIO2.14 left as RECHO set it        (DAC A stays enabled)
- *   2  as 1, and GPIO2.9 low                               (Podium's notes)
- *   3  as 0, and GPIO2.9 low */
+/* Test build 2: each time streaming starts, the next routing variant is tried and logged.
+ * Round 1 (GPIO2.1 high with GPIO2.14 low or untouched, GPIO2.9 low or not) was silent, and
+ * GPIO2.1 already reads high while the jacks play, so this round tries it low:
+ *   0  GPIO2.1 low,  GPIO2.14 low
+ *   1  GPIO2.1 low,  GPIO2.14 untouched
+ *   2  GPIO2.1 high, GPIO2.14 untouched, GPIO2.2 (DAC B enable) low
+ *   3  GPIO2.1 low,  GPIO2.14 low,       GPIO2.2 low */
+#define V_MUTE_HIGH(v)  ((v) == 2u)
+#define V_WIRED_LOW(v)  ((v) == 0u || (v) == 3u)
+#define V_DACB_LOW(v)   ((v) == 2u || (v) == 3u)
 STATE volatile u32 bt_variant = 0;
 STATE volatile u32 bt_variant_used = 0;
 
@@ -645,13 +650,16 @@ void bt_route(u32 on)
         log_audio_state("before");
     }
     u32 v = bt_variant_used;
-    bt_routed = on ? (v == 1u || v == 2u ? 2u : 1u) : 0u;  /* 2 = leave GPIO2.14 alone */
+    /* bt_routed: bit 0 routed, bit 1 GPIO2.14 untouched, bit 2 GPIO2.1 held low */
+    bt_routed = on ? (1u | (V_WIRED_LOW(v) ? 0u : 2u) | (V_MUTE_HIGH(v) ? 0u : 4u)) : 0u;
     bt_changed_at = ms_now();
-    gpio_set_orig(2, 1, on ? 1u : echo_mute_level);       /* DAC mute */
-    if (!on || v == 0u || v == 3u)
-        gpio_set_orig(2, 14, on ? 0u : echo_wired_level); /* wired output */
-    if (on && (v == 2u || v == 3u))
-        gpio_set_orig(2, 9, 0);
+    gpio_set_orig(2, 1, on ? (V_MUTE_HIGH(v) ? 1u : 0u) : echo_mute_level);
+    if (!on || V_WIRED_LOW(v))
+        gpio_set_orig(2, 14, on ? 0u : echo_wired_level);
+    if (on && V_DACB_LOW(v))
+        gpio_set_orig(2, 2, 0);
+    else if (!on)
+        gpio_set_orig(2, 2, echo_dacb_level);
     if (LOG_TO_FILE)
         log_printf("bt: route %s (variant %u)", on ? "to the headphones" : "to the jacks", v);
     if (on)
