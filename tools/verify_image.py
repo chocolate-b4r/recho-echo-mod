@@ -46,14 +46,16 @@ ALLOWED_DATA |= UI_DATA
 # group, clock and reset registers, the "Log to file" settings byte, and the screen plumbing the
 # cable chooser uses (close the loaded module, switch screen, list keys).
 BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
-            0x0305BA54, 0x0305C3E4, 0x03059FE8}   # close module, switch screen, list keys
+            0x0305BA54, 0x0305C3E4, 0x03059FE8,   # close module, switch screen, list keys
+            0x03057C94, 0x0305AB80}               # pause / play and skip (headphone buttons)
 SHARED_CONSTS = set()   # `tbb` jump-table bytes are skipped by hook_literals(), so nothing here
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
-              "lyrics_tick"}   # + one line per track from the lyrics loader (Log to file on)
+              "lyrics_tick", "set_stream", "bt_route", "follow_player"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
-           0x40180038, 0x40180084, 0x401800A0, 0x401800C0}
+           0x40180038, 0x40180084, 0x401800A0, 0x401800C0,
+           0x500100C4, 0x50010014, 0x50010054}   # stock's start-up settings applied once before streaming (Podium)
 ALLOWED_CALLS |= BT_CALLS
 ALLOWED_DATA |= BT_DATA
 

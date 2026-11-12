@@ -80,8 +80,8 @@ static inline u32 lit(u32 v)
 #define GREY  0x8410u
 #define SOFT  0xC618u
 #define player_state FN(0x03057BD0, int (*)(void))
-#define NEXT_FIRST   0xC618u              /* the next song */
-#define NEXT_FIRST_P 0x9CF3u              /* ... while paused */
+#define NEXT_FIRST   0xE71Cu              /* the next song: clearly brighter than the rest */
+#define NEXT_FIRST_P 0xAD55u              /* ... while paused */
 #define NEXT_DIM     0x6B4Du              /* later Up Next lines */
 #define NEXT_DIM_P   0x52AAu              /* ... while paused */
 #define FONT  1

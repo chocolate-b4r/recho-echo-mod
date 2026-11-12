@@ -6,7 +6,10 @@
  *     Search / Stop / Disconnect         30 s scan ("CS00"), stop ("CP00"), disconnect ("CT00")
  *     one row per device found           select = connect ("CL06" + address, "CH06" 4 s later)
  *   Vol keys move, Play selects, Back or Menu returns to the main menu.
- *   No audio is sent to the module yet (step 3), so connected headphones stay silent.
+ *   Full-size Echo (step 3): while connected, playing and nothing is plugged into a jack, the
+ *   music goes to the headphones (bt_route): DAC mute GPIO2.1 high, wired output GPIO2.14 low,
+ *   stock's start-up register settings once, then "CY0" 0x1E. Headphone buttons skip and pause.
+ *   The Echo Mini has no routing yet (its pins are not known), so it connects but stays silent.
  *   The module is off at every start-up and is switched off before the charging screen.
  *
  * Protocol and hardware from Podium 4.6.0 (platform/device/logic/bt_module.c and
@@ -119,6 +122,17 @@ STATE u8 bt_rx[RX_MAX] = {0};
 STATE u8 bt_addr[DEV_MAX][6] = {{0}};
 STATE char bt_name[DEV_MAX][NAME_MAX] = {{0}};
 STATE char bt_conn_name[NAME_MAX] = {0};
+STATE volatile u32 bt_streamed = 0;       /* we asked the module to stream */
+STATE volatile u32 bt_play_state = 0;     /* module's view: 0 started, 1 paused, 2 playing */
+STATE volatile u32 bt_pending_at = 0;     /* send the stream frame after a play/pause notice */
+STATE volatile u32 bt_pending_on = 0;
+STATE volatile u32 bt_pending = 0;
+STATE volatile u32 bt_hello = 0;          /* "CY0 00" owed after connecting */
+STATE volatile u32 bt_wired = 0;          /* a jack was in use while playing */
+STATE volatile u32 bt_changed_at = 0;     /* last stream change */
+STATE volatile u32 bt_quiet_until = 0;    /* no status queries until (after a play report) */
+STATE volatile u32 bt_buds_paused = 0;
+STATE volatile u32 bt_remote = 0;         /* 1 prev, 2 next, 3 pause, 4 play: handled in the tick */
 
 /* ---- module and serial line ------------------------------------------------ */
 
@@ -187,8 +201,23 @@ static void address_command(char letter, u32 dev)  /* "C" letter "06" + address 
     send_bytes(f, 10);
 }
 
+#ifdef ECHO_PORT
+void bt_route(u32 on);
+#endif
+
 static void set_state(u32 s, u32 now)
 {
+    if (s == CONNECTED && bt_state != CONNECTED)
+        bt_hello = 1;
+    if (s != CONNECTED) {
+        bt_streamed = 0;
+        bt_pending = 0;
+        bt_play_state = 0;
+        bt_hello = 0;
+#ifdef ECHO_PORT
+        bt_route(0);
+#endif
+    }
     bt_state = s;
     bt_since = now;
     bt_last_query = now;
@@ -355,6 +384,18 @@ static void handle_frame(const u8 *b, u32 size, u32 now)
         if (bt_state == CONNECTED || bt_state == CONNECTING)
             set_state(READY, now);
         break;
+    case 'P':                                     /* the headphones report paused / playing */
+    case 'C':
+        bt_play_state = b[1] == 'C' ? 2u : 1u;
+        bt_quiet_until = now + 50000u;            /* as Podium: no status queries for a while */
+        bt_remote = b[1] == 'C' ? 4u : 3u;
+        break;
+    case 'A':
+        bt_remote = 1;
+        break;
+    case 'B':
+        bt_remote = 2;
+        break;
     default:
         break;
     }
@@ -412,8 +453,21 @@ void bt_power(u32 on)
 }
 
 /* charging screen / power off: module off, no logging, no drawing */
+#ifdef ECHO_PORT
+extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
+extern volatile u32 echo_mute_level, echo_wired_level;
+#endif
+extern volatile u32 bt_routed;
+
 void bt_shutdown(void)
 {
+#ifdef ECHO_PORT
+    if (bt_routed) {                              /* jacks get their pins back, quietly */
+        bt_routed = 0;
+        gpio_set_orig(2, 1, echo_mute_level);
+        gpio_set_orig(2, 14, echo_wired_level);
+    }
+#endif
     if (bt_state != OFF) {
         pins_off();
         bt_state = OFF;
@@ -452,6 +506,127 @@ static void disconnect(u32 now)
     bt_paired = 0;
     set_state(READY, now);
 }
+
+/* ---- streaming (Podium's rules: platform/device/logic/bt_module.c, app/bluetooth_link.c) ---- */
+
+#define player_state  FN(0x03057BD0, int (*)(void))
+#define jacks         FN(0x03055EC0, u32 (*)(void))
+#define player_pause  FN(0x03057C94, void (*)(int pause))   /* RECHO's Play key: 1 pause, 0 play */
+#define player_skip   FN(0x0305AB80, void (*)(int dir))     /* RECHO's hold keys: +1 next, -1 prev */
+#define ECHO_MS       3000u                                 /* ignore the headphones' echo of our change */
+
+static void stream_frame(u32 on)
+{
+    u8 f[5] = {'C', 'Y', '0', (u8)(on ? 0x1Eu : 0u), 0};
+    send_bytes(f, 5);
+}
+
+static void set_stream(u32 on, u32 now)
+{
+    u8 notice = 0;
+    if (on && bt_play_state == 1u) {
+        notice = 0x86;                            /* play notice first */
+        bt_play_state = 2;
+    } else if (!on && bt_play_state == 2u) {
+        notice = 0x87;                            /* pause notice first */
+        bt_play_state = 1;
+    }
+    if (notice) {
+        u8 f[5] = {'C', notice, '0', '0', 0};
+        send_bytes(f, 5);
+        bt_pending = 1;
+        bt_pending_on = on;
+        bt_pending_at = now + 100u;
+    } else {
+        stream_frame(on);
+    }
+    if (LOG_TO_FILE)
+        log_printf("bt: stream %s (notice %02x)", on ? "on" : "off", notice);
+}
+
+extern volatile u32 bt_routed;           /* ui_np.c: Now Playing shows "BT" */
+
+static void follow_player(u32 now)
+{
+    if (bt_hello) {                               /* first thing after connecting */
+        bt_hello = 0;
+        stream_frame(0);
+        return;
+    }
+    if (bt_pending && (int)(now - bt_pending_at) >= 0) {
+        bt_pending = 0;
+        stream_frame(bt_pending_on);
+    }
+    int playing = player_state() == 1;
+#ifdef ECHO_PORT
+    /* jack readings are not trusted while routed and for 500 ms after a routing change */
+    if (!playing)
+        bt_wired = 0;
+    else if (!bt_routed && now - bt_changed_at > 500u && jacks())
+        bt_wired = 1;
+    u32 stream = playing && !bt_wired;
+#else
+    u32 stream = 0;                               /* Mini: no routing yet */
+#endif
+    if (stream != bt_streamed) {
+        bt_streamed = stream;
+        bt_changed_at = now;
+        set_stream(stream, now);
+#ifdef ECHO_PORT
+        bt_route(stream);
+#endif
+    }
+    u32 r = bt_remote;
+    if (r) {
+        bt_remote = 0;
+        int settled = now - bt_changed_at >= ECHO_MS;
+        if (r == 1u)
+            player_skip(-1);
+        else if (r == 2u)
+            player_skip(1);
+        else if (r == 3u && settled && bt_streamed && playing) {
+            player_pause(1);
+            bt_buds_paused = 1;
+        } else if (r == 4u && settled && bt_buds_paused && player_state() == 2) {
+            player_pause(0);
+            bt_buds_paused = 0;
+        }
+    }
+    if (player_state() != 2)
+        bt_buds_paused = 0;
+}
+
+#ifdef ECHO_PORT
+/* Route the music to the module (on) or back to the jacks. Podium's route_to_module() and
+ * match_stock_housekeeping() (board/bluetooth.c), Echo pins from Podium's board_pins.c. */
+extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
+extern volatile u32 echo_mute_level, echo_wired_level;   /* echo_port.c: what RECHO last asked for */
+STATE volatile u32 bt_stock_done = 0;
+
+void bt_route(u32 on)
+{
+    if (on == bt_routed)
+        return;
+    if (on && !bt_stock_done) {
+        bt_stock_done = 1;
+        if (LOG_TO_FILE)
+            log_printf("bt: before stock settings GRF+C4 %08x CRU+84 %08x +A0 %08x +C0 %08x",
+                       REG(0x500100C4), REG(0x40180084), REG(0x401800A0), REG(0x401800C0));
+        REG(0x500100C4) = 0x00010000u;            /* GRF +0xC4 bit 0 cleared */
+        REG(0x40180084) = 0x00920092u;            /* gates 0x11, 0x14, 0x17 off */
+        REG(0x401800A0) = 0x00020002u;            /* gate 0x81 off */
+        REG(0x401800C0) = 0x00680068u;            /* I2S0 and SPI0/1 held in reset */
+        REG(0x50010014) = 0x00200020u;            /* jack sense pulls as stock */
+        REG(0x50010054) = 0x00010001u;
+    }
+    bt_routed = on;
+    bt_changed_at = ms_now();
+    gpio_set_orig(2, 1, on ? 1u : echo_mute_level);       /* DAC mute */
+    gpio_set_orig(2, 14, on ? 0u : echo_wired_level);     /* wired output */
+    if (LOG_TO_FILE)
+        log_printf("bt: route %s", on ? "to the headphones" : "to the jacks");
+}
+#endif
 
 /* ---- tick (POWER service, every main-loop pass) --------------------------------- */
 
@@ -506,8 +681,10 @@ void bt_tick(void)
     default:
         break;
     }
+    if (bt_state == CONNECTED)
+        follow_player(now);
     u32 period = bt_state == CONNECTING ? QUERY_FAST_MS : QUERY_MS;
-    if (now - bt_last_query >= period) {
+    if (now - bt_last_query >= period && (int)(now - bt_quiet_until) >= 0) {
         bt_last_query = now;
         command('Q');
     }

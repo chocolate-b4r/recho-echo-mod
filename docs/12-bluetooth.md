@@ -8,7 +8,7 @@ the next.
 | 1 | Diagnostic: power the module, open its serial line, log what it says | **works on both**: Mini `CV13`, Echo `CV15`, both answer `CQIOK` |
 | 2 | Diagnostic: scan, connect to the first device found, disconnect | **scan works on both**: the module answers `CKKK`, ends its search with `CSEN` after ~26 s; no headphones were in pairing mode |
 | 2b | Settings → Bluetooth: on/off, search, connect, disconnect (`patches/bt.c`) | built (Mini v14, Echo stage 13); replaces the diagnostic |
-| 3 | Route audio to the module and back to the jacks | planned |
+| 3 | Route audio to the module and back to the jacks | **Echo: built (stage 21), first device test pending**; Mini: pins unknown |
 
 ## Main menu → Bluetooth (step 2b, `patches/bt.c`)
 
@@ -88,3 +88,21 @@ bt diag: done, N bytes from the module, M status queries, version char 53 (0 = n
 | Reset / gates | CRU `+0xC0` bit 8 (reset), `+0x84` bit 13 (UART1 clock), `+0xA0` bit 9 (bus clock); write-masked |
 | Frames | ASCII `C` + letter + 2 characters, NUL-terminated. Module: `CV1x` when ready. Player: `CQ00` status query |
 | Log on/off | settings block `0x0303EDD0` byte 5 |
+
+## Step 3: audio to the headphones (full-size Echo, `bt_route` / `follow_player` in `patches/bt.c`)
+
+Podium's rules, unchanged: stream while connected, playing and no jack in use (jack readings are
+ignored while routed and for 500 ms after a change, because switching the pins fakes them).
+
+- On connect: `CY0` 0x00 once.
+- Stream on: `CY0` 0x1E (after a `C` 0x86 play notice if the headphones last reported paused).
+  Stream off: `CY0` 0x00 (after a `C` 0x87 pause notice if they last reported playing).
+- Routing on: DAC mute GPIO2.1 high, wired output GPIO2.14 low; the first time also stock's
+  start-up settings (GRF `+0xC4` = `0x00010000`, CRU `+0x84` = `0x00920092`, `+0xA0` = `0x00020002`,
+  `+0xC0` = `0x00680068`, jack pulls GRF `+0x14`/`+0x54`), logged with the old values. RECHO's own
+  writes to the two pins (through `gpio_set_echo`) are remembered and held back while routed, and
+  restored afterwards (also before the charging screen).
+- Headphone buttons: `CA`/`CB` skip back / forward (`0x305AB80`), `CP` pauses RECHO when we are
+  streaming, `CC` resumes it after such a pause (`0x3057C94`), ignoring echoes for 3 s.
+- Volume: RECHO sets the volume in the DAC chip, after the point the module listens on, so the
+  module plays at its own fixed level (0x1E).

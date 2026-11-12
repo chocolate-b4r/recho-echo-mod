@@ -48,10 +48,21 @@ __attribute__((naked)) void gpio_set_orig(u32 bank, u32 pin, u32 level)
         "1: .word 0x03051595\n");
 }
 
+#define STATE_P __attribute__((section(".text.port_state,\"ax\",%progbits@"), used))
+STATE_P volatile u32 echo_mute_level = 0;  /* RECHO's last DAC-mute request */
+STATE_P volatile u32 echo_wired_level = 1; /* RECHO's last wired-output request (GPIO2.14) */
+extern volatile u32 bt_routed;             /* ui_np.c / bt.c: music goes to Bluetooth */
+
 void gpio_set_echo(u32 bank, u32 pin, u32 level)
 {
     if (bank == 2 && pin == 0) {          /* Mini DAC mute -> Echo DAC mute GPIO2.1 */
-        gpio_set_orig(2, 1, level);
+        echo_mute_level = level;
+        gpio_set_orig(2, 1, bt_routed ? 1u : level);
+        return;
+    }
+    if (bank == 2 && pin == 14) {         /* wired output: kept off while Bluetooth plays */
+        echo_wired_level = level;
+        gpio_set_orig(2, 14, bt_routed ? 0u : level);
         return;
     }
     if (bank == 2 && pin == 1)            /* Mini DAC reset: the Echo has none */
