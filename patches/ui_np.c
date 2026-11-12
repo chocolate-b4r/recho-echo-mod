@@ -240,13 +240,6 @@ static char *put_qpos(char *p, char *end)
     return put_num(p, n, end);
 }
 
-static void play_glyph(int cx, int y, u32 c)        /* right-pointing triangle, 16 x 16 */
-{
-    for (int i = 0; i < 16; i++) {
-        int w = i < 8 ? i * 2 + 1 : (15 - i) * 2 + 1;
-        fill_rect(cx - 7, y + i, cx - 7 + w, y + i, c);
-    }
-}
 
 /* ---- top bar shared by Now Playing and the chooser --------------------------- */
 
@@ -508,6 +501,44 @@ static void format_at(int y, int paused)
 #endif
 
 static const char *output_label(char *buf, int n, u32 *colour);
+#ifdef ECHO_PORT
+extern const char *lyrics_line(void);
+#define FB_PX PTR(volatile u16 *, 0x03008A00)
+/* draw "a" then "b" (either may be 0) in the large font at 2x, centred on cx, top at y_top.
+ * Rendered first into scratch rows 152..(152 + h) of the frame buffer, cleared afterwards.
+ * Returns 0 (drawing nothing) when it would not fit in 300 px. */
+static int text2x_line(int cx, int y_top, const char *a, u32 ca, const char *b, u32 cb)
+{
+    const int sy = 152;                   /* below the 2x lyric (rows 111..140); nothing else drawn there */
+    int h = font_h(1);
+    int wa = (a && *a) ? text_width(1, a) : 0, ws = wa ? text_width(1, " - ") : 0;
+    int wb = (b && *b) ? text_width(1, b) : 0, w = wa + ws + wb;
+    if (!w || w > 150)
+        return 0;
+    fill_rect(0, sy, w + 1, sy + h, BLACK);
+    int x = 0;
+    if (wa) {
+        draw_text(1, x, sy, a, wa + 1, ca, -1);
+        x += wa;
+        draw_text(1, x, sy, " - ", ws + 1, GREY, -1);
+        x += ws;
+    }
+    if (wb)
+        draw_text(1, x, sy, b, wb + 1, cb, -1);
+    int x0 = cx - w;
+    for (int r = 0; r < h; r++)
+        for (int col = 0; col < w; col++) {
+            u16 px = FB_PX[(sy + r) * W + col];
+            int dx = x0 + col * 2, dy = y_top + r * 2;
+            FB_PX[dy * W + dx] = px;
+            FB_PX[dy * W + dx + 1] = px;
+            FB_PX[(dy + 1) * W + dx] = px;
+            FB_PX[(dy + 1) * W + dx + 1] = px;
+        }
+    fill_rect(0, sy, w + 1, sy + h, BLACK);
+    return 1;
+}
+#endif
 
 #ifndef ECHO_PORT
 /* "Next  Artist - Title" in the small font: the next entry in the play order (RECHO's own
@@ -604,12 +635,16 @@ void np_draw(void)
     int state = player_state();
     int paused = state == 2, playing = state == 1;
 
-    /* Artist - Song, album: spread over the whole 170-row picture */
-    track_line(Y_TITLE, paused);
-    const char *album = track_album();
-    text_centred(1, W / 2, Y_ALBUM, album, 300, paused ? DIM : GREY);
 #ifdef ECHO_PORT
+    /* Echo: "Artist - Song" at 2x when it fits, album, file info, a rule, then the lyric line
+     * being sung at 2x when it fits (the next one is in the strip below). Paused = dimmer. */
     {
+        const char *artist;
+        const char *title = track_title(&artist);
+        u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
+        if (!text2x_line(W / 2, 24, artist, c_art, title, c_title))
+            track_line(40, paused);
+        text_centred(1, W / 2, 68, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         u32 rg_unused;
         format_line_ex(info, sizeof info, &rg_unused, 0);
@@ -626,11 +661,36 @@ void np_draw(void)
             }
             *q = 0;
         }
-        if (info[0]) {
-            fill_rect(60, Y_RULE, W - 61, Y_RULE, RULE);
-            text_centred(0, W / 2, Y_INFO, info, 300, paused ? DIM : GREY);
+        text_centred(0, W / 2, 88, info, 300, paused ? DIM : GREY);
+        fill_rect(60, 100, W - 61, 100, RULE);
+
+        u32 lc = paused ? GREY : WHITE;
+        if (ms_now() - VOLUME_AT < 2000u) {
+            char v[24], *q = put_str(v, "Volume ", v + 23);
+            int db = VOLUME_DB;
+            if (db <= -128)
+                q = put_str(q, "muted", v + 23);
+            else {
+                q = put_num(q, (u32)(db + 90 > 0 ? db + 90 : 0), v + 23);
+                q = put_str(q, " dB", v + 23);
+            }
+            *q = 0;
+            text_centred(1, W / 2, 126, v, 300, WHITE);
+        } else {
+            const char *ly = lyrics_line();
+            if (ly && !text2x_line(W / 2, 111, 0, 0, ly, lc)) {
+                int f = text_width(1, ly) <= 304 ? 1 : 0;
+                text_centred(f, W / 2, 126, ly, 304, lc);
+            }
         }
     }
+    (void)playing;
+    return;
+#else
+    /* Artist - Song, album */
+    track_line(Y_TITLE, paused);
+    const char *album = track_album();
+    text_centred(1, W / 2, Y_ALBUM, album, 300, paused ? DIM : GREY);
 #endif
 
 #ifndef ECHO_PORT
@@ -654,37 +714,6 @@ void np_draw(void)
     (void)playing;
     return;
 #endif
-    /* state glyph, or the volume for 2 s after it changed */
-    u32 now = ms_now();
-    int gy = Y_GLYPH - 8;
-    if (now - VOLUME_AT < 2000u) {
-        char v[16], *q = v;
-        int db = VOLUME_DB;
-        if (db > -128)
-            db += 90;                     /* shown from 0 dB (RECHO's quietest step) upward */
-        if (db <= -128) {
-            q = put_str(q, "muted", v + 15);
-        } else {
-            if (db < 0) {
-                *q++ = '-';
-                db = -db;
-            }
-            q = put_num(q, (u32)db, v + 15);
-            q = put_str(q, " dB", v + 15);
-        }
-        *q = 0;
-        text_centred(1, W / 2, Y_GLYPH, v, 200, WHITE);
-    } else if (paused) {
-        int wp = text_width(1, "PAUSED"), total = 12 + 8 + wp, x = (W - total) / 2;
-        fill_rect(x, gy, x + 3, gy + 15, RED);
-        fill_rect(x + 8, gy, x + 11, gy + 15, RED);
-        text_at(1, x + 20, Y_GLYPH, "PAUSED", wp + 1, RED);
-    } else if (playing) {
-        play_glyph(W / 2, gy, WHITE);
-    } else {
-        fill_rect(W / 2 - 7, gy + 1, W / 2 + 7, gy + 15, GREY);
-    }
-
 }
 
 /* ---- player strip under RECHO's picture (Echo) ---------------------------------------
@@ -693,7 +722,7 @@ void np_draw(void)
  *          Now Playing: the format line; other screens: "▶ Artist - Song"
  *   row 1: progress bar and times */
 #ifdef ECHO_PORT
-extern const char *lyrics_line(void);
+extern const char *lyrics_next_line(void);
 
 void footer_row(int row, int on_now_playing)
 {
@@ -702,6 +731,14 @@ void footer_row(int row, int on_now_playing)
     if (!loaded) {
         if (row == 0)
             text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
+        return;
+    }
+    if (row == 0 && on_now_playing) {
+        const char *nl = lyrics_next_line();
+        if (nl) {
+            int font = text_width(1, nl) <= 304 ? 1 : 0;
+            text_centred(font, W / 2, 13, nl, 304, DIM);
+        }
         return;
     }
     if (row == 0) {
@@ -912,19 +949,55 @@ static const struct menu_item MENU_ITEMS[5] = {
 
 /* tab glyphs: RECHO's own icons (folder U+E012, disc U+E011, wrench U+E015), "sys" for the
  * USB disk, and the pixel Bluetooth rune; the selected one between "<" and ">" */
-/* 15 x 15 tab icons in the icon pack's outline style (square pixels) */
-static const char *const TAB_FOLDER[15] = {
-    "...............", "...............", "...............", ".####..........", "#....#.........",
-    "#.....########.", "#.............#", "#.............#", "#.............#", "#.............#",
-    "#.............#", "#.............#", ".#############.", "...............", "..............."};
-static const char *const TAB_DISC[15] = {
-    ".....#####.....", "...##.....##...", "..#.........#..", ".#...........#.", ".#....###....#.",
-    "#....#...#....#", "#...#.....#...#", "#...#..#..#...#", "#...#.....#...#", "#....#...#....#",
-    ".#....###....#.", ".#...........#.", "..#.........#..", "...##.....##...", ".....#####....."};
+/* the owner's 16 px tab icons (folder 16 x 14, disc 16 x 16, wrench 16 x 15), square pixels */
+static const char *const TAB_FOLDER[14] = {
+    "..#####.........",
+    ".#.....#........",
+    "#.......#.......",
+    "#........######.",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    ".#............#.",
+    "..############.."};
+static const char *const TAB_DISC[16] = {
+    ".....######.....",
+    "...##########...",
+    "..###.########..",
+    ".###.#.########.",
+    ".##.#.#########.",
+    "####.#....######",
+    "#####......#####",
+    "#####..##..#####",
+    "#####..##..#####",
+    "#####......#####",
+    "######....#.####",
+    ".#########.#.##.",
+    ".########.#.###.",
+    "..########.###..",
+    "...##########...",
+    ".....######....."};
 static const char *const TAB_WRENCH[15] = {
-    "..........#..#.", "..........#..#.", ".........##..##", ".........#....#", "........#....#.",
-    ".......#....#..", "......#....#...", ".....#....#....", "....#....#.....", "...#....#......",
-    "..#....#.......", ".#....#........", "#....#.........", "#...#..........", ".###..........."};
+    ".....####.......",
+    "....#....#......",
+    ".....#....#.....",
+    "......#....#....",
+    ".#.....#...#....",
+    "#.#....#...#....",
+    "#..#...#...#....",
+    "#...###....#....",
+    "#..........#....",
+    ".#..........#...",
+    "..#..........#..",
+    "...######.....#.",
+    ".........#.....#",
+    "..........#.....",
+    "...........#...."};
 
 static void bitmap1x(const char *const *rows, int n, int x0, int y0, u32 c)
 {
@@ -944,7 +1017,7 @@ static void menu_tab(u32 i, int cx, int cy, u32 c)
 {
     switch (i) {
     case 0:
-        bitmap1x(TAB_FOLDER, 15, cx - 7, cy - 7, c);
+        bitmap1x(TAB_FOLDER, 14, cx - 8, cy - 7, c);
         break;
     case 1: {
         int w = text_width(1, "sys");
@@ -952,13 +1025,13 @@ static void menu_tab(u32 i, int cx, int cy, u32 c)
         break;
     }
     case 2:
-        bitmap1x(TAB_DISC, 15, cx - 7, cy - 7, c);
+        bitmap1x(TAB_DISC, 16, cx - 8, cy - 8, c);
         break;
     case 3:
         bitmap1x(ICON_BT, 12, cx - 6, cy - 6, c);
         break;
     default:
-        bitmap1x(TAB_WRENCH, 15, cx - 7, cy - 7, c);
+        bitmap1x(TAB_WRENCH, 15, cx - 8, cy - 7, c);
         break;
     }
 }

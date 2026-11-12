@@ -268,3 +268,31 @@ const char *lyrics_line(void)
     lrc_line[o] = 0;
     return o ? lrc_line : 0;
 }
+
+STATE char lrc_next[TEXT_MAX] = {0};
+
+/* the line after the one being sung (for the strip under Now Playing), or 0 */
+const char *lyrics_next_line(void)
+{
+    int k = lyrics_index() + 1;
+    if (k < 0 || (u32)k >= lrc_count)
+        return 0;
+    const char *s = LRC_BUF + lrc_text[k];
+    u32 o = 0;
+    while (*s && *s != '\n' && *s != '\r' && o < TEXT_MAX - 1) {
+        if (*s == '<') {
+            const char *e = s + 1;
+            while (*e && *e != '>' && *e != '\n' && *e != '\r' && e - s < 12)
+                e++;
+            if (*e == '>') {
+                s = e + 1;
+                continue;
+            }
+        }
+        lrc_next[o++] = *s++;
+    }
+    while (o && lrc_next[o - 1] == ' ')
+        o--;
+    lrc_next[o] = 0;
+    return o ? lrc_next : 0;
+}

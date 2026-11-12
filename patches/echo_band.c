@@ -62,6 +62,9 @@ extern void echo_panel_fill(u32 x0, u32 y0, u32 x1, u32 y1, u32 colour);
 #define elapsed_ms     FN(0x03057BE4, u32 (*)(void))
 #define queue_index    FN(0x0305A1B0, int (*)(void))
 STATE volatile u32 strip_key = 0xFFFFFFFFu;
+STATE volatile u32 band_lyric_shown = 0xFFFFFFFFu;
+#define current_screen_b FN(0x0305C41C, const void *(*)(void))
+#define request_redraw_b FN(0x0305C51C, void (*)(const void *screen))
 
 extern void footer_row(int row, int on_now_playing);
 extern void lyrics_tick(void);
@@ -105,6 +108,15 @@ void echo_band_tick(void)
     lyrics_tick();                       /* reads the track's .lrc once, only while the screen is on */
     const char *msg = bar_message();
     int on_np = CURRENT_MODULE == 45u;
+    {
+        int li = lyrics_index();
+        if (on_np && (u32)li != band_lyric_shown) {   /* the picture shows the current lyric */
+            const void *scr = current_screen_b();
+            if (scr)
+                request_redraw_b(scr);
+        }
+        band_lyric_shown = (u32)li;
+    }
     int state = player_state();
     u32 key = message_hash(msg) ^ ((u32)on_np << 31) ^ ((u32)state << 28) ^ ((u32)queue_index() << 16)
               ^ (state == 1 ? elapsed_ms() / 1000u : 0u) ^ ((u32)(lyrics_index() + 1) << 20);

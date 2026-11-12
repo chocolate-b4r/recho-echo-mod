@@ -159,3 +159,7 @@ every `CY0` (the parser used to keep only `CY`), to see whether it answers with 
 - FiiO's player overlay (entry `0x568`) reads the Bluetooth-connected flag (`+0x344`) on pause / play
   (sends the `C 87` / `C 86` notices there) and keeps a **separate Bluetooth volume** (`+21`, wired
   `+19`). Not yet traced: what that volume drives (the `CY0` level, or a digital gain). Next lead.
+- FiiO's Bluetooth volume (`0x0302234C` + 21) only feeds the volume bar drawing (`0x30831EC`), nothing
+  in the audio path.
+- Stage 29 (last attempt): routes for the whole connection from the moment it connects, as FiiO's
+  connect step does, and only streams (`CY0 1E` / `00`) with play / pause.

@@ -456,6 +456,10 @@ ECHO_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B)   # battery cells: 
 # Both players now: the menu bar shows no headphone glyph (Now Playing names the output) and the
 # Mini's menu bar shows the battery as a percentage, so these glyphs are drawn nowhere.
 BAR_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B, 0xE00E, 0xE00F, 0xE010)
+# The main menu is drawn by menu_draw with its own bitmaps: RECHO's Power off and About row icons
+# are drawn nowhere now. On the Echo the menu header's play / pause glyphs are skipped too.
+MENU_UNUSED_ICONS = (0xE017, 0xE02A)
+ECHO_ONLY_UNUSED_ICONS = (0xE000, 0xE001)
 
 
 def main():
@@ -508,7 +512,8 @@ def main():
         from icons import do_import
         do_import(a.dst, a.icons, a.dst)
     from icons import blank
-    blank(a.dst, tuple(sorted(set(UNUSED_ICONS + BAR_UNUSED_ICONS))), a.dst)
+    blank(a.dst, tuple(sorted(set(UNUSED_ICONS + BAR_UNUSED_ICONS + MENU_UNUSED_ICONS
+                                  + (ECHO_ONLY_UNUSED_ICONS if a.echo else ())))), a.dst)
     ok = info(open(a.dst, "rb").read())
     if not ok:
         raise SystemExit("seal check failed")

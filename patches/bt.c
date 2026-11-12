@@ -588,12 +588,17 @@ static void follow_player(u32 now)
     }
     int playing = player_state() == 1;
 #ifdef ECHO_PORT
-    /* jack readings are not trusted while routed and for 500 ms after a routing change */
-    if (!playing)
-        bt_wired = 0;
-    else if (!bt_routed && now - bt_changed_at > 500u && jacks())
-        bt_wired = 1;
-    u32 stream = playing && !bt_wired;
+    /* As FiiO 2.0.0 does (0x3067726): the music is routed to the module for the whole
+     * connection, from the moment it connects, unless headphones are plugged in; the stream
+     * (CY0 1E / 00) then follows play / pause. Jack readings are not trusted while routed and
+     * for 500 ms after a routing change, so a plug is only seen before routing. */
+    if (!bt_routed && now - bt_changed_at > 500u)
+        bt_wired = jacks() ? 1u : 0u;
+    if (!bt_wired && !bt_routed) {
+        bt_route(1);
+        bt_changed_at = now;
+    }
+    u32 stream = playing && bt_routed;
 #else
     u32 stream = 0;                               /* Mini: no routing yet */
 #endif
@@ -601,9 +606,6 @@ static void follow_player(u32 now)
         bt_streamed = stream;
         bt_changed_at = now;
         set_stream(stream, now);
-#ifdef ECHO_PORT
-        bt_route(stream);
-#endif
     }
     u32 r = bt_remote;
     if (r) {
