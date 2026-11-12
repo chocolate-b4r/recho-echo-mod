@@ -513,7 +513,7 @@ static void disconnect(u32 now)
 #define jacks         FN(0x03055EC0, u32 (*)(void))
 #define player_pause  FN(0x03057C94, void (*)(int pause))   /* RECHO's Play key: 1 pause, 0 play */
 #define player_skip   FN(0x0305AB80, void (*)(int dir))     /* RECHO's hold keys: +1 next, -1 prev */
-#define ECHO_MS       3000u                                 /* ignore the headphones' echo of our change */
+#define ECHO_MS       800u                                  /* ignore the headphones' echo of our change */
 
 static void stream_frame(u32 on)
 {
@@ -602,10 +602,30 @@ static void follow_player(u32 now)
 extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
 extern volatile u32 echo_mute_level, echo_wired_level;   /* echo_port.c: what RECHO last asked for */
 STATE volatile u32 bt_stock_done = 0;
+#define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
+/* Test build: each time streaming starts, the next routing variant is tried and logged.
+ *   0  DAC mute GPIO2.1 high, wired output GPIO2.14 low   (Podium's route_to_module)
+ *   1  DAC mute high, GPIO2.14 left as RECHO set it        (DAC A stays enabled)
+ *   2  as 1, and GPIO2.9 low                               (Podium's notes)
+ *   3  as 0, and GPIO2.9 low */
+STATE volatile u32 bt_variant = 0;
+STATE volatile u32 bt_variant_used = 0;
+
+static void log_audio_state(const char *when)
+{
+    if (!LOG_TO_FILE)
+        return;
+    log_printf("bt: %s variant %u: I2S1 TXCR %08x RXCR %08x CKR %08x XFER %08x DMACR %08x FIFOLR %08x",
+               when, bt_variant_used, REG(0x40030000), REG(0x40030004), REG(0x40030008), REG(0x4003001C),
+               REG(0x40030010), REG(0x4003000C));
+    log_printf("bt: %s pins 0.14=%u 2.0=%u 2.1=%u 2.2=%u 2.9=%u 2.14=%u 1.4=%u GRF+BC %08x +C4 %08x",
+               when, gpio_read_pin(0, 14), gpio_read_pin(2, 0), gpio_read_pin(2, 1), gpio_read_pin(2, 2),
+               gpio_read_pin(2, 9), gpio_read_pin(2, 14), gpio_read_pin(1, 4), REG(0x500100BC), REG(0x500100C4));
+}
 
 void bt_route(u32 on)
 {
-    if (on == bt_routed)
+    if ((on != 0u) == (bt_routed != 0u))
         return;
     if (on && !bt_stock_done) {
         bt_stock_done = 1;
@@ -619,12 +639,23 @@ void bt_route(u32 on)
         REG(0x50010014) = 0x00200020u;            /* jack sense pulls as stock */
         REG(0x50010054) = 0x00010001u;
     }
-    bt_routed = on;
+    if (on) {
+        bt_variant_used = bt_variant;
+        bt_variant = (bt_variant + 1u) & 3u;
+        log_audio_state("before");
+    }
+    u32 v = bt_variant_used;
+    bt_routed = on ? (v == 1u || v == 2u ? 2u : 1u) : 0u;  /* 2 = leave GPIO2.14 alone */
     bt_changed_at = ms_now();
     gpio_set_orig(2, 1, on ? 1u : echo_mute_level);       /* DAC mute */
-    gpio_set_orig(2, 14, on ? 0u : echo_wired_level);     /* wired output */
+    if (!on || v == 0u || v == 3u)
+        gpio_set_orig(2, 14, on ? 0u : echo_wired_level); /* wired output */
+    if (on && (v == 2u || v == 3u))
+        gpio_set_orig(2, 9, 0);
     if (LOG_TO_FILE)
-        log_printf("bt: route %s", on ? "to the headphones" : "to the jacks");
+        log_printf("bt: route %s (variant %u)", on ? "to the headphones" : "to the jacks", v);
+    if (on)
+        log_audio_state("after");
 }
 #endif
 

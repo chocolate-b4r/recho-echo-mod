@@ -62,7 +62,7 @@ void gpio_set_echo(u32 bank, u32 pin, u32 level)
     }
     if (bank == 2 && pin == 14) {         /* wired output: kept off while Bluetooth plays */
         echo_wired_level = level;
-        gpio_set_orig(2, 14, bt_routed ? 0u : level);
+        gpio_set_orig(2, 14, bt_routed == 1u ? 0u : level);   /* 2: test variant keeps it */
         return;
     }
     if (bank == 2 && pin == 1)            /* Mini DAC reset: the Echo has none */
