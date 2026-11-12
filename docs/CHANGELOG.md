@@ -39,6 +39,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 25 | Bluetooth diagnostic: raw module reply to each `CY0` logged | built, verified |
 | 24 | queue number = position in the play order; Bluetooth routing fixed to Podium's (no test variants) | built, verified |
 | 23 | Bluetooth audio test round 2 (GPIO2.1 low, GPIO2.2 low variants); earbud pause / play not tied to streaming | built, verified |
 | 22 | Bluetooth audio test round 1 (variants, register log); quicker earbud play / pause | device: silent in all 4 |

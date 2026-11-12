@@ -52,7 +52,7 @@ BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
             0x03057C94, 0x0305AB80}               # pause / play and skip (headphone buttons)
 SHARED_CONSTS = set()   # `tbb` jump-table bytes are skipped by hook_literals(), so nothing here
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
-              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state"}   # + one line per track from the lyrics loader (Log to file on)
+              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,

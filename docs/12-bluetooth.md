@@ -117,3 +117,20 @@ ignored while routed and for 500 ms after a change, because switching the pins f
 - Silent: GPIO2.1 high with GPIO2.14 low or untouched, each with GPIO2.9 low or not.
 - Stage 23 (round 2): GPIO2.1 low with GPIO2.14 low / untouched, GPIO2.2 (DAC B enable) low, and all
   three low: all silent. Pin routing is ruled out; next step is FiiO's stock Echo firmware itself.
+
+### FiiO's stock Echo 2.0.0 (`ECHOV200.IMG`), decompiled
+
+Same RKnano container. The load row at `0x200` gives the main code: loaded from `0x030795CC`
+(file offset = address - `0x0304FE00` = `0x297CC`), run at `0x03050000`, `0x2B8F0` bytes.
+
+- `0x30672AE(letter, arg)` builds `C` letter `0` arg (`CY0` + level); `0x30672CA(notice)` the
+  `C 86/87 00` notices; `0x3067304` is the Bluetooth loop (`CL` + address to connect, `CQ` status);
+  `0x30512A0` sends the buffer (`0x300555C`, length at `0x3004100`) through the UART1 driver.
+  The only commands are `CL`, `CQ`, `CY0` and the notices, as in Podium and here.
+- On connect (`0x3067726`): GPIO2.1 **high**, GPIO2.14 **low** (`0x30527D4` mux, `0x3056388`
+  direction, `0x30563C2` level, all bank 2). On disconnect (`0x306778A`): GPIO2.1 low, GPIO2.14 high.
+  Then `CY0 1E` when playing / `CY0 00` when not (flags `0x1D4` / `0x1D3`).
+- The codec clock set-up (`0x3051646`, ACODEC `+0x200`..`+0x214`) is the same as RECHO's (`0x3055A0C`).
+
+So FiiO's Bluetooth steps are what stage 21 already does. Stage 25 logs the module's raw reply to
+every `CY0` (the parser used to keep only `CY`), to see whether it answers with an error.

@@ -408,11 +408,37 @@ static void drop_front(u32 k)
     bt_rx_len -= k;
 }
 
+/* raw capture: every byte for 300 ms after a CY0 command, logged as hex (diagnostic) */
+STATE volatile u32 bt_raw_until = 0;
+STATE volatile u32 bt_raw_len = 0;
+STATE volatile u32 bt_raw_open = 0;
+STATE u8 bt_raw[24] = {0};
+STATE char bt_raw_hex[24 * 3 + 1] = {0};
+
+static void raw_flush(u32 now)
+{
+    if (!bt_raw_open || (int)(now - bt_raw_until) < 0)
+        return;
+    bt_raw_open = 0;
+    static const char HX[] = "0123456789abcdef";
+    char *h = bt_raw_hex;
+    for (u32 i = 0; i < bt_raw_len; i++) {
+        *h++ = HX[bt_raw[i] >> 4];
+        *h++ = HX[bt_raw[i] & 15];
+        *h++ = ' ';
+    }
+    *h = 0;
+    if (LOG_TO_FILE)
+        log_printf("bt: raw after CY0: %u bytes [%s]", bt_raw_len, bt_raw_hex);
+}
+
 static void receive(u32 now)
 {
     for (u32 n = 0; n < 128u && (UART_LSR & 1u); n++) {
         u8 c = (u8)UART_DATA;
         bt_last_rx = now;
+        if (bt_raw_open && bt_raw_len < sizeof bt_raw)
+            bt_raw[bt_raw_len++] = c;
         if (bt_rx_len == 0 && c != 'C')
             continue;                             /* resync on 'C' (also drops the NULs) */
         if (bt_rx_len < RX_MAX)
@@ -518,6 +544,9 @@ static void disconnect(u32 now)
 static void stream_frame(u32 on)
 {
     u8 f[5] = {'C', 'Y', '0', (u8)(on ? 0x1Eu : 0u), 0};
+    bt_raw_len = 0;
+    bt_raw_open = 1;
+    bt_raw_until = ms_now() + 300u;
     send_bytes(f, 5);
 }
 
@@ -719,6 +748,7 @@ void bt_tick(void)
     default:
         break;
     }
+    raw_flush(now);
     if (bt_state == CONNECTED)
         follow_player(now);
     u32 period = bt_state == CONNECTING ? QUERY_FAST_MS : QUERY_MS;
