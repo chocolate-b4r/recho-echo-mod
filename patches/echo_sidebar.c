@@ -69,9 +69,9 @@ static inline u32 lit(u32 v)
 #define SB_W      160
 #define LINE_H    18
 #define HEADER_H  22                      /* lines up with the screen's top bar */
-#define LINES     8                       /* 22 + 8 x 18 = 166 rows, beside RECHO's 170 */
+#define LINES     11                      /* 22 + 11 x 18 = 220 of the 222 visible rows */
 #define PANEL_X   320
-#define PANEL_Y0  75                      /* same top row as RECHO's screen */
+#define PANEL_Y0  49                      /* top visible row, same as RECHO's picture */
 #define NAME_MAX  276                     /* the lookup copies exactly this many bytes */
 #define SETTLE_MS 300u                    /* let rapid skipping finish first */
 
@@ -201,6 +201,10 @@ static void draw_entry(u32 i)
                 sb_walk = 0;                         /* lookup failed: stop, never retry here */
             }
         }
+    }
+    if (i == 0) {
+        extern void np_set_next(const char *name);   /* ui_np.c: "Next" in the player strip */
+        np_set_next(text);
     }
     draw_line(HEADER_H + (int)i * LINE_H, LINE_H, text, i == 0 ? WHITE : SOFT, 0);
 }

@@ -242,6 +242,117 @@ static void format_line(char *out, int n, u32 *rg_colour_from)
     *p = 0;
 }
 
+/* ---- pieces shared by Now Playing and the Echo's player strip ---------------------- */
+
+#ifdef ECHO_PORT
+#define Y_TITLE    48
+#define Y_ALBUM    76
+#define Y_GLYPH    112
+#define Y_PROGRESS 150
+#else
+#define Y_TITLE    44
+#define Y_ALBUM    70
+#define Y_GLYPH    100
+#define Y_PROGRESS 132
+#define Y_FORMAT   156
+#endif
+
+static const char *track_title(const char **artist)
+{
+    const char *tags = tag_record(queue_index());
+    if (tags && tags[0]) {
+        *artist = tags[160] ? tags + 160 : 0;
+        return tags;
+    }
+    *artist = 0;
+    return without_ext(file_name(), title_buf, sizeof title_buf);
+}
+
+static const char *track_album(void)
+{
+    const char *tags = tag_record(queue_index());
+    if (tags && tags[0])
+        return tags[256] ? tags + 256 : 0;
+    return without_ext(folder_name(), album_buf, sizeof album_buf);
+}
+
+/* "Artist - Song" from x (or centred when x < 0), artist light grey, song white */
+static void track_line_xy(int x_or_centre, int y, int paused)
+{
+    const char *artist;
+    const char *title = track_title(&artist);
+    u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
+    int room = x_or_centre < 0 ? 300 : W - 8 - x_or_centre;
+    int wt = text_width(1, title), wa = artist ? text_width(1, artist) : 0, ws = text_width(1, " - ");
+    if (artist && wa + ws + wt <= room) {
+        int x = x_or_centre < 0 ? (W - (wa + ws + wt)) / 2 : x_or_centre;
+        x += text_at(1, x, y, artist, wa + 1, c_art);
+        x += text_at(1, x, y, " - ", ws + 1, GREY);
+        text_at(1, x, y, title, wt + 1, c_title);
+    } else if (x_or_centre < 0) {
+        text_centred(1, W / 2, y, title, 300, c_title);
+    } else {
+        text_at(1, x_or_centre, y, title, room, c_title);
+    }
+}
+
+static void track_line(int y, int paused)
+{
+    track_line_xy(-1, y, paused);
+}
+
+#ifdef ECHO_PORT
+static void track_line_at(int x, int y, int paused)
+{
+    track_line_xy(x, y, paused);
+}
+#endif
+
+static void progress_at(int y, int paused)
+{
+    const volatile u32 *f = fmt_info();
+    u32 el = elapsed_ms(), dur = 0;
+    if (f && f[0]) {
+        u32 lo = f[4], rate = f[0];
+        dur = (lo / rate) * 1000u + ((lo % rate) * 1000u) / rate;
+    }
+    char te[12], td[12];
+    fmt_time(te, el);
+    fmt_time(td, dur);
+    text_at(0, 10, y, te, 40, paused ? RED : WHITE);
+    int wd = text_width(0, td);
+    text_at(0, W - 10 - wd, y, td, 40, paused ? DIM : WHITE);
+    const int bx0 = 50, bx1 = W - 51;
+    u32 fillx = bx0;
+    if (dur && el < dur)
+        fillx = bx0 + (u32)(bx1 - bx0) * (el / 100u) / (dur / 100u ? dur / 100u : 1u);
+    else if (dur)
+        fillx = bx1;
+    fill_rect(bx0, y - 2, bx1, y + 2, paused ? DKRED : RULE);
+    if ((int)fillx > bx0)
+        fill_rect(bx0, y - 2, (int)fillx, y + 2, paused ? RED : WHITE);
+}
+
+static void format_at(int y, int paused)
+{
+    char line[96];
+    u32 rg_at = 0;
+    format_line(line, sizeof line, &rg_at);
+    int wl = text_width(0, line);
+    if (wl > 300)
+        wl = 300;
+    int x = (W - wl) / 2;
+    if (rg_at && !paused) {
+        char keep = line[rg_at];
+        line[rg_at] = 0;
+        int w1 = text_at(0, x, y, line, 300, GREY);
+        line[rg_at] = keep;
+        text_at(0, x + w1, y, line + rg_at, 300 - w1, AMBER);
+    } else {
+        text_at(0, x, y, line, 300, paused ? DIM : GREY);
+    }
+}
+
 void np_draw(void)
 {
     fill_rect(0, 0, W - 1, 169, BLACK);
@@ -277,106 +388,110 @@ void np_draw(void)
     top_bar(qpos);
 
     if (!loaded) {
-        text_centred(1, W / 2, 80, "Nothing playing", 300, SOFT);
+        text_centred(1, W / 2, 85, "Nothing playing", 300, SOFT);
         return;
     }
 
     int state = player_state();
     int paused = state == 2, playing = state == 1;
 
-    /* Artist - Song, album */
-    const char *tags = tag_record(queue_index());
-    const char *title = 0, *artist = 0, *album = 0;
-    if (tags && tags[0]) {
-        title = tags;
-        artist = tags[160] ? tags + 160 : 0;
-        album = tags[256] ? tags + 256 : 0;
-    } else {
-        title = without_ext(file_name(), title_buf, sizeof title_buf);
-        album = without_ext(folder_name(), album_buf, sizeof album_buf);
-    }
-    u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
-    int wt = text_width(1, title), wa = artist ? text_width(1, artist) : 0, ws = text_width(1, " - ");
-    if (artist && wa + ws + wt <= 300) {
-        int x = (W - (wa + ws + wt)) / 2;
-        x += text_at(1, x, 38, artist, wa + 1, c_art);
-        x += text_at(1, x, 38, " - ", ws + 1, GREY);
-        text_at(1, x, 38, title, wt + 1, c_title);
-    } else {
-        text_centred(1, W / 2, 38, title, 300, c_title);
-    }
-    text_centred(1, W / 2, 60, album, 300, paused ? DIM : GREY);
+    /* Artist - Song, album: spread over the whole 170-row picture */
+    track_line(Y_TITLE, paused);
+    const char *album = track_album();
+    text_centred(1, W / 2, Y_ALBUM, album, 300, paused ? DIM : GREY);
 
     /* state glyph, or the volume for 2 s after it changed */
     u32 now = ms_now();
+    int gy = Y_GLYPH - 8;
     if (now - VOLUME_AT < 2000u) {
-        char v[16], *p = v;
+        char v[16], *q = v;
         int db = VOLUME_DB;
         if (db <= -128) {
-            p = put_str(p, "muted", v + 15);
+            q = put_str(q, "muted", v + 15);
         } else {
             if (db < 0) {
-                *p++ = '-';
+                *q++ = '-';
                 db = -db;
             }
-            p = put_num(p, (u32)db, v + 15);
-            p = put_str(p, " dB", v + 15);
+            q = put_num(q, (u32)db, v + 15);
+            q = put_str(q, " dB", v + 15);
         }
-        *p = 0;
-        text_centred(1, W / 2, 90, v, 200, WHITE);
+        *q = 0;
+        text_centred(1, W / 2, Y_GLYPH, v, 200, WHITE);
     } else if (paused) {
         int wp = text_width(1, "PAUSED"), total = 12 + 8 + wp, x = (W - total) / 2;
-        fill_rect(x, 82, x + 3, 97, RED);
-        fill_rect(x + 8, 82, x + 11, 97, RED);
-        text_at(1, x + 20, 90, "PAUSED", wp + 1, RED);
+        fill_rect(x, gy, x + 3, gy + 15, RED);
+        fill_rect(x + 8, gy, x + 11, gy + 15, RED);
+        text_at(1, x + 20, Y_GLYPH, "PAUSED", wp + 1, RED);
     } else if (playing) {
-        play_glyph(W / 2, 82, WHITE);
+        play_glyph(W / 2, gy, WHITE);
     } else {
-        fill_rect(W / 2 - 7, 83, W / 2 + 7, 97, GREY);
+        fill_rect(W / 2 - 7, gy + 1, W / 2 + 7, gy + 15, GREY);
     }
 
-    /* progress */
-    const volatile u32 *f = fmt_info();
-    u32 el = elapsed_ms(), dur = 0;
-    if (f && f[0]) {
-        u32 lo = f[4], rate = f[0];
-        dur = (lo / rate) * 1000u + ((lo % rate) * 1000u) / rate;
-    }
-    char te[12], td[12];
-    fmt_time(te, el);
-    fmt_time(td, dur);
-    int y = 118;
-    text_at(0, 10, y, te, 40, paused ? RED : WHITE);
-    int wd = text_width(0, td);
-    text_at(0, W - 10 - wd, y, td, 40, paused ? DIM : WHITE);
-    const int bx0 = 50, bx1 = W - 51;
-    u32 fillx = bx0;
-    if (dur && el < dur)
-        fillx = bx0 + (u32)(bx1 - bx0) * (el / 100u) / (dur / 100u ? dur / 100u : 1u);
-    else if (dur)
-        fillx = bx1;
-    fill_rect(bx0, y - 2, bx1, y + 2, paused ? DKRED : RULE);
-    if ((int)fillx > bx0)
-        fill_rect(bx0, y - 2, (int)fillx, y + 2, paused ? RED : WHITE);
+    progress_at(Y_PROGRESS, paused);
+#ifndef ECHO_PORT
+    format_at(Y_FORMAT, paused);          /* Echo: in the player strip under the picture */
+#endif
+}
 
-    /* format line */
-    char line[96];
-    u32 rg_at = 0;
-    format_line(line, sizeof line, &rg_at);
-    int wl = text_width(0, line);
-    if (wl > 300)
-        wl = 300;
-    int x = (W - wl) / 2;
-    if (rg_at && !paused) {
-        char keep = line[rg_at];
-        line[rg_at] = 0;
-        int w1 = text_at(0, x, 140, line, 300, GREY);
-        line[rg_at] = keep;
-        text_at(0, x + w1, 140, line + rg_at, 300 - w1, AMBER);
+/* ---- player strip under RECHO's picture (Echo) ---------------------------------------
+ * Two 320 x 26 rows, each drawn by the caller into a borrowed frame-buffer corner.
+ *   Now Playing:   row 0 format line, row 1 "Next: Artist - Song"
+ *   other screens: row 0 "▶ Artist - Song",  row 1 progress bar and times */
+#ifdef ECHO_PORT
+STATE char next_title[96] = {0};
+
+void np_set_next(const char *name)
+{
+    int i = 0;
+    while (name && name[i] && i < (int)sizeof next_title - 1) {
+        next_title[i] = name[i];
+        i++;
+    }
+    next_title[i] = 0;
+}
+
+void footer_row(int row, int on_now_playing)
+{
+    int loaded = queue_loaded();
+    int paused = player_state() == 2;
+    if (!loaded) {
+        if (row == 0)
+            text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
+        return;
+    }
+    if (on_now_playing) {
+        if (row == 0) {
+            format_at(13, paused);
+        } else if (next_title[0]) {
+            int wn = text_width(0, "Next  ");
+            int wt = text_width(1, next_title);
+            if (wt > 300 - wn)
+                wt = 300 - wn;
+            int x = (W - (wn + wt)) / 2;
+            text_at(0, x, 13, "Next", wn, GREY);
+            text_at(1, x + wn, 13, next_title, wt + 1, SOFT);
+        }
+        return;
+    }
+    if (row == 0) {
+        int x0 = 10;
+        if (paused) {
+            fill_rect(x0, 6, x0 + 3, 19, RED);
+            fill_rect(x0 + 7, 6, x0 + 10, 19, RED);
+        } else {
+            for (int i = 0; i < 14; i++) {
+                int w = i < 7 ? i * 2 + 1 : (13 - i) * 2 + 1;
+                fill_rect(x0, 6 + i, x0 + w * 6 / 14, 6 + i, WHITE);
+            }
+        }
+        track_line_at(x0 + 20, 13, paused);
     } else {
-        text_at(0, x, 140, line, 300, paused ? DIM : GREY);
+        progress_at(13, paused);
     }
 }
+#endif
 
 /* ---- cable chooser ------------------------------------------------------------- */
 

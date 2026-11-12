@@ -66,6 +66,7 @@ Details, maskrom recovery and the exact commands: [docs/10-install-and-recovery.
 | [09 Verifier](docs/09-verifier.md) | Every check `verify_image.py` runs and why |
 | [10 Install and recovery](docs/10-install-and-recovery.md) | Flashing, maskrom, rkdeveloptool, Zadig |
 | [11 Tweaking guide](docs/11-tweaking.md) | How to add your own patch safely |
+| [12 Bluetooth](docs/12-bluetooth.md) | Bluetooth work in progress: the diagnostic build and the hardware facts |
 | [CHANGELOG](docs/CHANGELOG.md) | Build history (Mini v1–v8, Echo stages 1–7) |
 
 ## Repository layout

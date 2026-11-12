@@ -38,6 +38,15 @@ UI_DATA = {0x03034B48,                                                    # font
            0x0303EDD0}                                                    # settings block (play mode, byte 7)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
+# Bluetooth diagnostic (patches/bt_diag.c): RECHO's GPIO function / log, the module's UART1,
+# the UART1 pin group, clock and reset registers, and the "Log to file" settings byte.
+BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC}   # gpio function, gpio set, log
+BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
+BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
+           0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
+           0x40180038, 0x40180084, 0x401800A0, 0x401800C0}
+ALLOWED_CALLS |= BT_CALLS
+ALLOWED_DATA |= BT_DATA
 
 ECHO = False          # set by --echo: verify a full-size Echo stage-1 image
 HOOKS = "hooks"
@@ -74,7 +83,7 @@ NO_TEXT_FNS = {"charge_screen", "read_level", "draw", "anim_level", "power_tick_
                "echo_hatch_tick", "echo_panel_init", "gpio_set_echo", "gpio_set_orig", "echo_gpio_read",
                "echo_flush_centred", "echo_panel_fill", "echo_blank_outside", "loader_reboot"}
 STORAGE_FNS = {"echo_sidebar_tick", "draw_entry"}            # queue name lookups
-TAG_FNS = {"np_draw"}                                         # RECHO's tag record (as its own Now Playing)
+TAG_FNS = {"np_draw", "track_line_xy", "track_title", "track_album", "footer_row"}  # RECHO's tag record: Now Playing and the Echo player strip
 ECHO_REGS = {0x60070024, 0x6007002C,                        # LCD controller status / data
              0x40180080, 0x401800A0, 0x401800A8, 0x401800C0, 0x401800C4, 0x401800C8, 0x401800CC,  # CRU
              0x50010098, 0x500100B4, 0x500100B8, 0x500100C4,  # GRF PLL / boot select
@@ -254,7 +263,7 @@ def main(orig_path, new_path):
     check(calls <= allowed_calls, f"hook only calls known RECHO routines ({len(calls)} distinct)"
           + ("" if calls <= allowed_calls else f" unknown: {[hex(x) for x in calls - allowed_calls]}"))
     hw = {v for v in lits if 0x40000000 <= v < 0xF0000000} - (ECHO_CONSTS if ECHO else set())
-    hw_ok = {0x400D0000} | (ECHO_REGS if ECHO else set())
+    hw_ok = {0x400D0000} | BT_REGS | (ECHO_REGS if ECHO else set())
     check(hw <= hw_ok, f"hook touches only the expected hardware registers ({len(hw)})"
           + ("" if hw <= hw_ok else f" (also {[hex(x) for x in hw - hw_ok]})"))
     banned = {0x03058D84, 0x030599EC, 0x03059AB0, 0x03058D20, 0x030583A8, 0x0306C9EC, 0x03052806}
@@ -270,11 +279,13 @@ def main(orig_path, new_path):
             if m and owner:
                 where.setdefault(int(m.group(1), 16) & ~1, set()).add(owner)
         used = {c: where.get(c, set()) for c in calls & banned}
+        logs = used.pop(0x0306C9EC, set())
+        check(logs <= {"bt_diag_tick", "flush_line"}, f"RECHO's log is used only by the Bluetooth diagnostic ({sorted(logs)})")
         text_ok = set(used) <= {0x03058D84, 0x03058D20} and not any(f & NO_TEXT_FNS for f in used.values())
         check(text_ok, "charging screen and power paths draw no text; only the two text routines are used"
               + f" ({ {hex(k): sorted(v) for k, v in used.items()} })")
         tags = where.get(0x0305A8F8, set())
-        check(tags and tags <= TAG_FNS, f"tag record read only by the Now Playing screen ({sorted(tags)})")
+        check(tags and tags <= TAG_FNS, f"tag record read only by Now Playing and the player strip ({sorted(tags)})")
         qread = where.get(0x03064B64, set())
         if ECHO:
             check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar tick ({sorted(qread)})")
@@ -452,8 +463,8 @@ def main(orig_path, new_path):
             check(bl_target(a, at(site), site) == 0x0306B000 and bl_target(b, at(site), site) == ent["echo_panel_init"],
                   f"panel init call at {site:#x}: Mini init -> echo_panel_init")
         check(a[at(0x0306B20C):at(0x0306B210)] == bytes([35, 0x35, 35, 0x34])
-              and b[at(0x0306B20C):at(0x0306B210)] == bytes([75, 0x35, 75, 0x34]),
-              "window rows +35 -> +75 (RECHO centred in the visible rows: 49 + 26)")
+              and b[at(0x0306B20C):at(0x0306B210)] == bytes([49, 0x35, 49, 0x34]),
+              "window rows +35 -> +49 (RECHO at the top of the visible rows, player strip below)")
         check(a[at(0x03051590):at(0x03051594)] == bytes.fromhex("70b50d46")
               and bw_target(b, at(0x03051590), 0x03051590) == ent["gpio_set_echo"],
               "GPIO set entry -> b.w gpio_set_echo")

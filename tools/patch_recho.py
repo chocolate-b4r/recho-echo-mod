@@ -125,7 +125,7 @@ def thumb_bw(src, dst):
 # ---- full-size Echo port (stage 1) ------------------------------------------
 ECHO_PANEL_INIT_CALLS = (0x0306B9F4, 0x0306C206)   # `bl 0x306B000` after sleep-out (boot, wake)
 ECHO_WINDOW_ROWS = (0x0306B20C, 0x0306B20E)        # `adds r5,#35` / `adds r4,#35` in the window routine
-ECHO_ROW_OFFSET = 75                               # RECHO centred in the 222 visible rows (49 + 26); no button bar
+ECHO_ROW_OFFSET = 49                               # RECHO at the top of the 222 visible rows; player strip below
 GPIO_SET = 0x03051590                              # `push {r4-r6,lr}; mov r5,r1` -> b.w gpio_set_echo
 ECHO_READ_SITES = (0x03055EE8, 0x03055F6A)         # bl 0x3051610 reading GPIO2.8 / GPIO2.0
 REPAIR_CALL = 0x03050FBE                           # bl 0x305444C (FW1-from-FW2 repair)
@@ -360,7 +360,7 @@ def main():
         add_hooks(d, animation=not a.keep_bolt, echo=a.echo)
         print("patched: off-state charging screen hooked at 0x305a678")
         if a.echo:
-            print("patched: ECHO stage 1 - ST7796S panel init, rows +75 (UI centred, no button bar), GPIO remap, 4.4 mm polarity, "
+            print("patched: ECHO stage 1 - ST7796S panel init, rows +49 (UI at top, player strip below), GPIO remap, 4.4 mm polarity, "
                   "slot repair off, updater on as RECHOECH.IMG / RECHOEnn.IMG, Menu-10s maskrom hatch")
         if not a.keep_bolt:
             print("patched: status-bar charging animation (0x305945e shim, POWER tick wrapper)")

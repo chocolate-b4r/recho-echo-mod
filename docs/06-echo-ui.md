@@ -5,9 +5,8 @@ where RECHO always drew it. It draws everything else straight into panel memory,
 frames.
 
 ```
- panel rows 49..74     margin (black)
- rows 75..244          cols 0..319: RECHO's frame buffer      cols 320..479: Up Next
- rows 245..270         message line (RECHO's bar messages, e.g. "headphones out: paused")
+ panel rows 49..218    cols 0..319: RECHO's frame buffer      cols 320..479: Up Next (rows 49..270)
+ rows 219..270         cols 0..319: player strip (two 26-row lines)
 ```
 
 ## How the port draws outside RECHO's picture
@@ -64,7 +63,7 @@ The `USBSEL` screen's draw pointer (`0x3060AD4`, was `0x3059EDD`) → `usb_draw`
 style: Charge only (battery glyph, countdown from `0x030399BC`) and USB disk (drive glyph). The
 cursor at `0x030041B4` picks the outlined, bright half. Key handling is RECHO's own.
 
-## Button bar → message line (`patches/echo_band.c`)
+## Button bar → player strip (`patches/echo_band.c`)
 
 - The two `movs r2,#143` that end the content area above the bar (`0x305C4B8`, `0x305C4EE`) become
   `#169`, so screens use all 170 rows.
@@ -96,3 +95,15 @@ message, over the bottom rows. When the message ends it asks the screen to repai
 Menus, Files and Settings keep RECHO's top bar. On the Echo its battery glyph is skipped:
 `bl draw_text` at `0x30594A4` becomes two NOPs, and `rsb r4,r4,#304` at `0x30594A8` becomes
 `mov.w r4,#312`, so the volume moves to the right edge. The % in Up Next replaces it.
+
+## Player strip (Echo, `echo_band.c` + `footer_row()` in `ui_np.c`)
+
+| Screen | Row 1 (219–244) | Row 2 (245–270) |
+|---|---|---|
+| Now Playing | format line (`FLAC · 44.1 kHz · 24 bit · 3.5 mm · RG`) | `Next  Artist - Song` (the first Up Next entry) |
+| any other | ▶ or ❚❚ and `Artist - Song` | progress bar and times |
+| RECHO message up | the message, orange | unchanged |
+
+It's redrawn when the message, screen, track or play state changes, and once a second while
+playing. Echo Now Playing then uses its whole 170-row picture for the top bar, track, album, state
+glyph and progress bar.

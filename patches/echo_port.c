@@ -187,13 +187,13 @@ void echo_flush_centred(void)
 }
 
 /* Black out every part of the panel RECHO never draws. Visible rows are 49..270.
- * RECHO owns cols 0..319, rows 75..244; Up Next is cols 320..479, rows 75..244;
- * rows 49..74 are a margin and rows 245..270 the message line (echo_band.c). */
+ * RECHO owns cols 0..319, rows 49..218; the player strip is cols 0..319, rows 219..270
+ * (echo_band.c); Up Next is cols 320..479, rows 49..270. */
 void echo_blank_outside(void)
 {
-    echo_panel_fill(0, 0, 479, 74, 0);
-    echo_panel_fill(0, 245, 479, 319, 0);
-    echo_panel_fill(320, 75, 479, 244, 0);
+    echo_panel_fill(0, 0, 479, 48, 0);
+    echo_panel_fill(0, 219, 479, 319, 0);
+    echo_panel_fill(320, 49, 479, 218, 0);
 }
 
 /* ---- escape hatch: hold Menu for 10 s -> boot ROM USB loader (maskrom) ----- */
