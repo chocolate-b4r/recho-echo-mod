@@ -1,0 +1,17 @@
+# build products and firmware images (never commit firmware)
+build/
+out/
+*.IMG
+*.img
+*.bin
+*.elf
+
+# personal material
+logs/
+log/
+icons/
+*.TXT
+
+# python
+__pycache__/
+*.pyc

@@ -1,0 +1,362 @@
+"""Apply the RECHO 0.10.1 (2d11bdcd) tweaks to a copy of the image.
+
+  py -3 -I patch_recho.py IN.IMG OUT.IMG [--drop-rows 2,5] [--no-charge-screen] [--icons DIR]
+
+Every patch first checks the exact original bytes, so it refuses to run on any
+other build. The output is re-sealed (module CRC, header self-copy, image CRC).
+"""
+import argparse
+import os
+import struct
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rkimg import crc32, u32, seal, info  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RAM_OF_IMG = 0x0304F298           # fw1: RAM = 0x0304F298 + IMG offset
+MOD_BASE = 0x0307A000              # every SFMD module loads here (header included)
+
+EXPECT_BRAND, EXPECT_TAG = b"RECHO", b"2d11bdcd"
+
+# ---- module m47 (main menu) -------------------------------------------------
+M47_IMG = 0x2B224
+M47_LEN = 0xBB4
+
+
+def m47(addr):
+    return M47_IMG + (addr - MOD_BASE)
+
+
+def thumb_bl(src, dst):
+    off = dst - (src + 4)
+    if not -(1 << 24) <= off < (1 << 24):
+        raise ValueError("bl out of range")
+    s = (off >> 24) & 1
+    i1, i2 = (off >> 23) & 1, (off >> 22) & 1
+    j1, j2 = (~i1 ^ s) & 1, (~i2 ^ s) & 1
+    imm10, imm11 = (off >> 12) & 0x3FF, (off >> 1) & 0x7FF
+    hw1 = 0xF000 | (s << 10) | imm10
+    hw2 = 0xD000 | (j1 << 13) | (j2 << 11) | imm11
+    return struct.pack("<HH", hw1, hw2)
+
+
+def put(d, off, old, new, what):
+    cur = bytes(d[off:off + len(old)])
+    if cur != old:
+        raise SystemExit(f"{what}: unexpected bytes at IMG {off:#x}: {cur.hex()} (want {old.hex()})")
+    d[off:off + len(new)] = new
+
+
+# Original 9 rows: 0 Files, 1 Now playing, 2 Spectrum, 3 USB disk, 4 Settings,
+# 5 Supporters, 6 Debug, 7 Power off, 8 About.
+ORIG_ROWS = 9
+ROW_USB, ROW_POWER = 3, 7
+TBB = bytes([0x05, 0x09, 0x0B, 0x0D, 0x1E, 0x20, 0x28, 0x2A, 0x2C])
+
+
+def cmp_imm(reg, imm):
+    return bytes([imm, 0x28 | reg])
+
+
+def remove_menu_rows(d, drop):
+    """Rebuild the m47 main menu without the rows in `drop` (original indices)."""
+    keep = [r for r in range(ORIG_ROWS) if r not in drop]
+    n = len(keep)
+    if ROW_USB not in keep or ROW_POWER not in keep or n < 2:
+        raise SystemExit("USB disk and Power off rows must stay")
+    new_usb, new_power = keep.index(ROW_USB), keep.index(ROW_POWER)
+    labels = struct.unpack_from("<9I", d, m47(0x0307AA64))
+    if labels[2] != 0x0307A8C2 or labels[5] != 0x0307A78B:
+        raise SystemExit("menu label table is not the expected one")
+    for base in (0x0307AA40, 0x0307AA64):
+        o = m47(base)
+        ptrs = struct.unpack_from("<9I", d, o)
+        rows = [ptrs[r] for r in keep]
+        struct.pack_into("<9I", d, o, *(rows + [rows[-1]] * (ORIG_ROWS - n)))
+    tbb = bytes(TBB[r] for r in keep)
+    put(d, m47(0x0307A1A4), TBB, tbb + tbb[-1:] * (ORIG_ROWS - n), "menu tbb")
+    put(d, m47(0x0307A19C), cmp_imm(3, 8), cmp_imm(3, n - 1), "dispatch bound (cmp r3,#8)")
+    put(d, m47(0x0307A67C), b"	#", bytes([n, 0x23]), "row count (movs r3,#9)")
+    put(d, m47(0x0307A04C), cmp_imm(0, ROW_USB), cmp_imm(0, new_usb), "draw: USB row (cmp r0,#3)")
+    put(d, m47(0x0307A0E6), cmp_imm(6, ROW_POWER), cmp_imm(6, new_power), "draw: Power row (cmp r6,#7)")
+    put(d, m47(0x0307A6DA), cmp_imm(3, ROW_USB), cmp_imm(3, new_usb), "hint: USB row (cmp r3,#3)")
+    put(d, m47(0x0307A6E4), cmp_imm(1, ROW_POWER), cmp_imm(1, new_power), "hint: Power row (cmp r1,#7)")
+    reseal_module(d, M47_IMG)
+    return keep
+
+
+def reseal_module(d, off):
+    if d[off:off + 4] != b"SFMD":
+        raise SystemExit(f"no SFMD module at {off:#x}")
+    length = u32(d, off + 12)
+    body = bytearray(d[off:off + length])
+    body[24:28] = b"\0\0\0\0"
+    struct.pack_into("<I", d, off + 24, crc32(body))
+
+
+# ---- fw1: off-state charging screen ----------------------------------------
+HOOK_SITE = 0x0305A678             # `bl 0x3051e28` (power rail cut) in power-off routine
+HOOK_ORIG = 0x03051E28
+CAVE_ADDR = 0x0306E000             # zero gap between fw1 .text end and .data image
+CAVE_LIMIT = 0x03074B70
+
+
+STATUS_LEVEL_SITE = 0x0305945E    # `ldr r2,[r3,#8]; ldr.w r8,[r3,#20]` in the status-bar draw
+POWER_TICK_SLOT = 0x0306AC68      # POWER service descriptor: tick function pointer
+POWER_TICK_ORIG = 0x0306A7C5
+
+
+def load_hooks(name="hooks"):
+    blob = open(os.path.join(ROOT, "build", name + ".bin"), "rb").read()
+    entries = {}
+    for line in open(os.path.join(ROOT, "build", name + ".entries")):
+        n, addr = line.split()
+        entries[n] = int(addr, 16)
+    return blob, entries
+
+
+def thumb_bw(src, dst):
+    """Thumb-2 B.W (T4): same immediate layout as BL, bit 14 of the second halfword clear."""
+    hw1, hw2 = struct.unpack("<HH", thumb_bl(src, dst))
+    return struct.pack("<HH", hw1, hw2 & ~0x4000)
+
+
+# ---- full-size Echo port (stage 1) ------------------------------------------
+ECHO_PANEL_INIT_CALLS = (0x0306B9F4, 0x0306C206)   # `bl 0x306B000` after sleep-out (boot, wake)
+ECHO_WINDOW_ROWS = (0x0306B20C, 0x0306B20E)        # `adds r5,#35` / `adds r4,#35` in the window routine
+ECHO_ROW_OFFSET = 75                               # RECHO centred in the 222 visible rows (49 + 26); no button bar
+GPIO_SET = 0x03051590                              # `push {r4-r6,lr}; mov r5,r1` -> b.w gpio_set_echo
+ECHO_READ_SITES = (0x03055EE8, 0x03055F6A)         # bl 0x3051610 reading GPIO2.8 / GPIO2.0
+REPAIR_CALL = 0x03050FBE                           # bl 0x305444C (FW1-from-FW2 repair)
+UPDATE_FIND_CALL = 0x0305090C                      # bl 0x3054094 (update image search)
+# RECHO's own updater works on the Echo: it takes the firmware area from the eMMC ID block
+# (Echo boot log: P 0x28000, slot 2 at P/2 = 0x14000 = the R the loader reports, user volume
+# at stock's place 0x8E000, both slots valid). Only the file names change, so a Mini image
+# (ECHOMINI.IMG / HIFIECnn.IMG) is never picked up on the Echo, nor an Echo image on the Mini.
+UPDATE_NAME_FIXED = 0x0305F3BF                     # 11-char FAT name "ECHOMINIIMG"
+UPDATE_NAME_PREFIX = 0x0305F3CB                    # 6-char prefix "HIFIEC" (+ 2 digits + IMG)
+ECHO_UPDATE_FIXED = b"RECHOECHIMG"                 # -> RECHOECH.IMG
+ECHO_UPDATE_PREFIX = b"RECHOE"                     # -> RECHOEnn.IMG
+
+
+# Layout (stage 4): RECHO's button bar ("HINTS" layer) moves to the bottom of the panel,
+# screens keep rows 144..169 for content, Now Playing is centred (patches/echo_np.c).
+CONTENT_BOTTOM_SITES = (0x0305C4B8, 0x0305C4EE)    # `movs r2,#143` (content ends above the bar)
+HINTS_DRAW_SLOT = 0x03060BBC                       # HINTS layer draw pointer (0x0305AEED)
+M45_IMG = 0x2A494                                  # module m45 (Now Playing), runs at MOD_BASE
+NP_DRAW = 0x0307A1F0                               # m45 draw entry `push {r4-r11,lr}` -> b.w np_draw
+USBSEL_DRAW_SLOT = 0x03060AD4                      # USBSEL screen draw pointer (0x03059EDD)
+NP_BACK_TAP = 0x0307A12C                           # m45: back-key tap = play-mode cycle -> Back (main menu)
+NP_BACK_RESUME = 0x0307A170                        # m45: common tail after the key cases
+NP_LABEL_MODE = 0x0307A1E8                         # m45 literal -> "MODE"  (back key label)
+NP_LABEL_MENU = 0x0307A1D8                         # m45 literal -> "menu"  (menu key hold label)
+HOLD_MENU_CALL = 0x0305BF18                        # fw1: hold menu -> bl 0x305BA3C (main menu)
+
+
+def echo_layout(d, e):
+    for site in CONTENT_BOTTOM_SITES:
+        put(d, site - RAM_OF_IMG, bytes([143, 0x22]), bytes([169, 0x22]), "content area to row 169")
+    put(d, HINTS_DRAW_SLOT - RAM_OF_IMG, struct.pack("<I", 0x0305AEED), struct.pack("<I", e["hints_stub"] | 1),
+        "HINTS layer draw -> hints_stub")
+    o = M45_IMG + NP_DRAW - MOD_BASE
+    put(d, o, bytes.fromhex("2de9f04f"), thumb_bw(NP_DRAW, e["np_draw"]), "m45 draw -> b.w np_draw")
+    reseal_module(d, M45_IMG)
+    put(d, USBSEL_DRAW_SLOT - RAM_OF_IMG, struct.pack("<I", 0x03059EDD), struct.pack("<I", e["usb_draw"] | 1),
+        "USBSEL draw -> usb_draw")
+
+
+
+def key_remap(d, e):
+    """Both players: back tap on Now Playing -> main menu, hold back = previous (unchanged),
+    hold menu on Now Playing -> Settings; bar labels BACK / hold settings (patches/keys.c)."""
+    o = M45_IMG + NP_BACK_TAP - MOD_BASE
+    b_off = (NP_BACK_RESUME - (NP_BACK_TAP + 4) - 4) >> 1
+    put(d, o, bytes.fromhex("174de8790130"),
+        thumb_bl(NP_BACK_TAP, 0x0305BA3C) + struct.pack("<H", 0xE000 | (b_off & 0x7FF)), "m45 back tap -> main menu")
+    for site, old, new in ((NP_LABEL_MODE, 0x0307AC11, e["str_back"]), (NP_LABEL_MENU, 0x0307AC07, e["str_settings"])):
+        put(d, M45_IMG + site - MOD_BASE, struct.pack("<I", old), struct.pack("<I", new), f"m45 label literal {site:#x}")
+    reseal_module(d, M45_IMG)
+    put(d, HOLD_MENU_CALL - RAM_OF_IMG, thumb_bl(HOLD_MENU_CALL, 0x0305BA3C), thumb_bl(HOLD_MENU_CALL, e["hold_menu"]),
+        "hold menu -> hold_menu (Settings on Now Playing)")
+
+
+def echo_port(d, e):
+    for site in ECHO_PANEL_INIT_CALLS:
+        put(d, site - RAM_OF_IMG, thumb_bl(site, 0x0306B000), thumb_bl(site, e["echo_panel_init"]),
+            "panel init call")
+    put(d, ECHO_WINDOW_ROWS[0] - RAM_OF_IMG, bytes([35, 0x35]), bytes([ECHO_ROW_OFFSET, 0x35]), "window rows (r5)")
+    put(d, ECHO_WINDOW_ROWS[1] - RAM_OF_IMG, bytes([35, 0x34]), bytes([ECHO_ROW_OFFSET, 0x34]), "window rows (r4)")
+    put(d, GPIO_SET - RAM_OF_IMG, bytes.fromhex("70b50d46"), thumb_bw(GPIO_SET, e["gpio_set_echo"]),
+        "GPIO set entry")
+    for site in ECHO_READ_SITES:
+        put(d, site - RAM_OF_IMG, thumb_bl(site, 0x03051610), thumb_bl(site, e["echo_gpio_read"]), "jack read")
+    # The FW1-from-FW2 repair stays off (not needed for updates; one less writer).
+    put(d, REPAIR_CALL - RAM_OF_IMG, thumb_bl(REPAIR_CALL, 0x0305444C), bytes.fromhex("012000bf"),
+        "FW1 repair (-> result 1, normal start)")
+    # Updater on, under Echo-only file names.
+    put(d, UPDATE_NAME_FIXED - RAM_OF_IMG, b"ECHOMINIIMG", ECHO_UPDATE_FIXED, "update file name (fixed)")
+    put(d, UPDATE_NAME_PREFIX - RAM_OF_IMG, b"HIFIEC", ECHO_UPDATE_PREFIX, "update file name (numbered)")
+
+
+def add_hooks(d, animation=True, echo=False):
+    blob, e = load_hooks("hooks-echo" if echo else "hooks")
+    if CAVE_ADDR + len(blob) > CAVE_LIMIT:
+        raise SystemExit("hooks too large for the cave")
+    o = CAVE_ADDR - RAM_OF_IMG
+    if any(d[o:o + len(blob) + 64]):
+        raise SystemExit("code cave is not empty")
+    d[o:o + len(blob)] = blob
+    s = HOOK_SITE - RAM_OF_IMG
+    put(d, s, thumb_bl(HOOK_SITE, HOOK_ORIG), thumb_bl(HOOK_SITE, e["charge_screen"]), "power-off hook site")
+    if animation:
+        s = STATUS_LEVEL_SITE - RAM_OF_IMG
+        put(d, s, bytes.fromhex("9a68d3f81480"),
+            thumb_bl(STATUS_LEVEL_SITE, e["status_level_shim"]) + bytes.fromhex("00bf"), "status-bar level load")
+        s = POWER_TICK_SLOT - RAM_OF_IMG
+        put(d, s, struct.pack("<I", POWER_TICK_ORIG), struct.pack("<I", e["power_tick_wrap"] | 1),
+            "POWER service tick pointer")
+    key_remap(d, e)
+    if echo:
+        if not animation:
+            raise SystemExit("the Echo escape hatch rides on the POWER tick wrapper; keep the animation on")
+        echo_port(d, e)
+        echo_layout(d, e)
+
+
+
+# ---- USB chooser ("USBSEL", fw1): Charge only first, 5 s auto-select, no DAC ----
+USBSEL_ICONS, USBSEL_LABELS = 0x03060AE4, 0x03060AF0
+USBSEL_COUNT_DATA = (0x25A88, 0x27584)   # list count word (RAM 0x030041B0) in both .data images
+
+
+def fw(addr):
+    return addr - RAM_OF_IMG
+
+
+def usb_chooser_charge_first(d):
+    icons = struct.unpack_from("<3I", d, fw(USBSEL_ICONS))
+    labels = struct.unpack_from("<3I", d, fw(USBSEL_LABELS))
+    if labels != (0x0305E84D, 0x03060A35, 0x03060A3D):
+        raise SystemExit("USB chooser labels are not USB disk / USB DAC / Charge only")
+    struct.pack_into("<3I", d, fw(USBSEL_ICONS), icons[2], icons[0], icons[0])
+    struct.pack_into("<3I", d, fw(USBSEL_LABELS), labels[2], labels[0], labels[0])
+    for o in USBSEL_COUNT_DATA:
+        put(d, o, struct.pack("<I", 3), struct.pack("<I", 2), "USB chooser row count (.data)")
+    # opener: ignore the usb= setting; always cursor 0 (Charge only) with the 5 s countdown
+    put(d, fw(0x0305BA70), bytes.fromhex("db78"), bytes.fromhex("0123"), "chooser opener (ldrb usb mode -> movs r3,#1)")
+    # select: row 0 -> leave (charge only), row 1 -> USB disk; DAC branch unreachable
+    put(d, fw(0x0305B948), bytes.fromhex("1bb9"), bytes.fromhex("53b1"), "chooser select (cbnz -> cbz to leave)")
+    # row draw: 'not yet' note was for row 1 (DAC); no row has it now
+    put(d, fw(0x03059D96), bytes.fromhex("012e"), bytes.fromhex("022e"), "chooser row note (cmp r6,#1 -> #2)")
+    # countdown expiry (no key pressed, so the cursor is on Charge only): power off instead
+    # of returning to the menu. On a cable the power-off ends in the off-charging screen.
+    put(d, fw(0x0305B9B0), thumb_bl(0x0305B9B0, 0x0305B934), thumb_bl(0x0305B9B0, 0x0305A618),
+        "chooser auto-select -> power off")
+    # soft-key hint: no SELECT on row 1 (DAC) -> every row selectable
+    put(d, fw(0x03059FC2), bytes.fromhex("012b"), bytes.fromhex("022b"), "chooser hint (cmp r3,#1 -> #2)")
+
+
+# ---- Settings (module m48): hide Show tags, On USB connect, Debug strip ----
+M48_IMG = 0x2BDD8
+SETTINGS_ROWS = 17
+SETTINGS_ORDER = [0, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 14, 15, 16, 1, 10, 12]   # new -> original
+SETTINGS_SHOWN = 14
+
+
+def m48(addr):
+    return M48_IMG + (addr - MOD_BASE)
+
+
+ECHO_SETTINGS_ORDER = [0, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 10, 11, 12]  # also hides Swap up/down
+ECHO_SETTINGS_SHOWN = 13
+
+
+def settings_hide_rows(d, P=SETTINGS_ORDER, n=SETTINGS_SHOWN):
+    new_of = {orig: i for i, orig in enumerate(P)}
+    lab = struct.unpack_from("<17I", d, m48(0x0307AF08))
+    if lab[1] != 0x0307AE10 or lab[10] != 0x0307AE78 or lab[12] != 0x0307AE94:
+        raise SystemExit("Settings labels are not the expected ones")
+    struct.pack_into("<17I", d, m48(0x0307AF08), *[lab[i] for i in P])
+    # value-draw tbh (15 halfwords, rows 0..14); rows that have no value fall to the default
+    tbh = list(struct.unpack_from("<15H", d, m48(0x0307A1EE)))
+    newtbh = [tbh[P[i]] for i in range(n) if P[i] <= 14]
+    vrows = len(newtbh)                       # rows 0..vrows-1 have a value
+    newtbh += [newtbh[-1]] * (15 - len(newtbh))
+    struct.pack_into("<15H", d, m48(0x0307A1EE), *newtbh)
+    put(d, m48(0x0307A1E4), cmp_imm(0, 14), cmp_imm(0, vrows - 1), "Settings value bound (cmp r0,#14)")
+    # select tbb (17 bytes)
+    tbb = d[m48(0x0307A73E):m48(0x0307A73E) + 17]
+    d[m48(0x0307A73E):m48(0x0307A73E) + 17] = bytes(tbb[P[i]] for i in range(17))
+    put(d, m48(0x0307A736), cmp_imm(3, 16), cmp_imm(3, n - 1), "Settings select bound (cmp r3,#16)")
+    # row-specific checks
+    put(d, m48(0x0307A262), cmp_imm(6, 15), cmp_imm(6, new_of[15]), "Settings Clock row (cmp r6,#15)")
+    put(d, m48(0x0307A456), cmp_imm(6, 2), cmp_imm(6, new_of[2]), "Settings Equalizer row (cmp r6,#2)")
+    put(d, m48(0x0307A0B6), cmp_imm(2, 2), cmp_imm(2, new_of[2]), "Settings hint Equalizer (cmp r2,#2)")
+    put(d, m48(0x0307A0BA), cmp_imm(2, 16), cmp_imm(2, new_of[16]), "Settings hint Restore (cmp r2,#16)")
+    put(d, m48(0x0307A0C2), cmp_imm(2, 15), cmp_imm(2, new_of[15]), "Settings hint Clock (cmp r2,#15)")
+    put(d, m48(0x0307AC1E), bytes([SETTINGS_ROWS, 0x23]), bytes([n, 0x23]), "Settings row count (movs r3,#17)")
+    reseal_module(d, M48_IMG)
+    return [lab[i] for i in P][:n]
+
+
+STATUS_CABLE_BRANCH = 0x0305945A   # status bar: `bne.w 0x3059566` = on cable -> bolt/full glyph
+
+
+def charging_shows_level(d):
+    """On cable, draw the normal 0-4 cell level glyph instead of the bolt."""
+    o = STATUS_CABLE_BRANCH - RAM_OF_IMG
+    put(d, o, bytes.fromhex("40f08480"), bytes.fromhex("00bf00bf"), "status bar cable branch")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("src")
+    ap.add_argument("dst")
+    ap.add_argument("--drop-rows", default="2,5,6", help="original menu rows to remove (2=Spectrum, 5=Supporters, 6=Debug)")
+    ap.add_argument("--icons", help="folder of edited icon PNGs (tools/icons.py naming)")
+    ap.add_argument("--no-charge-screen", action="store_true")
+    ap.add_argument("--keep-bolt", action="store_true", help="keep the bolt glyph while charging")
+    ap.add_argument("--echo", action="store_true", help="build for the full-size Snowsky Echo (stage 1)")
+    a = ap.parse_args()
+    if a.echo and a.no_charge_screen:
+        raise SystemExit("--echo needs the hook blob (drop --no-charge-screen)")
+
+    d = bytearray(open(a.src, "rb").read())
+    if d[0x10:0x18].rstrip(b"\0") != EXPECT_BRAND or d[0x30:0x38].rstrip(b"\0") != EXPECT_TAG:
+        raise SystemExit("this patcher only knows RECHO build 2d11bdcd")
+    drop = {int(x) for x in a.drop_rows.split(",") if x.strip()}
+    if drop:
+        keep = remove_menu_rows(d, drop)
+        print(f"patched: main menu rows kept {keep} (module m47 re-CRC'd)")
+    if not a.no_charge_screen:
+        add_hooks(d, animation=not a.keep_bolt, echo=a.echo)
+        print("patched: off-state charging screen hooked at 0x305a678")
+        if a.echo:
+            print("patched: ECHO stage 1 - ST7796S panel init, rows +75 (UI centred, no button bar), GPIO remap, 4.4 mm polarity, "
+                  "slot repair off, updater on as RECHOECH.IMG / RECHOEnn.IMG, Menu-10s maskrom hatch")
+        if not a.keep_bolt:
+            print("patched: status-bar charging animation (0x305945e shim, POWER tick wrapper)")
+    usb_chooser_charge_first(d)
+    print("patched: USB chooser = Charge only / USB disk; no key for 5 s -> power off (charging screen); DAC removed")
+    if a.echo:
+        settings_hide_rows(d, ECHO_SETTINGS_ORDER, ECHO_SETTINGS_SHOWN)
+        print("patched: Settings without Show tags, On USB connect, Debug strip, Swap up/down")
+    else:
+        settings_hide_rows(d)
+        print("patched: Settings without Show tags, On USB connect, Debug strip")
+    if not a.keep_bolt:
+        charging_shows_level(d)
+        print("patched: status bar shows the level cells while charging")
+    open(a.dst, "wb").write(d)
+    seal(a.dst)
+    if a.icons:
+        from icons import do_import
+        do_import(a.dst, a.icons, a.dst)
+    ok = info(open(a.dst, "rb").read())
+    if not ok:
+        raise SystemExit("seal check failed")
+
+
+if __name__ == "__main__":
+    main()
