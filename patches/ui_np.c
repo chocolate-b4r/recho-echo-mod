@@ -450,9 +450,12 @@ void np_draw(void)
 
 /* ---- player strip under RECHO's picture (Echo) ---------------------------------------
  * Two 320 x 26 rows, each drawn by the caller into a borrowed frame-buffer corner.
- *   Now Playing:   row 0 format line,         row 1 progress bar and times
- *   other screens: row 0 "▶ Artist - Song",   row 1 progress bar and times */
+ *   row 0: the lyric line being sung when the track has a .lrc (lyrics.c), otherwise
+ *          Now Playing: the format line; other screens: "▶ Artist - Song"
+ *   row 1: progress bar and times */
 #ifdef ECHO_PORT
+extern const char *lyrics_line(void);
+
 void footer_row(int row, int on_now_playing)
 {
     int loaded = queue_loaded();
@@ -461,6 +464,14 @@ void footer_row(int row, int on_now_playing)
         if (row == 0)
             text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
         return;
+    }
+    if (row == 0) {
+        const char *ly = lyrics_line();
+        if (ly) {
+            int font = text_width(1, ly) <= 304 ? 1 : 0;   /* long lines: the small font */
+            text_centred(font, W / 2, 13, ly, 304, paused ? GREY : WHITE);
+            return;
+        }
     }
     if (on_now_playing) {
         if (row == 0)

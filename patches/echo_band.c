@@ -64,6 +64,8 @@ extern void echo_panel_fill(u32 x0, u32 y0, u32 x1, u32 y1, u32 colour);
 STATE volatile u32 strip_key = 0xFFFFFFFFu;
 
 extern void footer_row(int row, int on_now_playing);
+extern void lyrics_tick(void);
+extern int lyrics_index(void);
 
 static u32 message_hash(const char *msg)
 {
@@ -100,11 +102,12 @@ void echo_band_tick(void)
 {
     if (!VOP_ACTIVE || BL_DUTY == 0 || sb_blank)
         return;
+    lyrics_tick();                       /* reads the track's .lrc once, only while the screen is on */
     const char *msg = bar_message();
     int on_np = CURRENT_MODULE == 45u;
     int state = player_state();
     u32 key = message_hash(msg) ^ ((u32)on_np << 31) ^ ((u32)state << 28) ^ ((u32)queue_index() << 16)
-              ^ (state == 1 ? elapsed_ms() / 1000u : 0u);
+              ^ (state == 1 ? elapsed_ms() / 1000u : 0u) ^ ((u32)(lyrics_index() + 1) << 20);
     if (key == strip_key && !hints_dirty)
         return;
     hints_dirty = 0;

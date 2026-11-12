@@ -107,3 +107,17 @@ Menus, Files and Settings keep RECHO's top bar. On the Echo its battery glyph is
 It's redrawn when the message, screen, track or play state changes, and once a second while
 playing. Echo Now Playing then uses its whole 170-row picture for the top bar, track, album, state
 glyph and progress bar.
+
+## Lyrics (stage 14, `patches/lyrics.c`)
+
+Put `Song.lrc` next to `Song.flac` (same name, any case). While the track plays, the strip's top
+line shows the line being sung; before the first line, in empty lines and without a `.lrc` it
+shows what it did before (format line on Now Playing, "▶ Artist - Song" elsewhere). Long lines
+use the small font. Understood: `[mm:ss.xx]`, several time tags on one line, `[offset:±ms]`,
+word tags `<mm:ss.xx>` (removed); other tags are skipped. At most 200 timed lines and 7,680
+bytes (free RAM at `0x03048400`).
+
+The file is found with RECHO's own routines: `0x3064B64` (queue entry → record, volume and
+folder cluster), `0x305A02C` (volume), `0x30638FC` (find a long name in a folder), `0x3053900`
+and `0x3053934` (file object, read). It is read once when the track changes, and only while the
+screen is on, so the battery cost is one small file read per track.

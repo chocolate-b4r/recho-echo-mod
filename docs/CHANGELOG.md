@@ -30,6 +30,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 14 | **lyrics**: the strip's top line shows the current line of `Song.lrc` (next to `Song.flac`), read once per track while the screen is on | built, verified |
 | 13 | **Settings → Bluetooth**: on/off, search, connect, disconnect (no audio yet); diagnostic removed | built, verified |
 | 12 | Bluetooth scan 30 s (module answers on the Echo: `CV15`, `CQIOK`, `CKKK`) | built, verified |
 | 11 | player strip: format line and progress on Now Playing, track and progress elsewhere ("Next" removed); jack fix; Bluetooth step 2 | built |

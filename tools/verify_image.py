@@ -67,13 +67,15 @@ ECHO_CALLS = {0x0306AF98, 0x0306AF6C, 0x0305DA2C, 0x0305DAC4,  # + clock chip re
               # bar message, request redraw
               0x03057BD0, 0x03057BE4, 0x03057BDC, 0x0305A194, 0x0305A1B0, 0x0305A1BC, 0x0305A8F8,
               0x0305A1CC, 0x0305A1C4, 0x03057DB4, 0x03057DC0, 0x03059AE8, 0x0305C41C, 0x0305AE28,
-              0x0305B234, 0x0305BA3C}                      # open module n, go to main menu (key remap)
+              0x0305B234, 0x0305BA3C,                      # open module n, go to main menu (key remap)
+              # lyrics (patches/lyrics.c): volume of a number, find a name in a folder, file object, file read
+              0x0305A02C, 0x030638FC, 0x03053900, 0x03053934}
 ECHO_TRAMPOLINE = 0x03051594                                # back into GPIO set after its prologue
 ECHO_DATA = {0x030089EC, 0x030041A8,                       # VOP-active flag, key-ladder raw value
              0x03006174, 0x03004114, 0x03034B48, 0x03008A00,  # backlight duty, clip rect, font table, frame buffer
              0x0303AB90, 0x0303AB94, 0x0303AB98, 0x0303ABA8,  # queue object, count, seed, shuffle pass
              0x0303BD74, 0x0303BD78, 0x0303BD80, 0x0303EDD0,  # queue active, current, store, settings (play mode = byte 7)
-             0x03044000, 0x03048200,                          # shared strip (sidebar + band) and name buffer (free RAM)
+             0x03044000, 0x03048200, 0x03048400,              # shared strip (sidebar + band), name buffer, lyrics buffer (free RAM)
              0x030041D8, 0x0303E730,                          # content area rect, "screen has a button bar" flag
              0x030041D0, 0x0303AB8C,                          # volume dB, time of the last volume change
              0x030041B4, 0x030399B8, 0x030399BC,              # cable chooser cursor, countdown flag / start
@@ -88,7 +90,7 @@ FREE_RAM = (0x03043002, 0x0304A240)   # no RECHO code or module refers to anythi
 NO_TEXT_FNS = {"charge_screen", "read_level", "draw", "anim_level", "power_tick_wrap", "status_level_shim",
                "echo_hatch_tick", "echo_panel_init", "gpio_set_echo", "gpio_set_orig", "echo_gpio_read",
                "echo_flush_centred", "echo_panel_fill", "echo_blank_outside", "loader_reboot"}
-STORAGE_FNS = {"echo_sidebar_tick", "draw_entry"}            # queue name lookups
+STORAGE_FNS = {"echo_sidebar_tick", "draw_entry", "load", "lyrics_tick"}  # queue name lookups (Up Next, lyrics)
 TAG_FNS = {"np_draw", "track_line_xy", "track_title", "track_album", "footer_row"}  # RECHO's tag record: Now Playing and the Echo player strip
 ECHO_REGS = {0x60070024, 0x6007002C,                        # LCD controller status / data
              0x40180080, 0x401800A0, 0x401800A8, 0x401800C0, 0x401800C4, 0x401800C8, 0x401800CC,  # CRU
@@ -311,7 +313,7 @@ def main(orig_path, new_path):
         check(tags and tags <= TAG_FNS, f"tag record read only by Now Playing and the player strip ({sorted(tags)})")
         qread = where.get(0x03064B64, set())
         if ECHO:
-            check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar tick ({sorted(qread)})")
+            check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar and the lyrics loader ({sorted(qread)})")
         else:
             check(not qread, "no queue reads on the Echo Mini")
     sbw = struct.unpack_from("<HH", b, 0x0305945A - RAM_OF_IMG)

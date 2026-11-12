@@ -14,7 +14,7 @@ UNDEF=(-u status_level_shim -u power_tick_wrap -u hold_menu -u str_back -u str_s
 if [ "${1:-}" = "echo" ]; then
     OUT=hooks-echo
     CFLAGS+=(-DECHO_PORT)
-    OBJS+=(build/echo_port.o build/echo_sidebar.o build/echo_band.o)
+    OBJS+=(build/echo_port.o build/echo_sidebar.o build/echo_band.o build/lyrics.o)
     ENTRIES="$ENTRIES|echo_panel_init|gpio_set_echo|gpio_set_orig|echo_gpio_read|echo_hatch_tick|hatch_since|echo_sidebar_tick|echo_blank_outside|echo_panel_fill|sb_dirty|echo_band_tick|ui_borrow|ui_return|echo_push_rows"
     UNDEF+=(-u echo_panel_init -u gpio_set_echo -u echo_gpio_read)
 fi
@@ -29,6 +29,7 @@ if [ "$OUT" = "hooks-echo" ]; then
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_port.c -o build/echo_port.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_sidebar.c -o build/echo_sidebar.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_band.c -o build/echo_band.o
+    "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/lyrics.c -o build/lyrics.o
 fi
 "$ARM/arm-none-eabi-ld.exe" -e charge_screen "${UNDEF[@]}" \
     -Ttext=0x0306E000 --gc-sections -o "build/$OUT.elf" "${OBJS[@]}"
