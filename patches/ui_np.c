@@ -69,6 +69,7 @@ static inline u32 lit(u32 v)
 #define RULE  0x4208u
 #define RED   0xE249u
 #define DKRED 0x5082u
+#define GREEN 0x47E8u
 #define AMBER 0xFD20u
 
 #define STATE __attribute__((section(".text.np_state,\"ax\",%progbits@"), used))
@@ -89,6 +90,12 @@ STATE volatile u32 msg_shown = 0;
  * echo_gpio_read). Returns 0 when nothing is plugged in, so nothing is shown.
  * bt_routed (set once Bluetooth audio is in) shows "BT" instead. */
 #define jacks FN(0x03055EC0, u32 (*)(void))
+extern volatile u32 bt_state;            /* bt.c */
+extern char bt_conn_name[];
+#define BT_CONNECTED 6u
+#ifdef ECHO_PORT
+extern volatile u32 lyrics_track_size;   /* lyrics.c: size of the playing file, 0 = unknown */
+#endif
 STATE volatile u32 bt_routed = 0;
 
 static const char *output_name(void)
@@ -167,7 +174,14 @@ static void play_glyph(int cx, int y, u32 c)        /* right-pointing triangle, 
 
 /* ---- top bar shared by Now Playing and the chooser --------------------------- */
 
+static void top_bar_c(const char *right, u32 right_colour);
+
 static void top_bar(const char *right)
+{
+    top_bar_c(right, SOFT);
+}
+
+static void top_bar_c(const char *right, u32 right_colour)
 {
     char t[8], d[16];
     clock_strings(t, d);
@@ -175,7 +189,7 @@ static void top_bar(const char *right)
     text_at(1, x + 6, 10, d, 120, SOFT);
     if (right && *right) {
         int w = text_width(1, right);
-        text_at(1, W - 8 - w, 10, right, 100, SOFT);
+        text_at(1, W - 8 - w, 10, right, 140, right_colour);
     }
     fill_rect(0, 21, W - 1, 21, RULE);
 }
@@ -238,6 +252,17 @@ static void format_line_ex(char *out, int n, u32 *rg_colour_from, int full)
             p = put_str(p, SEP, end);
             p = put_num(p, f[2], end);
             p = put_str(p, " bit", end);
+#ifdef ECHO_PORT
+            /* lossless: average bitrate from the file size and the length */
+            u32 lo = f[4], dur = (lo / r) * 1000u + ((lo % r) * 1000u) / r;
+            u32 size = lyrics_track_size;
+            if (size && dur >= 1000u) {
+                u32 kbps = (size / dur) * 8u + ((size % dur) * 8u) / dur;
+                p = put_str(p, SEP, end);
+                p = put_num(p, kbps, end);
+                p = put_str(p, " kbps", end);
+            }
+#endif
         }
     }
     *rg_colour_from = 0;
@@ -399,7 +424,15 @@ void np_draw(void)
         p = put_num(p, qi ? (u32)qi[1] : 0u, qpos + 23);
     }
 #ifdef ECHO_PORT
-    p = put_str(qpos, loaded ? output_name() : 0, qpos + 23);   /* draft C: output in the top bar */
+    /* draft C: output in the top bar; "BT <headphones>" in green while Bluetooth is connected */
+    u32 right_colour = SOFT;
+    if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
+        p = put_str(qpos, "BT ", qpos + 23);
+        p = put_str(p, bt_conn_name, qpos + 23);
+        right_colour = GREEN;
+    } else {
+        p = put_str(qpos, loaded ? output_name() : 0, qpos + 23);
+    }
 #else
     if (p != qpos) {                      /* Mini: play-mode glyph in front (Up Next has it on the Echo) */
         static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
@@ -419,7 +452,11 @@ void np_draw(void)
     p = put_pct(p, qpos + 23);
 #endif
     *p = 0;
+#ifdef ECHO_PORT
+    top_bar_c(qpos, right_colour);
+#else
     top_bar(qpos);
+#endif
 
     if (!loaded) {
         text_centred(1, W / 2, 85, "Nothing playing", 300, SOFT);

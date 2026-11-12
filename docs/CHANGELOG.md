@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v16 | rebuilt with the shared top-bar change (no visible change on the Mini) | built, verified |
 | v15 | cable chooser: RECHO's USB symbol (U+E013, 3x) for USB disk | built, verified |
 | v14 | **Settings → Bluetooth**: on/off, search, connect, disconnect (no audio yet); diagnostic removed | built, verified |
 | v13 | Swap up/down hidden in Settings (as on the Echo); Bluetooth scan 30 s | built, verified |
@@ -31,6 +32,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 16 | top bar shows "BT <headphones>" in green while Bluetooth is connected; lossless files show their average bitrate (file size / length) | built, verified |
 | 15 | Now Playing draft C: output (3.5 / 4.4 mm) in the top bar, "Artist - Song", album, rule, format line; strip on Now Playing = lyric + progress; **4.4 mm sense pull on (GRF +0x54)**, so no ghost 4.4 mm; USB symbol on the cable chooser; lyrics log line | built, verified |
 | 14 | **lyrics**: the strip's top line shows the current line of `Song.lrc` (next to `Song.flac`), read once per track while the screen is on | built, verified |
 | 13 | **Settings → Bluetooth**: on/off, search, connect, disconnect (no audio yet); diagnostic removed | built, verified |

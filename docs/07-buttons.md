@@ -52,3 +52,12 @@ void hold_menu(void)
 To make your own remap, change the m45 handler's cases (it is a straight `cmp`/branch chain at
 `0x307A0C0`–`0x307A184`) or the global filter, and add a matching check to
 `tools/verify_image.py` section [13].
+
+## Playing more than one folder (RECHO's own feature)
+
+In Files, **hold ▶‖** on a folder queues that folder and every folder inside it (RECHO logs
+`ui: queued '<name>' tree: N files`). Hold ▶‖ on **Internal** (or the SD card) at the top level
+of Files queues every song on that drive, so playback runs on from one folder to the next. A
+tap of ▶‖ on a song still queues just its folder. Play mode (shuffle, repeat) applies to either
+queue. In m44 this is the hold-▶‖ branch at `0x307AF2C` → `0x307A278` (folder tree, `0` = the
+whole drive).

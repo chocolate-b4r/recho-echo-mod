@@ -37,6 +37,8 @@ static inline u32 lit(u32 v)
 #define elapsed_ms  FN(0x03057BE4, u32 (*)(void))
 #define file_name   FN(0x0305A1CC, const char *(*)(void))
 #define ms_now      FN(0x03051638, u32 (*)(void))
+#define current_screen FN(0x0305C41C, const void *(*)(void))
+#define request_redraw FN(0x0305C51C, void (*)(const void *screen))
 #define log_printf  FN(0x0306C9EC, void (*)(const char *fmt, ...))
 #define LOG_TO_FILE (((volatile u8 *)lit(0x0303EDD0u))[5])   /* settings block byte 5 */
 
@@ -53,6 +55,7 @@ static inline u32 lit(u32 v)
 STATE volatile u32 lrc_ident = 0xFFFFFFFFu;   /* track the lyrics belong to */
 STATE volatile u32 lrc_count = 0;             /* timed lines (0 = no lyrics) */
 STATE volatile int lrc_offset = 0;            /* [offset:] in ms */
+STATE volatile u32 lyrics_track_size = 0;     /* size of the playing file (bitrate on Now Playing) */
 STATE u32 lrc_time[LINES_MAX] = {0};
 STATE u16 lrc_text[LINES_MAX] = {0};
 STATE char lrc_rec[276] = {0};
@@ -171,12 +174,14 @@ static void load(void)
 {
     lrc_count = 0;
     lrc_offset = 0;
+    lyrics_track_size = 0;
     if (!Q_ACTIVE)
         return;
     u8 vol = 0;
     u32 folder = 0;
     if (queue_name(QSTORE, Q_CURRENT, lrc_rec, &vol, &folder) != 0)
         return;
+    lyrics_track_size = *(const u32 *)(lrc_rec + 264);
     lrc_rec[255] = 0;
     u32 n = 0, dot = 0;
     for (; lrc_rec[n] && n < 250; n++) {
@@ -218,6 +223,9 @@ void lyrics_tick(void)
     lrc_ident = id;
     u32 t0 = ms_now();
     load();
+    const void *scr = current_screen();
+    if (scr)
+        request_redraw(scr);                       /* Now Playing picks up the bitrate */
     if (LOG_TO_FILE)
         log_printf("lyrics: %u lines for entry %u at %u ms of the track, load %u ms", lrc_count, Q_CURRENT,
                    Q_ACTIVE ? elapsed_ms() : 0u, ms_now() - t0);
