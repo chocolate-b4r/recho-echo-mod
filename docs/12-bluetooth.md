@@ -5,10 +5,17 @@ the next.
 
 | Step | What | Status |
 |---|---|---|
-| 1 | Diagnostic: power the module, open its serial line, log what it says | **Mini: works** (`CV13`, answers `CQIOK`); Echo: not run yet |
-| 2 | Diagnostic: scan 15 s, connect to the first device found, disconnect | built (Mini v12, Echo stage 11) |
+| 1 | Diagnostic: power the module, open its serial line, log what it says | **works on both**: Mini `CV13`, Echo `CV15`, both answer `CQIOK` |
+| 2 | Diagnostic: scan, connect to the first device found, disconnect | **scan command accepted on both** (`CKKK`), no device found in 15 s; now 30 s (Mini v13, Echo stage 12) |
 | 2b | Bluetooth row in Settings, device list, remembered headphones | planned, depends on step 2's log |
 | 3 | Route audio to the module and back to the jacks | planned |
+
+## Results so far
+
+- 2026-11-12, step 1: both modules start and answer every status query (`CQIOK` = idle, not connected).
+- 2026-11-12, step 2: both answer `CS00` with `CKKK`, the same acknowledgement Podium's tests expect
+  during a scan, and `CP00` with `CKKK` + `CP`. No `CS nn` device frame arrived in 15 s. The scan now
+  lasts 30 s, as long as Podium's, and the headphones must be in pairing mode (not just switched on).
 
 ## Step 1: the diagnostic (`patches/bt_diag.c`)
 

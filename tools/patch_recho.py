@@ -282,7 +282,7 @@ def m48(addr):
     return M48_IMG + (addr - MOD_BASE)
 
 
-ECHO_SETTINGS_ORDER = [0, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 10, 11, 12]  # also hides Swap up/down
+ECHO_SETTINGS_ORDER = [0, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 10, 11, 12]  # also hides Swap up/down (both players)
 ECHO_SETTINGS_SHOWN = 13
 
 
@@ -366,12 +366,8 @@ def main():
             print("patched: status-bar charging animation (0x305945e shim, POWER tick wrapper)")
     usb_chooser_charge_first(d)
     print("patched: USB chooser = Charge only / USB disk; no key for 5 s -> power off (charging screen); DAC removed")
-    if a.echo:
-        settings_hide_rows(d, ECHO_SETTINGS_ORDER, ECHO_SETTINGS_SHOWN)
-        print("patched: Settings without Show tags, On USB connect, Debug strip, Swap up/down")
-    else:
-        settings_hide_rows(d)
-        print("patched: Settings without Show tags, On USB connect, Debug strip")
+    settings_hide_rows(d, ECHO_SETTINGS_ORDER, ECHO_SETTINGS_SHOWN)
+    print("patched: Settings without Show tags, On USB connect, Debug strip, Swap up/down")
     if not a.keep_bolt:
         charging_shows_level(d)
         print("patched: status bar shows the level cells while charging")

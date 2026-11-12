@@ -401,7 +401,7 @@ def main(orig_path, new_path):
     n0, l0, s0, t0, v0 = rows(a)
     n1, l1, s1, t1, v1 = rows(b)
     print(f"         rows: {l1[:n1]}")
-    hidden = {"Show tags", "On USB connect", "Debug strip"} | ({"Swap up/down"} if ECHO else set())
+    hidden = {"Show tags", "On USB connect", "Debug strip", "Swap up/down"}
     check(n1 == 17 - len(hidden) and not hidden & set(l1[:n1]),
           f"{17 - len(hidden)} rows; {', '.join(sorted(hidden))} hidden")
     orig_sel = {l0[k]: s0[k] for k in range(17)}

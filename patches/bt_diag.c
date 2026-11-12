@@ -4,7 +4,7 @@
  * Runs once per boot, 10 s after start-up, only while Settings -> Log to file is on
  * (settings block 0x0303EDD0, byte 5). Sequence, all logged through RECHO's own log:
  *   1. power the module, open UART1, wait for its ready report "CV1x" (5 s at most)
- *   2. scan for 15 s ("CS00"); every device found is logged with its address and name
+ *   2. scan for 30 s ("CS00", as long as Podium scans); every device found is logged with its address and name
  *   3. connect to the first device found ("CL06" + address, "CH06" + address 4 s later),
  *      query the status every second ("CQ00"); "CQO.." means connected
  *   4. 5 s after connecting (or 30 s without), disconnect ("CT00") and power the module off
@@ -62,7 +62,7 @@ static inline u32 lit(u32 v)
 
 #define START_AFTER_MS 10000u
 #define READY_WAIT_MS  5000u
-#define SCAN_MS        15000u
+#define SCAN_MS        30000u
 #define CONNECT_MS     30000u
 #define CONNECTED_HOLD 5000u
 #define QUERY_EVERY_MS 1000u
