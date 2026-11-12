@@ -153,3 +153,9 @@ every `CY0` (the parser used to keep only `CY`), to see whether it answers with 
   Bluetooth audio" as a known issue.
 - Podium (Echo): the only one with Bluetooth sound; every register and pin we can compare matches.
 - FiiO 2.0.0: `GRF+0xBC` bits 3:2 (`0x30528EE`) select UART pins, not audio.
+- FiiO's audio start (player overlay `0x308D8xx`, file entry `0x628`): GPIO2.14 and GPIO2.1 high,
+  GPIO1.4 low, GPIO2.2 high, I2S1 opened at 48 kHz, 24-bit (`0x30560A8(1, 2, 1, 48000, ..., 23)`), then
+  per track at the track's rate. Same fields as RECHO's `TXCR` `0x401F`.
+- FiiO's player overlay (entry `0x568`) reads the Bluetooth-connected flag (`+0x344`) on pause / play
+  (sends the `C 87` / `C 86` notices there) and keeps a **separate Bluetooth volume** (`+21`, wired
+  `+19`). Not yet traced: what that volume drives (the `CY0` level, or a digital gain). Next lead.
