@@ -35,7 +35,8 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x0305DA2C, 0x0305DAC4,                                       # clock chip read / decode
             0x03055EC0,                                                   # RECHO's jack detection (bit 0 3.5 mm, bit 1 4.4 mm)
             0x0307A2B8,                                                   # m47's own draw (About / Supporters panels), only from menu_draw
-            0x03065FE4}                                                   # queue "next" (pure computation): position in the play order
+            0x03065FE4,                                                   # queue "next" (pure computation): position in the play order
+            0x0306C290}                                                   # RECHO's boot text routine (boot_screen)
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
@@ -234,6 +235,7 @@ def main(orig_path, new_path):
                           (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer"),
                           (0x03059504, 4, "menu bar headphone glyph"),
                           (0x030594D4, 4, "menu bar volume text"), (0x0305A4B0, 4, "volume message text"),
+                          (0x03050D7C, 4, "boot splash call"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
                            "menu header play time" if ECHO else "menu bar battery glyph")):
         allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
@@ -519,6 +521,9 @@ def main(orig_path, new_path):
         t0 = bl_target(a, o, site) if kind == "bl" else bw_target(a, o, site)
         t1 = bl_target(b, o, site) if kind == "bl" else bw_target(b, o, site)
         check(t0 == 0x0305C09E and t1 == entl["vol_text"], f"volume text at {site:#x}: {kind} 0x305c09e -> vol_text")
+    bs = 0x03050D7C - RAM_OF_IMG
+    check(bl_target(a, bs, 0x03050D7C) == 0x0306C3E4 and bl_target(b, bs, 0x03050D7C) == entl["boot_screen"],
+          "boot splash 0x3050d7c: bl 0x306c3e4 -> bl boot_screen")
     print("[13] buttons (both players)")
     M45k = 0x2A494
     entk = {k: int(v, 16) for k, v in entries.items()}

@@ -194,6 +194,15 @@ VOL_TEXT_BAR = 0x030594D4    # menu bar: bl 0x305C09E (snprintf "%d dB", volume)
 VOL_TEXT_MSG = 0x0305A4B0    # volume message: b.w 0x305C09E ("%d dB")
 
 
+BOOT_SPLASH_CALL = 0x03050D7C   # bl 0x306C3E4("RECHO 0.10.1", ...): the boot splash
+
+
+def boot_splash(d, e):
+    """Both players: terminal-style boot screen (patches/ui_np.c boot_screen)."""
+    put(d, BOOT_SPLASH_CALL - RAM_OF_IMG, thumb_bl(BOOT_SPLASH_CALL, 0x0306C3E4),
+        thumb_bl(BOOT_SPLASH_CALL, e["boot_screen"]), "boot splash -> boot_screen")
+
+
 def volume_text(d, e):
     """Both players: volume shown from 0 dB (RECHO's -90 dB) upward."""
     put(d, VOL_TEXT_BAR - RAM_OF_IMG, thumb_bl(VOL_TEXT_BAR, 0x0305C09E), thumb_bl(VOL_TEXT_BAR, e["vol_text"]),
@@ -267,6 +276,7 @@ def add_hooks(d, animation=True, echo=False):
     key_remap(d, e)
     menu_bar(d, e, echo)
     volume_text(d, e)
+    boot_splash(d, e)
     ui_layout(d, e)
     if echo:
         if not animation:

@@ -509,7 +509,7 @@ extern const char *lyrics_line(void);
  * Returns 0 (drawing nothing) when it would not fit in 300 px. */
 static int text2x_line(int cx, int y_top, const char *a, u32 ca, const char *b, u32 cb)
 {
-    const int sy = 152;                   /* below the 2x lyric (rows 111..140); nothing else drawn there */
+    const int sy = 152;                   /* below the 2x lyric (rows 118..147); nothing else drawn there */
     int h = font_h(1);
     int wa = (a && *a) ? text_width(1, a) : 0, ws = wa ? text_width(1, " - ") : 0;
     int wb = (b && *b) ? text_width(1, b) : 0, w = wa + ws + wb;
@@ -642,9 +642,9 @@ void np_draw(void)
         const char *artist;
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
-        if (!text2x_line(W / 2, 24, artist, c_art, title, c_title))
-            track_line(40, paused);
-        text_centred(1, W / 2, 68, track_album(), 300, paused ? DIM : GREY);
+        if (!text2x_line(W / 2, 30, artist, c_art, title, c_title))
+            track_line(46, paused);
+        text_centred(1, W / 2, 76, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         u32 rg_unused;
         format_line_ex(info, sizeof info, &rg_unused, 0);
@@ -661,8 +661,8 @@ void np_draw(void)
             }
             *q = 0;
         }
-        text_centred(0, W / 2, 88, info, 300, paused ? DIM : GREY);
-        fill_rect(60, 100, W - 61, 100, RULE);
+        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 96, info, 300, paused ? DIM : GREY);
+        fill_rect(60, 108, W - 61, 108, RULE);
 
         u32 lc = paused ? GREY : WHITE;
         if (ms_now() - VOLUME_AT < 2000u) {
@@ -675,12 +675,12 @@ void np_draw(void)
                 q = put_str(q, " dB", v + 23);
             }
             *q = 0;
-            text_centred(1, W / 2, 126, v, 300, WHITE);
+            text_centred(1, W / 2, 133, v, 300, WHITE);
         } else {
             const char *ly = lyrics_line();
-            if (ly && !text2x_line(W / 2, 111, 0, 0, ly, lc)) {
+            if (ly && !text2x_line(W / 2, 118, 0, 0, ly, lc)) {
                 int f = text_width(1, ly) <= 304 ? 1 : 0;
-                text_centred(f, W / 2, 126, ly, 304, lc);
+                text_centred(f, W / 2, 133, ly, 304, lc);
             }
         }
     }
@@ -722,7 +722,7 @@ void np_draw(void)
  *          Now Playing: the format line; other screens: "▶ Artist - Song"
  *   row 1: progress bar and times */
 #ifdef ECHO_PORT
-extern const char *lyrics_next_line(void);
+extern const char *lyrics_line(void);
 
 void footer_row(int row, int on_now_playing)
 {
@@ -733,14 +733,8 @@ void footer_row(int row, int on_now_playing)
             text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
         return;
     }
-    if (row == 0 && on_now_playing) {
-        const char *nl = lyrics_next_line();
-        if (nl) {
-            int font = text_width(1, nl) <= 304 ? 1 : 0;
-            text_centred(font, W / 2, 13, nl, 304, DIM);
-        }
-        return;
-    }
+    if (row == 0 && on_now_playing)
+        return;                           /* the lyric is in the picture above */
     if (row == 0) {
         const char *ly = lyrics_line();
         if (ly) {
@@ -999,6 +993,37 @@ static const char *const TAB_WRENCH[15] = {
     "..........#.....",
     "...........#...."};
 
+static const char *const TAB_SYS[12] = {
+    ".####..##...##..####.",
+    "######.##...##.######",
+    "##..##..##..#..##..##",
+    "###.....##.##..###...",
+    ".####...##.##...####.",
+    "...###..##.##.....###",
+    "##..##...###...##..##",
+    "######...###...######",
+    ".####....###....####.",
+    ".........##..........",
+    "........###..........",
+    "........##..........."};
+static const char *const TAB_BT[16] = {
+    "......##....",
+    "......####..",
+    "......####..",
+    "##....##..##",
+    "##....##..##",
+    "..##..##..##",
+    "..##..##..##",
+    "....######..",
+    "....######..",
+    "..##..##..##",
+    "..##..##..##",
+    "##....##..##",
+    "##....##..##",
+    "......####..",
+    "......####..",
+    "......##...."};
+
 static void bitmap1x(const char *const *rows, int n, int x0, int y0, u32 c)
 {
     for (int r = 0; r < n; r++)
@@ -1019,16 +1044,14 @@ static void menu_tab(u32 i, int cx, int cy, u32 c)
     case 0:
         bitmap1x(TAB_FOLDER, 14, cx - 8, cy - 7, c);
         break;
-    case 1: {
-        int w = text_width(1, "sys");
-        text_at(1, cx - w / 2, cy, "sys", 40, c);
+    case 1:
+        bitmap1x(TAB_SYS, 12, cx - 10, cy - 6, c);
         break;
-    }
     case 2:
         bitmap1x(TAB_DISC, 16, cx - 8, cy - 8, c);
         break;
     case 3:
-        bitmap1x(ICON_BT, 12, cx - 6, cy - 6, c);
+        bitmap1x(TAB_BT, 16, cx - 6, cy - 8, c);
         break;
     default:
         bitmap1x(TAB_WRENCH, 15, cx - 8, cy - 7, c);
@@ -1058,11 +1081,22 @@ void menu_draw(void)
 #ifdef ECHO_PORT
     top_bar_c(r, rc);
 #else
-    {                                       /* Mini: output in its colour, then the battery in white */
-        char pct[8];
+    {                                       /* Mini: play mode + output, then the battery in white */
+        static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
+                                        "\xee\x80\x86", "\xee\x80\xab"};
+        char pct[8], lead[48];
         char *q = put_pct(pct, pct + 7);
         *q = 0;
-        top_bar_2(r, rc, pct, WHITE);
+        q = lead;
+        u32 m = PLAY_MODE;
+        if (m < 5u) {
+            q = put_str(q, MODE[m], lead + 47);
+            if (r)
+                q = put_str(q, " ", lead + 47);
+        }
+        q = put_str(q, r, lead + 47);
+        *q = 0;
+        top_bar_2(lead, rc, pct, WHITE);
     }
 #endif
 
@@ -1073,11 +1107,9 @@ void menu_draw(void)
     switch (cur) {
     case 0:
         sub = "Your music folders";
-        hint = "Hold Play on a folder: play it all";
         break;
     case 1:
         sub = "Show the player as a drive";
-        hint = "Plug in the cable first";
         break;
     case 2:
         if (queue_loaded()) {
@@ -1106,11 +1138,9 @@ void menu_draw(void)
             *p = 0;
             sub = tmp;
         }
-        hint = "Search and connect headphones";
         break;
     default:
         sub = "Play mode, screen, clock";
-        hint = "About is at the bottom";
         break;
     }
 #ifdef ECHO_PORT
@@ -1201,4 +1231,28 @@ int vol_text(char *buf, u32 size, const char *fmt, int v)
     p = put_str(p, " dB", end);
     *p = 0;
     return (int)(p - buf);
+}
+
+/* Boot screen (replaces RECHO's "RECHO 0.10.1" splash, `bl 0x306C3E4` at 0x3050D7C).
+ * Drawn with RECHO's own boot text routine 0x306C290 (6 x 11 font, works before the fonts load)
+ * into the frame buffer; *rect gets the whole screen so RECHO pushes all of it to the panel. */
+#define boot_text FN(0x0306C290, void (*)(int x, int y, const char *s, u32 colour, int bg, int scale))
+int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
+{
+    (void)s; (void)a; (void)b; (void)z;
+    static const char *const LINES[6] = {"> init", "> boot", "> loading kernel...", "> compiling data...",
+                                         "> applying interface...", "> system ready"};
+    fill_rect(0, 0, W - 1, 169, BLACK);
+    int y = 6;
+    for (int i = 0; i < 6; i++, y += 20)
+        boot_text(4, y, LINES[i], colour, 0, 1);
+    boot_text(4, y, "[", colour, 0, 1);
+    fill_rect(12, y + 1, 131, y + 9, colour);                 /* 20 blocks, full */
+    boot_text(134, y, "] 100%> mounting /dev/cho4e...", colour, 0, 1);
+    boot_text(4, y + 20, "login: 0.10.1", colour, 0, 1);
+    rect[0] = 0;
+    rect[1] = 0;
+    rect[2] = W - 1;
+    rect[3] = 169;
+    return 1;
 }

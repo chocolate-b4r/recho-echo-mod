@@ -163,3 +163,4 @@ every `CY0` (the parser used to keep only `CY`), to see whether it answers with 
   in the audio path.
 - Stage 29 (last attempt): routes for the whole connection from the moment it connects, as FiiO's
   connect step does, and only streams (`CY0 1E` / `00`) with play / pause.
+- Stage 29 on the player: still silent with the route held for the whole connection.
