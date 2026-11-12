@@ -54,8 +54,8 @@ shrunk to 1 × 1 so the pack keeps its exact 1302 bytes. See [05-icons.md](05-ic
 
 ## 6 · Settings (module m48)
 
-Rows hidden: Show tags (now always on), On USB connect, Debug strip; on the Echo also Swap
-up/down. The label table at `0x307AF08`, the value `tbh` at `0x307A1EE`, the select `tbb` at
+Rows hidden: Show tags (now always on), On USB connect, Swap up/down. Debug strip became the
+Bluetooth row (see [12-bluetooth.md](12-bluetooth.md)). The label table at `0x307AF08`, the value `tbh` at `0x307A1EE`, the select `tbb` at
 `0x307A73E` and every row-specific check (`0x307A262` Clock, `0x307A456` Equalizer, hints at
 `0x307A0B6`/`0x307A0BA`/`0x307A0C2`, bounds `0x307A1E4`/`0x307A736`, count `0x307AC1E`) are
 remapped, so each visible row still selects and shows its original setting. Module resealed.

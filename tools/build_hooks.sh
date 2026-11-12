@@ -8,9 +8,9 @@ ARM="${ARM:-/c/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/12.2 mpacbti-
 CFLAGS=(-mcpu=cortex-m3 -mthumb -Os -ffreestanding -fno-builtin -nostdlib -fno-pic
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror)
 OUT=hooks
-OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/clock.o build/ui_np.o build/bt_diag.o)
-ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|hold_menu|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_diag_tick'
-UNDEF=(-u status_level_shim -u power_tick_wrap -u hold_menu -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw)
+OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/clock.o build/ui_np.o build/bt.o)
+ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|hold_menu|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen'
+UNDEF=(-u status_level_shim -u power_tick_wrap -u hold_menu -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw -u bt_request_open -u bt_value_r1 -u str_bluetooth)
 if [ "${1:-}" = "echo" ]; then
     OUT=hooks-echo
     CFLAGS+=(-DECHO_PORT)
@@ -24,7 +24,7 @@ mkdir -p build
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/keys.c -o build/keys.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/clock.c -o build/clock.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/ui_np.c -o build/ui_np.o
-"$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/bt_diag.c -o build/bt_diag.o
+"$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/bt.c -o build/bt.o
 if [ "$OUT" = "hooks-echo" ]; then
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_port.c -o build/echo_port.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_sidebar.c -o build/echo_sidebar.o

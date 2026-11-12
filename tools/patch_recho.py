@@ -282,8 +282,37 @@ def m48(addr):
     return M48_IMG + (addr - MOD_BASE)
 
 
-ECHO_SETTINGS_ORDER = [0, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 10, 11, 12]  # also hides Swap up/down (both players)
-ECHO_SETTINGS_SHOWN = 13
+# Both players: Swap up/down hidden too, and Debug strip (row 12) becomes the Bluetooth row,
+# second after Play mode (see settings_bluetooth_row).
+ECHO_SETTINGS_ORDER = [0, 12, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 10, 11]
+ECHO_SETTINGS_SHOWN = 14
+ROW_DEBUG_STRIP = 12
+BT_SELECT_SITE = 0x0307A804   # select case of Debug strip: ldr r2,=settings; ldrb r3,[r2,#4]; eor ...
+BT_VALUE_SITE = 0x0307A3FE    # value case of Debug strip: ldr r3,=settings; ldrb r1,[r3,#4]; b.n 0x307a3ec
+
+
+def settings_bluetooth_row(d, echo=False):
+    """Debug strip -> Bluetooth: label, On/Off from the module state, select opens the screen."""
+    _, e = load_hooks("hooks-echo" if echo else "hooks")
+    idx = ECHO_SETTINGS_ORDER.index(ROW_DEBUG_STRIP)
+    lab = m48(0x0307AF08) + 4 * idx
+    put(d, lab, struct.pack("<I", 0x0307AE94), struct.pack("<I", e["str_bluetooth"]), "Settings Bluetooth label")
+    # select: bl bt_request_open ; b.n 0x307a75a (save + redraw, as every other row)
+    sel_old = bytes.fromhex("674a1379")
+    put(d, m48(BT_SELECT_SITE), sel_old + bytes.fromhex("83f00103"),
+        thumb_bl(BT_SELECT_SITE, e["bt_request_open"]) + thumb_bn(BT_SELECT_SITE + 4, 0x0307A75A),
+        "Settings Bluetooth select")
+    # value: bl bt_value_r1 (r1 = module on) ; the b.n 0x307a3ec that follows stays
+    put(d, m48(BT_VALUE_SITE), bytes.fromhex("294b1979"), thumb_bl(BT_VALUE_SITE, e["bt_value_r1"]),
+        "Settings Bluetooth value")
+    reseal_module(d, M48_IMG)
+
+
+def thumb_bn(src, dst):
+    off = dst - (src + 4)
+    if not -2048 <= off < 2048 or off & 1:
+        raise ValueError("b.n out of range")
+    return struct.pack("<H", 0xE000 | ((off >> 1) & 0x7FF))
 
 
 def settings_hide_rows(d, P=SETTINGS_ORDER, n=SETTINGS_SHOWN):
@@ -367,7 +396,10 @@ def main():
     usb_chooser_charge_first(d)
     print("patched: USB chooser = Charge only / USB disk; no key for 5 s -> power off (charging screen); DAC removed")
     settings_hide_rows(d, ECHO_SETTINGS_ORDER, ECHO_SETTINGS_SHOWN)
-    print("patched: Settings without Show tags, On USB connect, Debug strip, Swap up/down")
+    print("patched: Settings without Show tags, On USB connect, Swap up/down")
+    if not a.no_charge_screen:
+        settings_bluetooth_row(d, echo=a.echo)
+        print("patched: Settings row 2 = Bluetooth (was Debug strip): On/Off, opens the Bluetooth screen")
     if not a.keep_bolt:
         charging_shows_level(d)
         print("patched: status bar shows the level cells while charging")

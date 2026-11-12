@@ -6,13 +6,43 @@ the next.
 | Step | What | Status |
 |---|---|---|
 | 1 | Diagnostic: power the module, open its serial line, log what it says | **works on both**: Mini `CV13`, Echo `CV15`, both answer `CQIOK` |
-| 2 | Diagnostic: scan, connect to the first device found, disconnect | **scan command accepted on both** (`CKKK`), no device found in 15 s; now 30 s (Mini v13, Echo stage 12) |
-| 2b | Bluetooth row in Settings, device list, remembered headphones | planned, depends on step 2's log |
+| 2 | Diagnostic: scan, connect to the first device found, disconnect | **scan works on both**: the module answers `CKKK`, ends its search with `CSEN` after ~26 s; no headphones were in pairing mode |
+| 2b | Settings → Bluetooth: on/off, search, connect, disconnect (`patches/bt.c`) | built (Mini v14, Echo stage 13); replaces the diagnostic |
 | 3 | Route audio to the module and back to the jacks | planned |
+
+## Settings → Bluetooth (step 2b, `patches/bt.c`)
+
+Settings' hidden **Debug strip** row became **Bluetooth** (second row, value On / Off). Selecting it
+opens the Bluetooth screen:
+
+| Row | Play selects |
+|---|---|
+| Bluetooth On / Off | powers the module (GPIO2.7) and opens UART1; the header shows starting / on / no reply |
+| Search for headphones | `CS00`, 30 s at most (the module ends with `CSEN`); becomes **Stop searching** (`CP00`) |
+| one row per device found | `CL06` + address, `CH06` 4 s later if unanswered; 30 s limit, then `CT00` and "failed" |
+| Disconnect | shown in row 2 while connected (`CT00`) |
+
+Vol keys move, ↩ or ≡ go back to Settings, hold ≡ goes to the main menu. The module is off at
+every start-up and is switched off before the charging screen. With Log to file on, power-on,
+devices found, connects and every non-status frame are logged as `bt: ...`.
+
+How it hooks in (m48 and fw1 addresses):
+
+| Site | Change |
+|---|---|
+| m48 label table, new row 1 | `0x0307AE94` "Debug strip" → `str_bluetooth` |
+| m48 `0x307A804` (Debug strip select) | `bl bt_request_open; b.n 0x307A75A` (byte 4 no longer toggled) |
+| m48 `0x307A3FE` (Debug strip value) | `bl bt_value_r1` (r1 = module on, other registers kept) |
+| POWER tick | `bt_tick`: opens the screen like the cable chooser (`0x305BA54` close module, `0x305C3E4` switch screen), polls the UART, retries and time-outs |
+
+The screen is a RECHO screen descriptor in the cave (`bt_screen`), laid out like USBSEL's: +24
+enter, +28 key (`0x3059FE8` moves the cursor), +32 tick (redraw), +36 draw. Back asks for
+module 48 with `0x305B234`.
 
 ## Results so far
 
 - 2026-11-12, step 1: both modules start and answer every status query (`CQIOK` = idle, not connected).
+- 2026-11-12, step 2 (30 s): both modules end the search themselves with `CSEN` after ~26 s, 0 devices.
 - 2026-11-12, step 2: both answer `CS00` with `CKKK`, the same acknowledgement Podium's tests expect
   during a scan, and `CP00` with `CKKK` + `CP`. No `CS nn` device frame arrived in 15 s. The scan now
   lasts 30 s, as long as Podium's, and the headphones must be in pairing mode (not just switched on).

@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v14 | **Settings → Bluetooth**: on/off, search, connect, disconnect (no audio yet); diagnostic removed | built, verified |
 | v13 | Swap up/down hidden in Settings (as on the Echo); Bluetooth scan 30 s | built, verified |
 | v12 | jack shown from RECHO's own detection, hidden when nothing is plugged in; Bluetooth step 2 (scan, connect) | built, verified |
 | v11 | Now Playing spread over the full 170 rows; Bluetooth diagnostic (Log to file on) | built, verified |
@@ -29,6 +30,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 13 | **Settings → Bluetooth**: on/off, search, connect, disconnect (no audio yet); diagnostic removed | built, verified |
 | 12 | Bluetooth scan 30 s (module answers on the Echo: `CV15`, `CQIOK`, `CKKK`) | built, verified |
 | 11 | player strip: format line and progress on Now Playing, track and progress elsewhere ("Next" removed); jack fix; Bluetooth step 2 | built |
 | 10 | RECHO at the top, Up Next full height (11 tracks), player strip under RECHO's picture (format line and next track on Now Playing, track and progress elsewhere, messages on top); Bluetooth diagnostic | built |

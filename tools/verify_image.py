@@ -7,6 +7,7 @@ ReChord's brick log (load rows, .data/.bss placement, loader base, header vs
 self-copy, CRCs) plus checks specific to these patches.
 """
 import os
+import re
 import struct
 import sys
 
@@ -39,10 +40,13 @@ UI_DATA = {0x03034B48,                                                    # font
            0x0303EDD0}                                                    # settings block (play mode, byte 7)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
-# Bluetooth diagnostic (patches/bt_diag.c): RECHO's GPIO function / log, the module's UART1,
-# the UART1 pin group, clock and reset registers, and the "Log to file" settings byte.
-BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC}   # gpio function, gpio set, log
-SHARED_CONSTS = {0x9B0B8B56}   # not an address: bytes of the `tbb` jump table in bt_diag.c receive() (frame_size switch)
+# Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
+# group, clock and reset registers, the "Log to file" settings byte, and the screen plumbing the
+# cable chooser uses (close the loaded module, switch screen, list keys).
+BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
+            0x0305BA54, 0x0305C3E4, 0x03059FE8}   # close module, switch screen, list keys
+SHARED_CONSTS = set()   # `tbb` jump-table bytes are skipped by hook_literals(), so nothing here
+BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive"}
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
@@ -94,6 +98,23 @@ ECHO_REGS = {0x60070024, 0x6007002C,                        # LCD controller sta
 PODIUM_PANEL = None
 
 fails = []
+
+
+def hook_literals(dis):
+    """Every `.word` in the hook disassembly except the bytes of `tbb`/`tbh` jump tables."""
+    out, in_table = set(), False
+    for ln in dis.splitlines():
+        if re.search(r"\btb[bh]\b", ln):
+            in_table = True
+            continue
+        m = re.search(r"\.word\s+0x([0-9a-f]+)", ln)
+        if m:
+            if not in_table:
+                out.add(int(m.group(1), 16))
+            continue
+        if re.match(r"^\s+[0-9a-f]+:\s", ln) or re.match(r"^[0-9a-f]+ <", ln):
+            in_table = False
+    return out
 
 
 def check(cond, msg):
@@ -252,7 +273,7 @@ def main(orig_path, new_path):
                                                      "12.2 mpacbti-rel1/bin/arm-none-eabi-objdump.exe"))
     dis = subprocess.run([objdump, "-d", os.path.join(root, "build", HOOKS + ".elf")],
                          capture_output=True, text=True).stdout
-    lits = {int(x, 16) for x in re.findall(r"\.word\s+0x([0-9a-f]+)", dis)}
+    lits = hook_literals(dis)
     fw_ptrs = {v for v in lits if 0x03000000 <= v < 0x03100000 and not (0x0306E000 <= v < BLOB_END)}
     calls = {v & ~1 for v in fw_ptrs if v & 1}
     data = {v for v in fw_ptrs if not v & 1}
@@ -282,8 +303,7 @@ def main(orig_path, new_path):
                 where.setdefault(int(m.group(1), 16) & ~1, set()).add(owner)
         used = {c: where.get(c, set()) for c in calls & banned}
         logs = used.pop(0x0306C9EC, set())
-        check(logs <= {"bt_diag_tick", "receive", "handle_frame", "flush_line"},
-              f"RECHO's log is used only by the Bluetooth diagnostic ({sorted(logs)})")
+        check(logs <= BT_LOG_FNS, f"RECHO's log is used only by the Bluetooth code ({sorted(logs)})")
         text_ok = set(used) <= {0x03058D84, 0x03058D20} and not any(f & NO_TEXT_FNS for f in used.values())
         check(text_ok, "charging screen and power paths draw no text; only the two text routines are used"
               + f" ({ {hex(k): sorted(v) for k, v in used.items()} })")
@@ -389,7 +409,7 @@ def main(orig_path, new_path):
     print("[9] Settings (m48)")
     A0, B0 = 0x2BDD8, 0x0307A000
     def m48s(img, addr):
-        o = A0 + addr - B0
+        o = A0 + addr - B0 if addr >= B0 else addr - RAM_OF_IMG   # a label may live in the cave
         return img[o:img.index(0, o)].decode("latin1")
     def rows(img):
         n = img[A0 + 0x0307AC1E - B0]
@@ -402,13 +422,30 @@ def main(orig_path, new_path):
     n1, l1, s1, t1, v1 = rows(b)
     print(f"         rows: {l1[:n1]}")
     hidden = {"Show tags", "On USB connect", "Debug strip", "Swap up/down"}
-    check(n1 == 17 - len(hidden) and not hidden & set(l1[:n1]),
-          f"{17 - len(hidden)} rows; {', '.join(sorted(hidden))} hidden")
+    check(n1 == 17 - len(hidden) + 1 and not hidden & set(l1[:n1]) and l1[1] == "Bluetooth",
+          f"{n1} rows; {', '.join(sorted(hidden))} hidden; row 2 is Bluetooth")
     orig_sel = {l0[k]: s0[k] for k in range(17)}
     orig_val = {l0[k]: (t0[k] if k <= v0 else None) for k in range(17)}
-    check(all(s1[k] == orig_sel[l1[k]] for k in range(n1)), "every Settings row selects its original handler")
+    orig_sel["Bluetooth"], orig_val["Bluetooth"] = orig_sel["Debug strip"], orig_val["Debug strip"]
+    check(all(s1[k] == orig_sel[l1[k]] for k in range(n1)),
+          "every Settings row selects its original handler (Bluetooth uses Debug strip's case)")
     check(all((t1[k] if k <= v1 else None) == orig_val[l1[k]] for k in range(n1)),
-          "every Settings row shows its original value")
+          "every Settings row shows its original value (Bluetooth uses Debug strip's case)")
+    ent9 = {k: int(v, 16) for k, v in (l.split() for l in open(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".entries")))}
+    lab_ptr = u32(b, A0 + 0x0307AF08 - B0 + 4)
+    check(lab_ptr == ent9["str_bluetooth"] and 0x0306E000 <= lab_ptr < CAVE_HI,
+          f"Bluetooth label points at str_bluetooth in the cave ({lab_ptr:#x})")
+    so = A0 + 0x0307A804 - B0
+    check(a[so:so + 8] == bytes.fromhex("674a137983f00103") and bl_target(b, so, 0x0307A804) == ent9["bt_request_open"]
+          and b[so + 4:so + 6] == bytes.fromhex("a7e7"),
+          "Debug strip select case 0x307a804 -> bl bt_request_open; b.n 0x307a75a (byte 4 no longer toggled)")
+    vo = A0 + 0x0307A3FE - B0
+    check(a[vo:vo + 6] == bytes.fromhex("294b1979f3e7") and bl_target(b, vo, 0x0307A3FE) == ent9["bt_value_r1"]
+          and b[vo + 4:vo + 6] == bytes.fromhex("f3e7"),
+          "Debug strip value case 0x307a3fe -> bl bt_value_r1 (On/Off = module on); b.n 0x307a3ec kept")
+    diff9 = {k for k in range(u32(a, A0 + 12)) if a[A0 + k] != b[A0 + k]}
+    print(f"         m48: {len(diff9)} byte(s) changed")
     def row_of(img, addr):
         return img[A0 + addr - B0]
     check(row_of(b, 0x0307A262) == l1.index("Clock") and row_of(b, 0x0307A0C2) == l1.index("Clock"),

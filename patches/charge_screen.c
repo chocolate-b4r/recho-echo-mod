@@ -184,6 +184,8 @@ static void draw(int permille, int full)
 
 void charge_screen(void)
 {
+    extern void bt_shutdown(void);   /* bt.c: Bluetooth module off */
+    bt_shutdown();
     if (!cable_present())
         power_down();
 
