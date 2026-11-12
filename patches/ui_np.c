@@ -814,6 +814,7 @@ void menu_draw(void)
         menu_draw_orig();
         return;
     }
+    MENU_STATE[0] = 5u;                     /* row count: RECHO's draw sets it, its keys need it */
     u32 cur = MENU_STATE[1];
     if (cur > 4u)
         cur = 4u;
@@ -850,7 +851,7 @@ void menu_draw(void)
     switch (cur) {
     case 0:
         sub = "Your music folders";
-        hint = "Hold Play on a folder to play all of it";
+        hint = "Hold Play on a folder: play it all";
         break;
     case 1:
         sub = "Show the player as a drive";
@@ -858,7 +859,7 @@ void menu_draw(void)
         break;
     case 2:
         if (queue_loaded()) {
-            track_line_xy(16, 74, paused);
+            track_line_xy(16, 72, paused);
             const volatile int *qi = queue_info();
             char *p = put_str(tmp, paused ? "Paused" : "Playing", tmp + 47);
             if (qi && qi[1] > 0) {
@@ -882,7 +883,7 @@ void menu_draw(void)
             *p = 0;
             sub = tmp;
         }
-        hint = "Turn on, search and connect headphones";
+        hint = "Search and connect headphones";
         break;
     default:
         sub = "Play mode, screen, clock";
@@ -890,17 +891,18 @@ void menu_draw(void)
         break;
     }
     if (sub)
-        text_at(1, 16, 74, sub, W - 32, sc);
-    if (hint)
-        text_at(0, 16, 92, hint, W - 32, GREY);
+        text_at(1, 16, 72, sub, W - 32, sc);
+    if (hint)                               /* large font too: easier to read */
+        text_at(1, 16, 91, hint, W - 32, GREY);
 
     fill_rect(0, 104, W - 1, 104, RULE);
     for (u32 i = 0; i < 5u; i++) {
         int x = (int)i * 64, on = i == cur;
         u32 c = on ? WHITE : TAB_DIM;
         icon2x(MENU_ITEMS[i].icon, x + 16, 110, c);
-        int w = text_width(0, MENU_ITEMS[i].tab);
-        text_at(0, x + (64 - w) / 2, 153, MENU_ITEMS[i].tab, 62, c);
+        int f = text_width(1, MENU_ITEMS[i].tab) <= 62 ? 1 : 0;   /* large font when it fits */
+        int w = text_width(f, MENU_ITEMS[i].tab);
+        text_at(f, x + (64 - w) / 2, 153, MENU_ITEMS[i].tab, 63, c);
         if (on)
             fill_rect(x + 12, 165, x + 51, 166, WHITE);
     }

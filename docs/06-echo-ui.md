@@ -126,7 +126,8 @@ screen is on, so the battery cost is one small file read per track.
 
 ![menu preview](menu-preview.png)
 
-m47's descriptor draw (`0x307AAAC`) points at `menu_draw`; RECHO keeps its own keys, cursor
+m47's descriptor draw (`0x307AAAC`) points at `menu_draw`. RECHO's own draw also wrote the row
+count to state + 0 (`0x307A682`), which its keys use to move the cursor, so `menu_draw` writes it too; RECHO keeps its own keys, cursor
 (`0x0303BCC0` + 4) and select cases, with the rows ordered Files, USB disk, Now playing, Bluetooth
 (Supporters' slot), Settings. Five 16 x 16 pixel-art icons are drawn at 2x with square pixels only;
 the title is RECHO's large font pixel-doubled (drawn into the tab rows first, then copied 2x).
