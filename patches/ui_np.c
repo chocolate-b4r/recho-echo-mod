@@ -733,8 +733,11 @@ void footer_row(int row, int on_now_playing)
             text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
         return;
     }
-    if (row == 0 && on_now_playing)
-        return;                           /* the lyric is in the picture above */
+    if (on_now_playing) {                 /* the lyric is in the picture: just the progress bar, */
+        if (row == 0)                     /* right under it, as on the Mini */
+            progress_at(13, paused);
+        return;
+    }
     if (row == 0) {
         const char *ly = lyrics_line();
         if (ly) {
@@ -1045,7 +1048,7 @@ static void menu_tab(u32 i, int cx, int cy, u32 c)
         bitmap1x(TAB_FOLDER, 14, cx - 8, cy - 7, c);
         break;
     case 1:
-        bitmap1x(TAB_SYS, 12, cx - 10, cy - 6, c);
+        bitmap1x(TAB_SYS, 12, cx - 10, cy - 4, c);
         break;
     case 2:
         bitmap1x(TAB_DISC, 16, cx - 8, cy - 8, c);
@@ -1163,8 +1166,8 @@ void menu_draw(void)
         u32 on = i == cur;
         menu_tab(i, cx, tab_y, on ? WHITE : GREY);
         if (on) {
-            text_at(1, cx - 22, tab_y, "<", 10, WHITE);
-            text_at(1, cx + 16, tab_y, ">", 10, WHITE);
+            text_at(1, cx - 24, tab_y, "<", 10, WHITE);
+            text_at(1, cx + 14, tab_y, ">", 10, WHITE);
         }
     }
 #ifndef ECHO_PORT
@@ -1243,13 +1246,30 @@ int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
     static const char *const LINES[6] = {"> init", "> boot", "> loading kernel...", "> compiling data...",
                                          "> applying interface...", "> system ready"};
     fill_rect(0, 0, W - 1, 169, BLACK);
+    int thin = FONTS[0 * 4 + 3] != 0;         /* fonts load before the splash ("font: bitmap fonts") */
     int y = 6;
-    for (int i = 0; i < 6; i++, y += 20)
-        boot_text(4, y, LINES[i], colour, 0, 1);
-    boot_text(4, y, "[", colour, 0, 1);
-    fill_rect(12, y + 1, 131, y + 9, colour);                 /* 20 blocks, full */
-    boot_text(134, y, "] 100%> mounting /dev/cho4e...", colour, 0, 1);
-    boot_text(4, y + 20, "login: 0.10.1", colour, 0, 1);
+    for (int i = 0; i < 6; i++, y += 20) {
+        if (thin)
+            draw_text(0, 4, y, LINES[i], 312, colour, -1);
+        else
+            boot_text(4, y, LINES[i], colour, 0, 1);
+    }
+    int xb;
+    if (thin) {
+        draw_text(0, 4, y, "[", 20, colour, -1);
+        xb = 4 + text_width(0, "[");
+    } else {
+        boot_text(4, y, "[", colour, 0, 1);
+        xb = 10;
+    }
+    fill_rect(xb + 2, y + 2, xb + 121, y + 9, colour);       /* 20 blocks, full */
+    if (thin) {
+        draw_text(0, xb + 124, y, "] 100%> mounting /dev/cho4e...", 312 - xb - 124, colour, -1);
+        draw_text(0, 4, y + 20, "login: 0.10.1", 312, colour, -1);
+    } else {
+        boot_text(xb + 124, y, "] 100%> mounting /dev/cho4e...", colour, 0, 1);
+        boot_text(4, y + 20, "login: 0.10.1", colour, 0, 1);
+    }
     rect[0] = 0;
     rect[1] = 0;
     rect[2] = W - 1;

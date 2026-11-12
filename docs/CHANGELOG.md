@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v28 | boot text in RECHO's regular small font (boot font only as a fallback); tab arrows centred, "sys" 2 px lower | built, verified |
 | v27 | terminal-style boot screen (`boot_screen` replaces the `RECHO 0.10.1` splash); owner's "sys" and Bluetooth tab icons; menu tips removed; play-mode glyph in the menu's top bar | built, verified |
 | v26 | menu tabs use the owner's 16 px folder, disc and wrench; Power off and About icons removed from the pack | built, verified |
 | v25 | menu tabs: pixel folder, disc and wrench icons; Now Playing: big play / pause replaced by one small "Next  Artist - Title" line, progress bar on the menu's row (158) | built, verified |
@@ -43,6 +44,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 31 | Now Playing strip: the progress bar right under the picture (no empty row); boot text and tab row as Mini v28 | built, verified |
 | 30 | boot screen as Mini v27; Now Playing section moved down a little, file info in the large font when it fits, no lyric in the strip on Now Playing; menu as Mini v27 | built, verified |
 | 29 | Now Playing: "Artist - Song" and the lyric line at 2x (large font doubled, when they fit), album, file info, rule, lyric; next lyric dimmed in the strip; no play / pause glyph (paused = dimmer). Menu: owner's icons. Icons removed: Power off, About, header play / pause. Bluetooth: routed for the whole connection, as FiiO does | built, verified |
 | 28 | menu: large text on both lines, no rule above the tabs, pixel folder / disc / wrench icons | built, verified |
