@@ -399,11 +399,14 @@ static void format_line_ex(char *out, int n, u32 *rg_colour_from, int full)
 #define Y_INFO     105
 #define Y_GLYPH    134
 #else
+/* Mini: title, album, next song, format line, then the progress bar on the same row as in
+ * the menu (158), so it does not jump between the two screens */
 #define Y_TITLE    44
-#define Y_ALBUM    70
-#define Y_GLYPH    100
-#define Y_PROGRESS 132
-#define Y_FORMAT   156
+#define Y_ALBUM    68
+#define Y_NEXT     100
+#define Y_GLYPH    Y_NEXT                   /* Echo-only code below the Mini's return */
+#define Y_FORMAT   132
+#define Y_PROGRESS 158
 #endif
 
 static const char *track_title(const char **artist)
@@ -506,6 +509,42 @@ static void format_at(int y, int paused)
 
 static const char *output_label(char *buf, int n, u32 *colour);
 
+#ifndef ECHO_PORT
+/* "Next  Artist - Title" in the small font: the next entry in the play order (RECHO's own
+ * next routine), its tags from RECHO's tag record (read in the background; "..." until then) */
+static void next_line(int y, int paused)
+{
+    if (!QUEUE_ACTIVE)
+        return;
+    int nx = queue_next_entry(QUEUE_OBJ, QUEUE_CURRENT, PLAY_MODE, 0);
+    const char *qinfo_end = 0;
+    const volatile int *qi = queue_info();
+    u32 n = (qi && qi[1] > 0) ? (u32)qi[1] : 0u;
+    char line[96], *p = line, *end = line + 95;
+    if (nx < 0 || (u32)nx >= n || (u32)nx == QUEUE_CURRENT) {
+        qinfo_end = "End of queue";
+    } else {
+        const char *t = tag_record(nx);
+        if (t && t[0]) {
+            if (t[160]) {
+                p = put_str(p, t + 160, end);
+                p = put_str(p, " - ", end);
+            }
+            p = put_str(p, t, end);
+        } else {
+            p = put_str(p, "...", end);
+        }
+    }
+    *p = 0;
+    int wl = text_width(0, "Next  ");
+    const char *body = qinfo_end ? qinfo_end : line;
+    int wb = text_width(0, body);
+    int total = wl + (wb > 280 - wl ? 280 - wl : wb), x = (W - total) / 2;
+    text_at(0, x, y, "Next  ", wl + 1, DIM);
+    text_at(0, x + wl, y, body, 280 - wl, paused ? DIM : GREY);
+}
+#endif
+
 void np_draw(void)
 {
     fill_rect(0, 0, W - 1, 169, BLACK);
@@ -594,6 +633,27 @@ void np_draw(void)
     }
 #endif
 
+#ifndef ECHO_PORT
+    /* Mini: the next song in one small line, or the volume for 2 s after it changed */
+    if (ms_now() - VOLUME_AT < 2000u) {
+        char v[24], *q = put_str(v, "Volume ", v + 23);
+        int db = VOLUME_DB;
+        if (db <= -128)
+            q = put_str(q, "muted", v + 23);
+        else {
+            q = put_num(q, (u32)(db + 90 > 0 ? db + 90 : 0), v + 23);
+            q = put_str(q, " dB", v + 23);
+        }
+        *q = 0;
+        text_centred(1, W / 2, Y_NEXT, v, 300, WHITE);
+    } else {
+        next_line(Y_NEXT, paused);
+    }
+    progress_at(Y_PROGRESS, paused);
+    format_at(Y_FORMAT, paused);
+    (void)playing;
+    return;
+#endif
     /* state glyph, or the volume for 2 s after it changed */
     u32 now = ms_now();
     int gy = Y_GLYPH - 8;
@@ -625,10 +685,6 @@ void np_draw(void)
         fill_rect(W / 2 - 7, gy + 1, W / 2 + 7, gy + 15, GREY);
     }
 
-#ifndef ECHO_PORT
-    progress_at(Y_PROGRESS, paused);
-    format_at(Y_FORMAT, paused);          /* Echo: both are in the player strip under the picture */
-#endif
 }
 
 /* ---- player strip under RECHO's picture (Echo) ---------------------------------------
@@ -856,20 +912,55 @@ static const struct menu_item MENU_ITEMS[5] = {
 
 /* tab glyphs: RECHO's own icons (folder U+E012, disc U+E011, wrench U+E015), "sys" for the
  * USB disk, and the pixel Bluetooth rune; the selected one between "<" and ">" */
+/* 15 x 15 tab icons in the icon pack's outline style (square pixels) */
+static const char *const TAB_FOLDER[15] = {
+    "...............", "...............", "...............", ".####..........", "#....#.........",
+    "#.....########.", "#.............#", "#.............#", "#.............#", "#.............#",
+    "#.............#", "#.............#", ".#############.", "...............", "..............."};
+static const char *const TAB_DISC[15] = {
+    ".....#####.....", "...##.....##...", "..#.........#..", ".#...........#.", ".#....###....#.",
+    "#....#...#....#", "#...#.....#...#", "#...#..#..#...#", "#...#.....#...#", "#....#...#....#",
+    ".#....###....#.", ".#...........#.", "..#.........#..", "...##.....##...", ".....#####....."};
+static const char *const TAB_WRENCH[15] = {
+    "..........#..#.", "..........#..#.", ".........##..##", ".........#....#", "........#....#.",
+    ".......#....#..", "......#....#...", ".....#....#....", "....#....#.....", "...#....#......",
+    "..#....#.......", ".#....#........", "#....#.........", "#...#..........", ".###..........."};
+
+static void bitmap1x(const char *const *rows, int n, int x0, int y0, u32 c)
+{
+    for (int r = 0; r < n; r++)
+        for (int col = 0; rows[r][col]; col++) {
+            if (rows[r][col] != '#')
+                continue;
+            int run = col;
+            while (rows[r][run + 1] == '#')
+                run++;
+            fill_rect(x0 + col, y0 + r, x0 + run, y0 + r, c);
+            col = run;
+        }
+}
+
 static void menu_tab(u32 i, int cx, int cy, u32 c)
 {
-    static const char *const GLYPH[5] = {"\xee\x80\x92", "sys", "\xee\x80\x91", 0, "\xee\x80\x95"};
-    if (i == 3u) {                        /* Bluetooth rune, 12 x 12 at 1x */
-        const char *const *rows = ICON_BT;
-        for (int r = 0; r < 12; r++)
-            for (int col = 0; col < 12; col++)
-                if (rows[r][col] == '#')
-                    fill_rect(cx - 6 + col, cy - 6 + r, cx - 6 + col, cy - 6 + r, c);
-        return;
+    switch (i) {
+    case 0:
+        bitmap1x(TAB_FOLDER, 15, cx - 7, cy - 7, c);
+        break;
+    case 1: {
+        int w = text_width(1, "sys");
+        text_at(1, cx - w / 2, cy, "sys", 40, c);
+        break;
     }
-    const char *g = GLYPH[i];
-    int w = text_width(1, g);
-    text_at(1, cx - w / 2, cy, g, 40, c);
+    case 2:
+        bitmap1x(TAB_DISC, 15, cx - 7, cy - 7, c);
+        break;
+    case 3:
+        bitmap1x(ICON_BT, 12, cx - 6, cy - 6, c);
+        break;
+    default:
+        bitmap1x(TAB_WRENCH, 15, cx - 7, cy - 7, c);
+        break;
+    }
 }
 
 void menu_draw(void)
@@ -950,13 +1041,12 @@ void menu_draw(void)
         break;
     }
 #ifdef ECHO_PORT
-    /* Echo (drawing): small coloured line, larger grey tip, rule, one row of tabs */
+    /* Echo: both lines in the large font, then one row of tabs (no rule, as on the Mini) */
     if (sub)
-        text_at(0, 16, 70, sub, W - 32, sc);
+        text_at(1, 16, 72, sub, W - 32, sc);
     if (hint)
-        text_at(1, 16, 96, hint, W - 32, GREY);
-    fill_rect(0, 136, W - 1, 136, RULE);
-    const int tab_y = 153;
+        text_at(1, 16, 98, hint, W - 32, GREY);
+    const int tab_y = 150;
 #else
     /* Mini (drawing): both lines small, one row of tabs, the progress bar under them */
     if (sub)

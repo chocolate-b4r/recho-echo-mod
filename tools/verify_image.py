@@ -100,7 +100,7 @@ NO_TEXT_FNS = {"charge_screen", "read_level", "draw", "anim_level", "power_tick_
                "echo_hatch_tick", "echo_panel_init", "gpio_set_echo", "gpio_set_orig", "echo_gpio_read",
                "echo_flush_centred", "echo_panel_fill", "echo_blank_outside", "loader_reboot"}
 STORAGE_FNS = {"echo_sidebar_tick", "draw_entry", "load", "lyrics_tick"}  # queue name lookups (Up Next, lyrics)
-TAG_FNS = {"np_draw", "track_line_xy", "track_title", "track_album", "footer_row"}  # RECHO's tag record: Now Playing and the Echo player strip
+TAG_FNS = {"np_draw", "track_line_xy", "track_title", "track_album", "footer_row", "next_line", "menu_draw"}  # RECHO's tag record: Now Playing and the Echo player strip
 ECHO_REGS = {0x60070024, 0x6007002C,                        # LCD controller status / data
              0x40180080, 0x401800A0, 0x401800A8, 0x401800C0, 0x401800C4, 0x401800C8, 0x401800CC,  # CRU
              0x50010098, 0x500100B4, 0x500100B8, 0x500100C4,  # GRF PLL / boot select

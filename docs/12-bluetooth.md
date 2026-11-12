@@ -144,3 +144,12 @@ every `CY0` (the parser used to keep only `CY`), to see whether it answers with 
   GPIO2.16/17, audio clock `CRU+0x20` = `0x8004` as Podium, GPIO2 data `0x80C7` / dir `0x3C2D7`).
 - FiiO's module reset (overlay at `0x307E8C0`, file `0x...`): power off, 200 ms, UART set-up, 100 ms,
   then `0x307E986`: GPIO2.7 high and wait up to 5 s for `CV1`. Nothing beyond what we do.
+
+### Other projects checked (2026-11-13)
+
+- ReChord (`docs/re/decomp/apps/bluetooth/`): FiiO's Echo Mini Bluetooth screens (device list
+  drawing, status), nothing on the audio path.
+- EchoPod (Echo Mini, Podium's predecessor): routes with GPIO2.0 (mute) / GPIO2.14 and lists "no
+  Bluetooth audio" as a known issue.
+- Podium (Echo): the only one with Bluetooth sound; every register and pin we can compare matches.
+- FiiO 2.0.0: `GRF+0xBC` bits 3:2 (`0x30528EE`) select UART pins, not audio.
