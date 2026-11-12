@@ -645,6 +645,28 @@ STATE volatile u32 bt_stock_done = 0;
 STATE volatile u32 bt_variant = 4;      /* both test rounds were silent: Podium's routing, fixed */
 STATE volatile u32 bt_variant_used = 0;
 
+/* full snapshot while streaming (read only): GRF and CRU 0x000-0x0FC, GPIO data / direction */
+STATE volatile u32 bt_dumps = 0;
+static void dump_regs(void)
+{
+    if (!LOG_TO_FILE || bt_dumps >= 2u)
+        return;
+    bt_dumps++;
+    static const u32 BLOCKS[2] = {0x50010000u, 0x40180000u};
+    static const char *const NAMES[2] = {"GRF", "CRU"};
+    for (u32 b = 0; b < 2u; b++) {
+        volatile u32 *r = (volatile u32 *)lit(BLOCKS[b]);
+        for (u32 o = 0; o < 64u; o += 8u)
+            log_printf("bt: dump %s+%02x %08x %08x %08x %08x %08x %08x %08x %08x", NAMES[b], o * 4u,
+                       r[o], r[o + 1], r[o + 2], r[o + 3], r[o + 4], r[o + 5], r[o + 6], r[o + 7]);
+    }
+    static const u32 GPIOS[3] = {0x40160000u, 0x40170000u, 0x50030000u};
+    for (u32 g = 0; g < 3u; g++) {
+        volatile u32 *r = (volatile u32 *)lit(GPIOS[g]);
+        log_printf("bt: dump GPIO%u data %08x dir %08x in %08x", g, r[0], r[1], r[20]);
+    }
+}
+
 static void log_audio_state(const char *when)
 {
     if (!LOG_TO_FILE)
@@ -690,8 +712,10 @@ void bt_route(u32 on)
         gpio_set_orig(2, 2, echo_dacb_level);
     if (LOG_TO_FILE)
         log_printf("bt: route %s (variant %u)", on ? "to the headphones" : "to the jacks", v);
-    if (on)
+    if (on) {
         log_audio_state("after");
+        dump_regs();
+    }
 }
 #endif
 
