@@ -66,8 +66,10 @@ u32 power_tick_wrap(void)
     {
         extern void clock_tick(void);     /* clock.c: top bars follow the minute */
         extern void bt_tick(void);        /* bt.c: Bluetooth module and screen */
+        extern void about_tick(void);     /* ui_np.c: Settings -> About */
         clock_tick();
         bt_tick();
+        about_tick();
     }
 #ifdef ECHO_PORT
     {

@@ -698,3 +698,243 @@ void hints_stub(void)
 #endif
 }
 
+
+/* ---- main menu (both players): Draft A, pixel art ------------------------------------
+ * Replaces module m47's draw (descriptor 0x307AA88 + 36). RECHO's own menu logic stays:
+ * its row order (patched: Files, USB disk, Now playing, Bluetooth, Settings), cursor
+ * (state 0x0303BCC0 + 4), keys and select cases. RECHO's About and Supporters panels
+ * (state + 24 / + 32) are still drawn by RECHO's own draw. */
+#define MENU_STATE      PTR(volatile u32 *, 0x0303BCC0)
+#define menu_draw_orig  FN(0x0307A2B8, void (*)(void))
+#define FB              PTR(volatile u16 *, 0x03008A00)
+#define TAB_DIM         0x4A69u
+
+/* 16 x 16 pixel-art icons, drawn 2x. Square pixels only. */
+static const char *const ICON_FILES[16] = {
+    "................", "................", "..#####.........", "..#...#.........",
+    "..#...########..", "..#..........#..", "..############..", "..#..........#..",
+    "..#..........#..", "..#..........#..", "..#..........#..", "..#..........#..",
+    "..############..", "................", "................", "................"};
+static const char *const ICON_USB[16] = {
+    "................", "................", "................", "................",
+    "..........##....", "......######....", ".....#.......#..", "##..#........##.",
+    "################", "##.....#.....##.", "........#....#..", ".........###....",
+    "..........##....", "................", "................", "................"};
+static const char *const ICON_PLAY[16] = {
+    "................", ".....#..........", ".....##.........", ".....###........",
+    ".....####.......", ".....#####......", ".....######.....", ".....#######....",
+    ".....########...", ".....#######....", ".....######.....", ".....#####......",
+    ".....####.......", ".....###........", ".....##.........", ".....#.........."};
+static const char *const ICON_BT[16] = {
+    "................", ".......#........", ".......##.......", ".......#.#......",
+    "...#...#..#.....", "....#..#.#......", ".....#.##.......", "......##........",
+    ".....#.##.......", "....#..#.#......", "...#...#..#.....", ".......#.#......",
+    ".......##.......", ".......#........", "................", "................"};
+static const char *const ICON_SETTINGS[16] = {
+    "................", "......####......", "...##.####.##...", "...##########...",
+    "....########....", "..####....####..", "..###......###..", "..###......###..",
+    "..####....####..", "....########....", "...##########...", "...##.####.##...",
+    "......####......", "................", "................", "................"};
+
+static void icon2x(const char *const *rows, int x, int y, u32 c)
+{
+    for (int r = 0; r < 16; r++) {
+        const char *s = rows[r];
+        for (int col = 0; col < 16; col++) {
+            if (s[col] != '#')
+                continue;
+            int run = col;
+            while (run + 1 < 16 && s[run + 1] == '#')
+                run++;
+            fill_rect(x + col * 2, y + r * 2, x + run * 2 + 1, y + r * 2 + 1, c);
+            col = run;
+        }
+    }
+}
+
+/* the large font at 2x: drawn into the tab rows first (cleared again after), then doubled */
+static void text2x(int x, int y_top, const char *s, u32 c)
+{
+    const int sy = 120;
+    int h = font_h(1), w = text_width(1, s);
+    if (w > 150)
+        w = 150;
+    fill_rect(0, sy, w + 1, sy + h, BLACK);
+    draw_text(1, 0, sy, s, w, c, -1);
+    for (int r = h - 1; r >= 0; r--)
+        for (int col = 0; col < w; col++) {
+            u16 px = FB[(sy + r) * W + col];
+            int dx = x + col * 2, dy = y_top + r * 2;
+            if (dx + 1 >= W)
+                break;
+            FB[dy * W + dx] = px;
+            FB[dy * W + dx + 1] = px;
+            FB[(dy + 1) * W + dx] = px;
+            FB[(dy + 1) * W + dx + 1] = px;
+        }
+}
+
+/* right side of the top bars: "BT <headphones>" in green, or the output in use */
+static const char *output_label(char *buf, int n, u32 *colour)
+{
+    *colour = SOFT;
+    if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
+        char *p = put_str(buf, "BT ", buf + n - 1);
+        p = put_str(p, bt_conn_name, buf + n - 1);
+        *p = 0;
+        *colour = GREEN;
+        return buf;
+    }
+    return queue_loaded() ? output_name() : 0;
+}
+
+static const char *bt_words(u32 *colour)
+{
+    *colour = SOFT;
+    switch (bt_state) {
+    case 1: return "Starting";
+    case 2: *colour = RED; return "Not answering";
+    case 3: return "On";
+    case 4: *colour = AMBER; return "Searching";
+    case 5: *colour = AMBER; return "Connecting";
+    case 6: *colour = GREEN; return 0;
+    default: return "Off";
+    }
+}
+
+struct menu_item { const char *title; const char *const *icon; const char *tab; };
+static const struct menu_item MENU_ITEMS[5] = {
+    {"Files", ICON_FILES, "Files"},       {"USB disk", ICON_USB, "USB disk"},
+    {"Now playing", ICON_PLAY, "Playing"}, {"Bluetooth", ICON_BT, "Bluetooth"},
+    {"Settings", ICON_SETTINGS, "Settings"}};
+
+void menu_draw(void)
+{
+    if (MENU_STATE[6] || MENU_STATE[8]) {
+        menu_draw_orig();
+        return;
+    }
+    u32 cur = MENU_STATE[1];
+    if (cur > 4u)
+        cur = 4u;
+    const struct menu_item *it = &MENU_ITEMS[cur];
+    fill_rect(0, 0, W - 1, 169, BLACK);
+
+    text2x(16, 28, it->title, WHITE);
+    fill_rect(0, 104, W - 1, 169, BLACK);
+
+    char right[40];
+    u32 rc;
+    const char *r = output_label(right, sizeof right, &rc);
+#ifndef ECHO_PORT
+    {
+        char *p = right;
+        if (r && r != right)
+            p = put_str(right, r, right + 39);
+        else if (r)
+            while (*p)
+                p++;
+        if (p != right)
+            p = put_str(p, "   ", right + 39);
+        p = put_pct(p, right + 39);
+        *p = 0;
+        r = right;
+    }
+#endif
+    top_bar_c(r, rc);
+
+    int paused = player_state() == 2;
+    const char *sub = 0, *hint = 0;
+    u32 sc = SOFT;
+    char tmp[48];
+    switch (cur) {
+    case 0:
+        sub = "Your music folders";
+        hint = "Hold Play on a folder to play all of it";
+        break;
+    case 1:
+        sub = "Show the player as a drive";
+        hint = "Plug in the cable first";
+        break;
+    case 2:
+        if (queue_loaded()) {
+            track_line_xy(16, 74, paused);
+            const volatile int *qi = queue_info();
+            char *p = put_str(tmp, paused ? "Paused" : "Playing", tmp + 47);
+            if (qi && qi[1] > 0) {
+                p = put_str(p, SEP, tmp + 47);
+                p = put_num(p, (u32)queue_index() + 1u, tmp + 47);
+                p = put_str(p, "/", tmp + 47);
+                p = put_num(p, (u32)qi[1], tmp + 47);
+            }
+            *p = 0;
+            hint = tmp;
+        } else {
+            sub = "Nothing playing";
+            hint = "Pick a song in Files";
+        }
+        break;
+    case 3:
+        sub = bt_words(&sc);
+        if (!sub) {
+            char *p = put_str(tmp, "Connected to ", tmp + 47);
+            p = put_str(p, bt_conn_name, tmp + 47);
+            *p = 0;
+            sub = tmp;
+        }
+        hint = "Turn on, search and connect headphones";
+        break;
+    default:
+        sub = "Play mode, screen, clock";
+        hint = "About is at the bottom";
+        break;
+    }
+    if (sub)
+        text_at(1, 16, 74, sub, W - 32, sc);
+    if (hint)
+        text_at(0, 16, 92, hint, W - 32, GREY);
+
+    fill_rect(0, 104, W - 1, 104, RULE);
+    for (u32 i = 0; i < 5u; i++) {
+        int x = (int)i * 64, on = i == cur;
+        u32 c = on ? WHITE : TAB_DIM;
+        icon2x(MENU_ITEMS[i].icon, x + 16, 110, c);
+        int w = text_width(0, MENU_ITEMS[i].tab);
+        text_at(0, x + (64 - w) / 2, 153, MENU_ITEMS[i].tab, 62, c);
+        if (on)
+            fill_rect(x + 12, 165, x + 51, 166, WHITE);
+    }
+}
+
+/* Settings -> About: RECHO's own About panel in the menu module, back to Settings after */
+STATE volatile u32 about_state = 0;
+#define CURRENT_MODULE_ID REG(0x030399C8)
+#define set_module_id     FN(0x0305B234, void (*)(int module))
+const char str_about[] = "About";
+
+void about_request_open(void)
+{
+    about_state = 1;
+}
+
+void about_tick(void)
+{
+    if (about_state == 1) {
+        if (CURRENT_MODULE_ID != 47u) {
+            set_module_id(47);
+            return;
+        }
+        MENU_STATE[6] = 1;
+        const volatile u32 *scr = current_screen();
+        if (scr)
+            request_redraw((const void *)scr);
+        about_state = 2;
+    } else if (about_state == 2) {
+        if (CURRENT_MODULE_ID != 47u)
+            about_state = 0;
+        else if (!MENU_STATE[6]) {
+            about_state = 0;
+            set_module_id(48);
+        }
+    }
+}

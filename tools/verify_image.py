@@ -33,11 +33,13 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x0305A1CC, 0x0305A1C4, 0x03057DB4, 0x03057DC0, 0x03059AE8,  # player / queue / tag / format
             0x0305C41C, 0x0305AE28,                                       # current screen, bar message
             0x0305DA2C, 0x0305DAC4,                                       # clock chip read / decode
-            0x03055EC0}                                                   # RECHO's jack detection (bit 0 3.5 mm, bit 1 4.4 mm)
+            0x03055EC0,                                                   # RECHO's jack detection (bit 0 3.5 mm, bit 1 4.4 mm)
+            0x0307A2B8}                                                   # m47's own draw (About / Supporters panels), only from menu_draw
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
-           0x0303EDD0}                                                    # settings block (play mode, byte 7)
+           0x0303EDD0,                                                    # settings block (play mode, byte 7)
+           0x03008A00, 0x0303BCC0}                                        # frame buffer (2x title), main menu state
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -215,6 +217,11 @@ def main(orig_path, new_path):
     allowed.append((0x25A88, 0x25A8C, "chooser count (.data load image)"))
     allowed.append((0x27584, 0x27588, "chooser count (.data copy)"))
     allowed.append((0x2BDD8, 0x2BDD8 + u32(a, 0x2BDD8 + 12), "module m48 (Settings)"))
+    for off, mid, name in ((0x2CD58, 49, "Spectrum"), (0x2E43C, 50, "Debug")):
+        ln = u32(a, off + 12)
+        check(a[off:off + 4] == b"SFMD" and u32(a, off + 4) == mid and not any(b[off:off + ln]),
+              f"module m{mid} ({name}) blanked: {ln} bytes, nothing opens it")
+        allowed.append((off, off + ln, f"module m{mid} ({name}) blanked"))
     allowed.append((0x2A494, 0x2A494 + u32(a, 0x2A494 + 12), "module m45 (Now Playing)"))
     allowed.append((0x0305BF18 - RAM_OF_IMG, 0x0305BF18 - RAM_OF_IMG + 4, "hold-menu call"))
     for addr, n, what in ((0x0305C4B8, 2, "content area bottom (1)"), (0x0305C4EE, 2, "content area bottom (2)"),
@@ -379,8 +386,11 @@ def main(orig_path, new_path):
     check("Spectrum" not in labels[:count] and "Supporters" not in labels[:count], "Spectrum and Supporters gone")
     ent6 = {k: int(v, 16) for k, v in (l.split() for l in open(os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".entries")))}
-    check(labels[:count] == ["Files", "Now playing", "Bluetooth", "Settings", "USB disk", "About"],
-          "main menu: Files, Now playing, Bluetooth, Settings, USB disk, About")
+    check(labels[:count] == ["Files", "USB disk", "Now playing", "Bluetooth", "Settings"],
+          "main menu: Files, USB disk, Now playing (centre), Bluetooth, Settings")
+    dp = m47(0x0307AAAC)
+    check(u32(a, dp) == 0x0307A2B9 and u32(b, dp) == (ent6["menu_draw"] | 1) and a[m47(0x0307AA88):m47(0x0307AA88) + 4] == b"MENU",
+          "main menu descriptor draw 0x307a2b9 -> menu_draw")
     so = m47(0x0307A1E4)
     check(a[so:so + 8] == bytes.fromhex("01220023c5e90823") and bl_target(b, so, 0x0307A1E4) == ent6["bt_request_open"]
           and b[so + 4:so + 6] == bytes.fromhex("efe7"),
@@ -444,10 +454,17 @@ def main(orig_path, new_path):
     n1, l1, s1, t1, v1 = rows(b)
     print(f"         rows: {l1[:n1]}")
     hidden = {"Show tags", "On USB connect", "Debug strip", "Swap up/down", "Equalizer"}
-    check(n1 == 17 - len(hidden) and not hidden & set(l1[:n1]),
-          f"{n1} rows; {', '.join(sorted(hidden))} hidden")
+    check(n1 == 17 - len(hidden) + 1 and not hidden & set(l1[:n1]) and l1[n1 - 1] == "About",
+          f"{n1} rows; {', '.join(sorted(hidden))} hidden; About last")
     orig_sel = {l0[k]: s0[k] for k in range(17)}
     orig_val = {l0[k]: (t0[k] if k <= v0 else None) for k in range(17)}
+    orig_sel["About"], orig_val["About"] = orig_sel["Debug strip"], None
+    ent9 = {k: int(v, 16) for k, v in (l.split() for l in open(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".entries")))}
+    so = A0 + 0x0307A804 - B0
+    check(a[so:so + 8] == bytes.fromhex("674a137983f00103") and bl_target(b, so, 0x0307A804) == ent9["about_request_open"]
+          and b[so + 4:so + 6] == bytes.fromhex("a7e7"),
+          "Debug strip select case 0x307a804 -> bl about_request_open; b.n 0x307a75a")
     check(all(s1[k] == orig_sel[l1[k]] for k in range(n1)), "every Settings row selects its original handler")
     check(all((t1[k] if k <= v1 else None) == orig_val[l1[k]] for k in range(n1)),
           "every Settings row shows its original value")
@@ -455,7 +472,7 @@ def main(orig_path, new_path):
     print(f"         m48: {len(diff9)} byte(s) changed")
     def row_of(img, addr):
         return img[A0 + addr - B0]
-    l1 = l1[:n1] + [l0[k] for k in range(17) if l0[k] not in l1[:n1]]   # hidden rows after the shown ones
+    l1 = l1[:n1] + [l0[k] for k in range(17) if l0[k] not in l1[:n1] and l0[k] != "Debug strip"]
     check(row_of(b, 0x0307A262) == l1.index("Clock") and row_of(b, 0x0307A0C2) == l1.index("Clock"),
           "Clock row checks follow the Clock row")
     check(row_of(b, 0x0307A456) == l1.index("Equalizer") and row_of(b, 0x0307A0B6) == l1.index("Equalizer"),

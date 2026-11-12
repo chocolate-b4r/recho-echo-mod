@@ -121,3 +121,17 @@ The file is found with RECHO's own routines: `0x3064B64` (queue entry → record
 folder cluster), `0x305A02C` (volume), `0x30638FC` (find a long name in a folder), `0x3053900`
 and `0x3053934` (file object, read). It is read once when the track changes, and only while the
 screen is on, so the battery cost is one small file read per track.
+
+## Main menu (both players, `menu_draw` in `patches/ui_np.c`)
+
+![menu preview](menu-preview.png)
+
+m47's descriptor draw (`0x307AAAC`) points at `menu_draw`; RECHO keeps its own keys, cursor
+(`0x0303BCC0` + 4) and select cases, with the rows ordered Files, USB disk, Now playing, Bluetooth
+(Supporters' slot), Settings. Five 16 x 16 pixel-art icons are drawn at 2x with square pixels only;
+the title is RECHO's large font pixel-doubled (drawn into the tab rows first, then copied 2x).
+RECHO's About panel (state + 24) still uses RECHO's own draw: Settings -> About sets that flag after
+loading the menu module and returns to Settings when it closes (`about_tick`).
+
+Spectrum (m49) and Debug (m50) are blanked in the image. RECHO finds modules through a directory
+table, so no other module moves; nothing opens either one any more.

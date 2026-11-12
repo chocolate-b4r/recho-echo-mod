@@ -308,8 +308,10 @@ def m48(addr):
 
 # Both players: Swap up/down hidden too, and Debug strip (row 12) becomes the Bluetooth row,
 # second after Play mode (see settings_bluetooth_row).
-ECHO_SETTINGS_ORDER = [0, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 2, 10, 11, 12]   # Equalizer hidden too
-ECHO_SETTINGS_SHOWN = 12
+# Debug strip's slot (row 12) becomes About, last and without a value.
+ECHO_SETTINGS_ORDER = [0, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 12, 1, 2, 10, 11]
+ECHO_SETTINGS_SHOWN = 13
+NO_VALUE_ROWS = {12}
 ROW_DEBUG_STRIP = 12
 BT_SELECT_SITE = 0x0307A804   # select case of Debug strip: ldr r2,=settings; ldrb r3,[r2,#4]; eor ...
 BT_VALUE_SITE = 0x0307A3FE    # value case of Debug strip: ldr r3,=settings; ldrb r1,[r3,#4]; b.n 0x307a3ec
@@ -350,6 +352,38 @@ def menu_bluetooth_row(d, echo=False):
     reseal_module(d, M47_IMG)
 
 
+MENU_DRAW_PTR = 0x0307AAAC     # m47 descriptor (0x307AA88) + 36: draw
+DEAD_MODULES = ((0x2CD58, 49), (0x2E43C, 50))   # Spectrum, Debug: no menu row leads to them
+
+
+def main_menu_draw(d, echo=False):
+    _, e = load_hooks("hooks-echo" if echo else "hooks")
+    put(d, m47(MENU_DRAW_PTR), struct.pack("<I", 0x0307A2B9), struct.pack("<I", e["menu_draw"] | 1),
+        "main menu draw -> menu_draw")
+    reseal_module(d, M47_IMG)
+
+
+def settings_about_row(d, echo=False):
+    """Settings: Debug strip's slot = About (opens RECHO's own About panel, then back)."""
+    _, e = load_hooks("hooks-echo" if echo else "hooks")
+    idx = ECHO_SETTINGS_ORDER.index(ROW_DEBUG_STRIP)
+    put(d, m48(0x0307AF08) + 4 * idx, struct.pack("<I", 0x0307AE94), struct.pack("<I", e["str_about"]),
+        "Settings About label")
+    put(d, m48(BT_SELECT_SITE), bytes.fromhex("674a137983f00103"),
+        thumb_bl(BT_SELECT_SITE, e["about_request_open"]) + thumb_bn(BT_SELECT_SITE + 4, 0x0307A75A),
+        "Settings About select")
+    reseal_module(d, M48_IMG)
+
+
+def remove_modules(d):
+    """Blank modules nothing can open any more. RECHO finds modules through its directory
+    table, so the others are unaffected; asking for a blanked one fails its magic/CRC check."""
+    for off, mid in DEAD_MODULES:
+        if d[off:off + 4] != b"SFMD" or u32(d, off + 4) != mid:
+            raise SystemExit(f"module m{mid} not at {off:#x}")
+        d[off:off + u32(d, off + 12)] = bytes(u32(d, off + 12))
+
+
 def thumb_bn(src, dst):
     off = dst - (src + 4)
     if not -2048 <= off < 2048 or off & 1:
@@ -365,7 +399,8 @@ def settings_hide_rows(d, P=SETTINGS_ORDER, n=SETTINGS_SHOWN):
     struct.pack_into("<17I", d, m48(0x0307AF08), *[lab[i] for i in P])
     # value-draw tbh (15 halfwords, rows 0..14); rows that have no value fall to the default
     tbh = list(struct.unpack_from("<15H", d, m48(0x0307A1EE)))
-    newtbh = [tbh[P[i]] for i in range(n) if P[i] <= 14]
+    newtbh = [tbh[P[i]] for i in range(n) if P[i] <= 14 and P[i] not in NO_VALUE_ROWS]
+    assert all(P[i] <= 14 and P[i] not in NO_VALUE_ROWS for i in range(len(newtbh))), "value rows must come first"
     vrows = len(newtbh)                       # rows 0..vrows-1 have a value
     newtbh += [newtbh[-1]] * (15 - len(newtbh))
     struct.pack_into("<15H", d, m48(0x0307A1EE), *newtbh)
@@ -414,7 +449,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
     ap.add_argument("dst")
-    ap.add_argument("--menu-order", default="0,1,5,4,3,8",
+    ap.add_argument("--menu-order", default="0,3,1,5,4",
                     help="original menu rows to keep, in order (0 Files, 1 Now playing, 3 USB disk, 4 Settings, "
                          "5 Supporters = Bluetooth, 8 About; 2 Spectrum, 6 Debug, 7 Power off left out)")
     ap.add_argument("--icons", help="folder of edited icon PNGs (tools/icons.py naming)")
@@ -445,7 +480,12 @@ def main():
     print("patched: Settings without Show tags, On USB connect, Swap up/down, Debug strip, Equalizer")
     if not a.no_charge_screen:
         menu_bluetooth_row(d, echo=a.echo)
-        print("patched: main menu row 3 = Bluetooth (was Supporters): opens the Bluetooth screen")
+        main_menu_draw(d, echo=a.echo)
+        settings_about_row(d, echo=a.echo)
+        print("patched: main menu = pixel-art tabs (menu_draw), Bluetooth in Supporters' slot; "
+              "Settings last row = About (RECHO's About panel)")
+    remove_modules(d)
+    print("patched: unreachable modules m49 (Spectrum) and m50 (Debug) blanked")
     if not a.keep_bolt:
         charging_shows_level(d)
         print("patched: status bar shows the level cells while charging")
