@@ -218,7 +218,10 @@ def main(orig_path, new_path):
     allowed.append((0x2A494, 0x2A494 + u32(a, 0x2A494 + 12), "module m45 (Now Playing)"))
     allowed.append((0x0305BF18 - RAM_OF_IMG, 0x0305BF18 - RAM_OF_IMG + 4, "hold-menu call"))
     for addr, n, what in ((0x0305C4B8, 2, "content area bottom (1)"), (0x0305C4EE, 2, "content area bottom (2)"),
-                          (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer")):
+                          (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer"),
+                          (0x03059504, 4, "menu bar headphone glyph"),
+                          (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
+                           "menu header play time" if ECHO else "menu bar battery glyph")):
         allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
     if ECHO:
         for addr, n, what in ((0x0306B9F4, 4, "echo: panel init (boot)"), (0x0306C206, 4, "echo: panel init (wake)"),
@@ -363,9 +366,14 @@ def main(orig_path, new_path):
     orig_labels = [a[m47(u32(a, m47(0x0307AA64) + 4 * k)):].split(b"\0")[0].decode("latin1") for k in range(9)]
     target_of = {orig_labels[k]: orig_tbb[k] for k in range(9)}
     check(all(tbb[k] == target_of[labels[k]] for k in range(count)), "each row still dispatches to its own handler")
-    usb, pwr = labels.index("USB disk"), labels.index("Power off")
+    usb = labels.index("USB disk")
     check(b[m47(0x0307A04C)] == usb and b[m47(0x0307A6DA)] == usb, f"USB-disk row checks use row {usb}")
-    check(b[m47(0x0307A0E6)] == pwr and b[m47(0x0307A6E4)] == pwr, f"Power-off row checks use row {pwr}")
+    if "Power off" in labels[:count]:
+        pwr = labels.index("Power off")
+        check(b[m47(0x0307A0E6)] == pwr and b[m47(0x0307A6E4)] == pwr, f"Power-off row checks use row {pwr}")
+    else:
+        check(b[m47(0x0307A0E6)] == 15 and b[m47(0x0307A6E4)] == 15 and 15 >= count,
+              "Power off removed; its row checks point at row 15, which no row has")
     check("Spectrum" not in labels[:count] and "Supporters" not in labels[:count], "Spectrum and Supporters gone")
 
     print("[7] icon pack")
@@ -475,6 +483,17 @@ def main(orig_path, new_path):
     check(u32(a, atl(0x03060AD4)) == 0x03059EDD and u32(b, atl(0x03060AD4)) == (entl["usb_draw"] | 1)
           and a[atl(0x03060AB0):atl(0x03060AB6)] == b"USBSEL",
           "cable chooser (USBSEL) draw pointer -> usb_draw")
+    hg = 0x03059504 - RAM_OF_IMG
+    check(a[hg:hg + 4] == bytes.fromhex("012d4cd9") and b[hg:hg + 4] == bytes.fromhex("3c462ae0"),
+          "menu bar: headphone glyph skipped (cmp r5,#1; bls -> mov r4,r7; b.n 0x305955e)")
+    if ECHO:
+        tc = 0x03059B3A - RAM_OF_IMG
+        check(a[tc:tc + 2] == bytes.fromhex("26d8") and b[tc:tc + 2] == bytes.fromhex("26e0"),
+              "menu header: play time skipped on the Echo (bhi.n -> b.n 0x3059b8a)")
+    else:
+        bg = 0x03059474 - RAM_OF_IMG
+        check(a[bg:bg + 4] == bytes.fromhex("53f82250") and bl_target(b, bg, 0x03059474) == entl["battery_pct_shim"],
+              "menu bar: battery glyph load -> bl battery_pct_shim (percentage text)")
     print("[13] buttons (both players)")
     M45k = 0x2A494
     entk = {k: int(v, 16) for k, v in entries.items()}

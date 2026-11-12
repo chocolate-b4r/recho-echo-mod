@@ -59,13 +59,18 @@ def cmp_imm(reg, imm):
     return bytes([imm, 0x28 | reg])
 
 
+NO_ROW = 15                        # a row number no menu has (row checks that should never match)
+
+
 def remove_menu_rows(d, drop):
     """Rebuild the m47 main menu without the rows in `drop` (original indices)."""
     keep = [r for r in range(ORIG_ROWS) if r not in drop]
     n = len(keep)
-    if ROW_USB not in keep or ROW_POWER not in keep or n < 2:
-        raise SystemExit("USB disk and Power off rows must stay")
-    new_usb, new_power = keep.index(ROW_USB), keep.index(ROW_POWER)
+    if ROW_USB not in keep or n < 2:
+        raise SystemExit("the USB disk row must stay")
+    # Power off may go (the Power key does the same); its row checks then match no row.
+    new_usb = keep.index(ROW_USB)
+    new_power = keep.index(ROW_POWER) if ROW_POWER in keep else NO_ROW
     labels = struct.unpack_from("<9I", d, m47(0x0307AA64))
     if labels[2] != 0x0307A8C2 or labels[5] != 0x0307A78B:
         raise SystemExit("menu label table is not the expected one")
@@ -180,6 +185,24 @@ def echo_status_bar(d):
 
 
 
+HEADPHONE_GLYPH = 0x03059504   # menu bar: `cmp r5,#1; bls 0x30595a2` -> headphone / no-headphone glyph
+TIMECODE_BRANCH = 0x03059B3A   # menu header: `bhi.n 0x3059b8a` skips "▶ m:ss" unless playing / paused
+BATTERY_GLYPH_LOAD = 0x03059474  # menu bar: `ldr.w r5,[r3,r2,lsl #2]` = battery glyph string by level
+
+
+def menu_bar(d, e, echo):
+    """Menu bars: no headphone glyph (both); no play time on the Echo (the player strip has it);
+    battery as a percentage on the Mini (the Echo's Up Next shows it)."""
+    put(d, HEADPHONE_GLYPH - RAM_OF_IMG, bytes.fromhex("012d4cd9"), bytes.fromhex("3c462ae0"),
+        "menu bar: headphone glyph skipped (mov r4,r7; b.n 0x305955e)")
+    if echo:
+        put(d, TIMECODE_BRANCH - RAM_OF_IMG, bytes.fromhex("26d8"), bytes.fromhex("26e0"),
+            "menu header: play time skipped (bhi -> b.n 0x3059b8a)")
+    else:
+        put(d, BATTERY_GLYPH_LOAD - RAM_OF_IMG, bytes.fromhex("53f82250"),
+            thumb_bl(BATTERY_GLYPH_LOAD, e["battery_pct_shim"]), "menu bar: battery glyph -> percentage text")
+
+
 def key_remap(d, e):
     """Both players: back tap on Now Playing -> main menu, hold back = previous (unchanged),
     hold menu on Now Playing -> Settings; bar labels BACK / hold settings (patches/keys.c)."""
@@ -230,6 +253,7 @@ def add_hooks(d, animation=True, echo=False):
         put(d, s, struct.pack("<I", POWER_TICK_ORIG), struct.pack("<I", e["power_tick_wrap"] | 1),
             "POWER service tick pointer")
     key_remap(d, e)
+    menu_bar(d, e, echo)
     ui_layout(d, e)
     if echo:
         if not animation:
@@ -363,13 +387,17 @@ UNUSED_ICONS = (0xE002,                    # stop: only RECHO's Now Playing (rep
                 0xE01C,                    # heart: Supporters row (removed)
                 0xE022, 0xE023, 0xE024, 0xE025, 0xE026, 0xE027, 0xE028, 0xE029)  # Now Playing badges
 ECHO_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B)   # battery cells: Echo top bars show no glyph
+# Both players now: the menu bar shows no headphone glyph (Now Playing names the output) and the
+# Mini's menu bar shows the battery as a percentage, so these glyphs are drawn nowhere.
+BAR_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B, 0xE00E, 0xE00F, 0xE010)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
     ap.add_argument("dst")
-    ap.add_argument("--drop-rows", default="2,5,6", help="original menu rows to remove (2=Spectrum, 5=Supporters, 6=Debug)")
+    ap.add_argument("--drop-rows", default="2,5,6,7",
+                    help="original menu rows to remove (2=Spectrum, 5=Supporters, 6=Debug, 7=Power off)")
     ap.add_argument("--icons", help="folder of edited icon PNGs (tools/icons.py naming)")
     ap.add_argument("--no-charge-screen", action="store_true")
     ap.add_argument("--keep-bolt", action="store_true", help="keep the bolt glyph while charging")
@@ -409,7 +437,7 @@ def main():
         from icons import do_import
         do_import(a.dst, a.icons, a.dst)
     from icons import blank
-    blank(a.dst, UNUSED_ICONS + (ECHO_UNUSED_ICONS if a.echo else ()), a.dst)
+    blank(a.dst, tuple(sorted(set(UNUSED_ICONS + BAR_UNUSED_ICONS))), a.dst)
     ok = info(open(a.dst, "rb").read())
     if not ok:
         raise SystemExit("seal check failed")

@@ -112,6 +112,25 @@ static const char *output_name(void)
 
 #ifndef ECHO_PORT
 static char *put_pct(char *p, char *end);
+STATE char pct_buf[8] = {0};
+
+/* Mini menu bar: battery as "88%" instead of RECHO's level glyph (patched at 0x3059474) */
+const char *status_pct(void)
+{
+    char *p = put_pct(pct_buf, pct_buf + 7);
+    *p = 0;
+    return pct_buf;
+}
+
+/* `ldr.w r5,[r3,r2,lsl #2]` -> bl here: r5 = the text, everything else kept */
+__attribute__((naked)) void battery_pct_shim(void)
+{
+    __asm__ volatile(
+        "push   {r0, r1, r2, r3, ip, lr}\n"
+        "bl     status_pct\n"
+        "mov    r5, r0\n"
+        "pop    {r0, r1, r2, r3, ip, pc}\n");
+}
 #endif
 
 /* ---- helpers ------------------------------------------------------------------ */
@@ -475,6 +494,20 @@ void np_draw(void)
         char info[64];
         u32 rg_unused;
         format_line_ex(info, sizeof info, &rg_unused, 0);
+        {                                 /* queue position after the format, e.g. "3/500" */
+            char *q = info, *qe = info + sizeof info - 1;
+            while (*q)
+                q++;
+            const volatile int *qi = queue_info();
+            if (qi && qi[1] > 0) {
+                if (q != info)
+                    q = put_str(q, SEP, qe);
+                q = put_num(q, (u32)queue_index() + 1u, qe);
+                q = put_str(q, "/", qe);
+                q = put_num(q, (u32)qi[1], qe);
+            }
+            *q = 0;
+        }
         if (info[0]) {
             fill_rect(60, Y_RULE, W - 61, Y_RULE, RULE);
             text_centred(0, W / 2, Y_INFO, info, 300, paused ? DIM : GREY);

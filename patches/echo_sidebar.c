@@ -79,11 +79,14 @@ static inline u32 lit(u32 v)
 #define WHITE 0xF79Eu
 #define GREY  0x8410u
 #define SOFT  0xC618u
+#define player_state FN(0x03057BD0, int (*)(void))
+#define NEXT_DIM   0x9CF3u                /* later Up Next lines */
+#define NEXT_DIM_P 0x6B4Du                /* ... while paused */
 #define FONT  1
 
 /* State lives in the cave (code RAM is plain SRAM; no MPU). */
 #define STATE __attribute__((section(".text.sidebar_state,\"ax\",%progbits@"), used))
-STATE volatile u32 sb_key[6] = {0};
+STATE volatile u32 sb_key[7] = {0};
 STATE volatile u32 sb_hdr_key = 0xFFFFFFFFu;
 STATE volatile u32 sb_dirty = 1;          /* panel was (re)initialised */
 STATE volatile u32 sb_blank = 1;          /* areas outside RECHO's frame still need clearing */
@@ -202,7 +205,10 @@ static void draw_entry(u32 i)
             }
         }
     }
-    draw_line(HEADER_H + (int)i * LINE_H, LINE_H, text, i == 0 ? WHITE : SOFT, 0);
+    /* the next song bright, the rest dimmer; everything one step dimmer while paused */
+    int paused = player_state() == 2;
+    u32 c = i == 0 ? (paused ? SOFT : WHITE) : (paused ? NEXT_DIM_P : NEXT_DIM);
+    draw_line(HEADER_H + (int)i * LINE_H, LINE_H, text, c, 0);
 }
 
 /* Header: "Up Next", the play-mode glyph (RECHO's own icons), battery % on the right. */
@@ -251,14 +257,14 @@ void echo_sidebar_tick(void)
 {
     if (!VOP_ACTIVE || BL_DUTY == 0)
         return;                                          /* screen off: stay pending */
-    u32 key[6] = {Q_ACTIVE, Q_CURRENT, PLAY_MODE, Q_COUNT, Q_SEED, Q_PASS};
+    u32 key[7] = {Q_ACTIVE, Q_CURRENT, PLAY_MODE, Q_COUNT, Q_SEED, Q_PASS, (u32)(player_state() == 2)};
     u32 now = ms_now();
     int changed = sb_dirty != 0;
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < 7; i++)
         if (key[i] != sb_key[i])
             changed = 1;
     if (changed) {                                       /* restart the walk from the current track */
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 7; i++)
             sb_key[i] = key[i];
         sb_cursor = key[1];
         sb_walk = key[0] && key[3] > 1;
