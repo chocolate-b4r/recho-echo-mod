@@ -46,7 +46,8 @@ ALLOWED_DATA |= UI_DATA
 BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
             0x0305BA54, 0x0305C3E4, 0x03059FE8}   # close module, switch screen, list keys
 SHARED_CONSTS = set()   # `tbb` jump-table bytes are skipped by hook_literals(), so nothing here
-BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive"}
+BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
+              "lyrics_tick"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
@@ -96,6 +97,7 @@ ECHO_REGS = {0x60070024, 0x6007002C,                        # LCD controller sta
              0x40180080, 0x401800A0, 0x401800A8, 0x401800C0, 0x401800C4, 0x401800C8, 0x401800CC,  # CRU
              0x50010098, 0x500100B4, 0x500100B8, 0x500100C4,  # GRF PLL / boot select
              0x5002004C,                                     # PMU boot flag
+             0x50010054,                                     # GRF port-2 pull: GPIO2.8 (4.4 mm sense) pull on
              0xE000E010, 0xE000E180, 0xE000E184, 0xE000E280, 0xE000E284, 0xE000ED08, 0xE000ED0C}
 PODIUM_PANEL = None
 

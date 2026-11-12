@@ -36,6 +36,9 @@ static inline u32 lit(u32 v)
 #define file_read   FN(0x03053934, int (*)(void *volume, u8 *file, u32 offset, char *buf, u32 len))
 #define elapsed_ms  FN(0x03057BE4, u32 (*)(void))
 #define file_name   FN(0x0305A1CC, const char *(*)(void))
+#define ms_now      FN(0x03051638, u32 (*)(void))
+#define log_printf  FN(0x0306C9EC, void (*)(const char *fmt, ...))
+#define LOG_TO_FILE (((volatile u8 *)lit(0x0303EDD0u))[5])   /* settings block byte 5 */
 
 #define QSTORE      PTR(void *, 0x0303BD80)
 #define Q_ACTIVE    REG(0x0303BD74)
@@ -213,7 +216,11 @@ void lyrics_tick(void)
     if (id == lrc_ident)
         return;
     lrc_ident = id;
+    u32 t0 = ms_now();
     load();
+    if (LOG_TO_FILE)
+        log_printf("lyrics: %u lines for entry %u at %u ms of the track, load %u ms", lrc_count, Q_CURRENT,
+                   Q_ACTIVE ? elapsed_ms() : 0u, ms_now() - t0);
 }
 
 /* index of the line being sung, or -1 */

@@ -198,7 +198,17 @@ static const char *without_ext(const char *s, char *buf, int n)
     return buf;
 }
 
+static void format_line_ex(char *out, int n, u32 *rg_colour_from, int full);
+
+#ifndef ECHO_PORT
 static void format_line(char *out, int n, u32 *rg_colour_from)
+{
+    format_line_ex(out, n, rg_colour_from, 1);
+}
+#endif
+
+/* file type, rate, bits (or kbps); with full also the output and ReplayGain */
+static void format_line_ex(char *out, int n, u32 *rg_colour_from, int full)
 {
     char *p = out, *end = out + n - 1;
     const char *name = file_name();
@@ -230,6 +240,11 @@ static void format_line(char *out, int n, u32 *rg_colour_from)
             p = put_str(p, " bit", end);
         }
     }
+    *rg_colour_from = 0;
+    if (!full) {
+        *p = 0;
+        return;
+    }
     const char *out_name = output_name();
     if (out_name) {
         if (p != out)
@@ -258,9 +273,11 @@ static void format_line(char *out, int n, u32 *rg_colour_from)
 
 /* ---- pieces shared by Now Playing and the Echo's player strip ---------------------- */
 
-#ifdef ECHO_PORT                          /* progress and format line live in the player strip */
-#define Y_TITLE    58
-#define Y_ALBUM    90
+#ifdef ECHO_PORT                          /* draft C: song, album, rule, format line; strip below */
+#define Y_TITLE    46
+#define Y_ALBUM    72
+#define Y_RULE     91
+#define Y_INFO     105
 #define Y_GLYPH    134
 #else
 #define Y_TITLE    44
@@ -346,6 +363,7 @@ static void progress_at(int y, int paused)
         fill_rect(bx0, y - 2, (int)fillx, y + 2, paused ? RED : WHITE);
 }
 
+#ifndef ECHO_PORT
 static void format_at(int y, int paused)
 {
     char line[96];
@@ -365,6 +383,7 @@ static void format_at(int y, int paused)
         text_at(0, x, y, line, 300, paused ? DIM : GREY);
     }
 }
+#endif
 
 void np_draw(void)
 {
@@ -379,7 +398,9 @@ void np_draw(void)
         p = put_str(p, " / ", qpos + 23);
         p = put_num(p, qi ? (u32)qi[1] : 0u, qpos + 23);
     }
-#ifndef ECHO_PORT
+#ifdef ECHO_PORT
+    p = put_str(qpos, loaded ? output_name() : 0, qpos + 23);   /* draft C: output in the top bar */
+#else
     if (p != qpos) {                      /* Mini: play-mode glyph in front (Up Next has it on the Echo) */
         static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
                                         "\xee\x80\x86", "\xee\x80\xab"};
@@ -412,6 +433,17 @@ void np_draw(void)
     track_line(Y_TITLE, paused);
     const char *album = track_album();
     text_centred(1, W / 2, Y_ALBUM, album, 300, paused ? DIM : GREY);
+#ifdef ECHO_PORT
+    {
+        char info[64];
+        u32 rg_unused;
+        format_line_ex(info, sizeof info, &rg_unused, 0);
+        if (info[0]) {
+            fill_rect(60, Y_RULE, W - 61, Y_RULE, RULE);
+            text_centred(0, W / 2, Y_INFO, info, 300, paused ? DIM : GREY);
+        }
+    }
+#endif
 
     /* state glyph, or the volume for 2 s after it changed */
     u32 now = ms_now();
@@ -473,10 +505,8 @@ void footer_row(int row, int on_now_playing)
             return;
         }
     }
-    if (on_now_playing) {
-        if (row == 0)
-            format_at(13, paused);
-        else
+    if (on_now_playing) {                 /* format line is in the picture (draft C) */
+        if (row == 1)
             progress_at(13, paused);
         return;
     }
@@ -518,14 +548,24 @@ static void battery_glyph(int cx, int y, u32 c, u32 lit_cells)
         fill_rect(x + 5 + (int)i * 12, y + 5, x + 14 + (int)i * 12, y + 19, i < lit_cells ? c : RULE);
 }
 
+/* RECHO's own USB icon (U+E013, 16 x 9) drawn 3x: 48 x 27 */
+static const u16 USB_ICON[9] = {0x0C00, 0x0FC0, 0x2020, 0x6013, 0xFFFF, 0x6083, 0x2100, 0x0E00, 0x0C00};
+
 static void drive_glyph(int cx, int y, u32 c)
 {
-    int x = cx - 24;
-    outline(x, y, x + 48, y + 28, c);
-    outline(x + 1, y + 1, x + 47, y + 27, c);
-    fill_rect(x + 7, y + 7, x + 41, y + 9, c);
-    fill_rect(x + 7, y + 13, x + 41, y + 15, c);
-    fill_rect(x + 7, y + 19, x + 29, y + 21, c);
+    int x0 = cx - 24;
+    for (int r = 0; r < 9; r++) {
+        u32 bits = USB_ICON[r];
+        for (int col = 0; col < 16; col++) {
+            if (!(bits >> col & 1u))
+                continue;
+            int run = col;
+            while (run + 1 < 16 && (bits >> (run + 1) & 1u))
+                run++;
+            fill_rect(x0 + col * 3, y + r * 3, x0 + run * 3 + 2, y + r * 3 + 2, c);
+            col = run;
+        }
+    }
 }
 
 void usb_draw(void)

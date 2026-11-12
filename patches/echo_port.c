@@ -61,8 +61,12 @@ void gpio_set_echo(u32 bank, u32 pin, u32 level)
 
 u32 echo_gpio_read(u32 bank, u32 pin)
 {
-    if (bank == 2 && pin == 8)            /* 4.4 mm: Echo reads high when plugged */
+    if (bank == 2 && pin == 8) {          /* 4.4 mm: Echo reads high when plugged */
+        /* RECHO only sets the 3.5 mm pin's pull (GRF +0x14). Without GPIO2.8's pull
+         * (GRF +0x54 bit 0, as stock and Podium set it) the pin floats and reads "plugged". */
+        REG(0x50010054) = 0x00010001u;
         return gpio_read(2, 8) ? 0u : 1u;
+    }
     if (bank == 2 && pin == 0)            /* mute state lives on GPIO2.1 */
         return gpio_read(2, 1);
     return gpio_read(bank, pin);
