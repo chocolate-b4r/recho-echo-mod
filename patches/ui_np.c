@@ -84,14 +84,23 @@ extern void clock_strings(char *time, char *date);  /* clock.c */
 #define hints_draw     FN(0x0305AEEC, void (*)(void))
 STATE volatile u32 msg_shown = 0;
 
-/* 4.4 mm jack plugged? GPIO2.8: high on the Echo, low on the Echo Mini */
-static int jack_44(void)
+/* Output in use, from RECHO's own jack detection 0x3055EC0 (bit 0 = 3.5 mm plugged,
+ * GPIO0.13; bit 1 = 4.4 mm plugged, GPIO2.8, already corrected for the Echo by
+ * echo_gpio_read). Returns 0 when nothing is plugged in, so nothing is shown.
+ * bt_routed (set once Bluetooth audio is in) shows "BT" instead. */
+#define jacks FN(0x03055EC0, u32 (*)(void))
+STATE volatile u32 bt_routed = 0;
+
+static const char *output_name(void)
 {
-#ifdef ECHO_PORT
-    return gpio_read(2, 8) != 0;
-#else
-    return gpio_read(2, 8) == 0;
-#endif
+    if (bt_routed)
+        return "BT";
+    u32 j = jacks();
+    if (j & 2u)
+        return "4.4 mm";
+    if (j & 1u)
+        return "3.5 mm";
+    return 0;
 }
 
 #ifndef ECHO_PORT
@@ -220,13 +229,18 @@ static void format_line(char *out, int n, u32 *rg_colour_from)
             p = put_num(p, f[2], end);
             p = put_str(p, " bit", end);
         }
-        p = put_str(p, SEP, end);
     }
-    p = put_str(p, jack_44() ? "4.4 mm" : "3.5 mm", end);
+    const char *out_name = output_name();
+    if (out_name) {
+        if (p != out)
+            p = put_str(p, SEP, end);
+        p = put_str(p, out_name, end);
+    }
     *rg_colour_from = 0;
     int mode = rg_mode();
     if (mode >= 1 && mode <= 3) {
-        p = put_str(p, SEP, end);
+        if (p != out)
+            p = put_str(p, SEP, end);
         *rg_colour_from = (u32)(p - out);
         int g = rg_gain();
         u32 a = (u32)(g < 0 ? -g : g);
@@ -244,11 +258,10 @@ static void format_line(char *out, int n, u32 *rg_colour_from)
 
 /* ---- pieces shared by Now Playing and the Echo's player strip ---------------------- */
 
-#ifdef ECHO_PORT
-#define Y_TITLE    48
-#define Y_ALBUM    76
-#define Y_GLYPH    112
-#define Y_PROGRESS 150
+#ifdef ECHO_PORT                          /* progress and format line live in the player strip */
+#define Y_TITLE    58
+#define Y_ALBUM    90
+#define Y_GLYPH    134
 #else
 #define Y_TITLE    44
 #define Y_ALBUM    70
@@ -429,29 +442,17 @@ void np_draw(void)
         fill_rect(W / 2 - 7, gy + 1, W / 2 + 7, gy + 15, GREY);
     }
 
-    progress_at(Y_PROGRESS, paused);
 #ifndef ECHO_PORT
-    format_at(Y_FORMAT, paused);          /* Echo: in the player strip under the picture */
+    progress_at(Y_PROGRESS, paused);
+    format_at(Y_FORMAT, paused);          /* Echo: both are in the player strip under the picture */
 #endif
 }
 
 /* ---- player strip under RECHO's picture (Echo) ---------------------------------------
  * Two 320 x 26 rows, each drawn by the caller into a borrowed frame-buffer corner.
- *   Now Playing:   row 0 format line, row 1 "Next: Artist - Song"
- *   other screens: row 0 "▶ Artist - Song",  row 1 progress bar and times */
+ *   Now Playing:   row 0 format line,         row 1 progress bar and times
+ *   other screens: row 0 "▶ Artist - Song",   row 1 progress bar and times */
 #ifdef ECHO_PORT
-STATE char next_title[96] = {0};
-
-void np_set_next(const char *name)
-{
-    int i = 0;
-    while (name && name[i] && i < (int)sizeof next_title - 1) {
-        next_title[i] = name[i];
-        i++;
-    }
-    next_title[i] = 0;
-}
-
 void footer_row(int row, int on_now_playing)
 {
     int loaded = queue_loaded();
@@ -462,17 +463,10 @@ void footer_row(int row, int on_now_playing)
         return;
     }
     if (on_now_playing) {
-        if (row == 0) {
+        if (row == 0)
             format_at(13, paused);
-        } else if (next_title[0]) {
-            int wn = text_width(0, "Next  ");
-            int wt = text_width(1, next_title);
-            if (wt > 300 - wn)
-                wt = 300 - wn;
-            int x = (W - (wn + wt)) / 2;
-            text_at(0, x, 13, "Next", wn, GREY);
-            text_at(1, x + wn, 13, next_title, wt + 1, SOFT);
-        }
+        else
+            progress_at(13, paused);
         return;
     }
     if (row == 0) {

@@ -31,7 +31,8 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x03057BD0, 0x03057BE4, 0x03057BDC, 0x0305A194, 0x0305A1B0, 0x0305A1BC, 0x0305A8F8,
             0x0305A1CC, 0x0305A1C4, 0x03057DB4, 0x03057DC0, 0x03059AE8,  # player / queue / tag / format
             0x0305C41C, 0x0305AE28,                                       # current screen, bar message
-            0x0305DA2C, 0x0305DAC4}                                       # clock chip read / decode
+            0x0305DA2C, 0x0305DAC4,                                       # clock chip read / decode
+            0x03055EC0}                                                   # RECHO's jack detection (bit 0 3.5 mm, bit 1 4.4 mm)
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
@@ -41,6 +42,7 @@ ALLOWED_DATA |= UI_DATA
 # Bluetooth diagnostic (patches/bt_diag.c): RECHO's GPIO function / log, the module's UART1,
 # the UART1 pin group, clock and reset registers, and the "Log to file" settings byte.
 BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC}   # gpio function, gpio set, log
+SHARED_CONSTS = {0x9B0B8B56}   # not an address: bytes of the `tbb` jump table in bt_diag.c receive() (frame_size switch)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
@@ -262,7 +264,7 @@ def main(orig_path, new_path):
         allowed_data |= ECHO_DATA
     check(calls <= allowed_calls, f"hook only calls known RECHO routines ({len(calls)} distinct)"
           + ("" if calls <= allowed_calls else f" unknown: {[hex(x) for x in calls - allowed_calls]}"))
-    hw = {v for v in lits if 0x40000000 <= v < 0xF0000000} - (ECHO_CONSTS if ECHO else set())
+    hw = {v for v in lits if 0x40000000 <= v < 0xF0000000} - (ECHO_CONSTS if ECHO else set()) - SHARED_CONSTS
     hw_ok = {0x400D0000} | BT_REGS | (ECHO_REGS if ECHO else set())
     check(hw <= hw_ok, f"hook touches only the expected hardware registers ({len(hw)})"
           + ("" if hw <= hw_ok else f" (also {[hex(x) for x in hw - hw_ok]})"))
@@ -280,7 +282,8 @@ def main(orig_path, new_path):
                 where.setdefault(int(m.group(1), 16) & ~1, set()).add(owner)
         used = {c: where.get(c, set()) for c in calls & banned}
         logs = used.pop(0x0306C9EC, set())
-        check(logs <= {"bt_diag_tick", "flush_line"}, f"RECHO's log is used only by the Bluetooth diagnostic ({sorted(logs)})")
+        check(logs <= {"bt_diag_tick", "receive", "handle_frame", "flush_line"},
+              f"RECHO's log is used only by the Bluetooth diagnostic ({sorted(logs)})")
         text_ok = set(used) <= {0x03058D84, 0x03058D20} and not any(f & NO_TEXT_FNS for f in used.values())
         check(text_ok, "charging screen and power paths draw no text; only the two text routines are used"
               + f" ({ {hex(k): sorted(v) for k, v in used.items()} })")

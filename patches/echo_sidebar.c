@@ -202,10 +202,6 @@ static void draw_entry(u32 i)
             }
         }
     }
-    if (i == 0) {
-        extern void np_set_next(const char *name);   /* ui_np.c: "Next" in the player strip */
-        np_set_next(text);
-    }
     draw_line(HEADER_H + (int)i * LINE_H, LINE_H, text, i == 0 ? WHITE : SOFT, 0);
 }
 

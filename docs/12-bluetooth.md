@@ -5,8 +5,9 @@ the next.
 
 | Step | What | Status |
 |---|---|---|
-| 1 | Diagnostic: power the module, open its serial line, log what it says | built (Mini v11, Echo stage 10) |
-| 2 | Scan, pair, remember headphones; a Bluetooth row in Settings | planned, depends on step 1's log |
+| 1 | Diagnostic: power the module, open its serial line, log what it says | **Mini: works** (`CV13`, answers `CQIOK`); Echo: not run yet |
+| 2 | Diagnostic: scan 15 s, connect to the first device found, disconnect | built (Mini v12, Echo stage 11) |
+| 2b | Bluetooth row in Settings, device list, remembered headphones | planned, depends on step 2's log |
 | 3 | Route audio to the module and back to the jacks | planned |
 
 ## Step 1: the diagnostic (`patches/bt_diag.c`)
