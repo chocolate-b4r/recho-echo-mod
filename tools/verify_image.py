@@ -42,7 +42,8 @@ UI_DATA = {0x03034B48,                                                    # font
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
            0x0303EDD0,                                                    # settings block (play mode, byte 7)
            0x03008A00, 0x0303BCC0,                                        # frame buffer (2x title), main menu state
-           0x0303AB90, 0x0303AB98, 0x0303ABA8, 0x0303BD74, 0x0303BD78}    # queue object, seed, pass, active, current
+           0x0303AB90, 0x0303AB98, 0x0303ABA8, 0x0303BD74, 0x0303BD78,    # queue object, seed, pass, active, current
+           0x0309FFB0}                                                    # RECHO's VOP marker (display fallback)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -51,7 +52,7 @@ ALLOWED_DATA |= UI_DATA
 BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
             0x0305BA54, 0x0305C3E4, 0x03059FE8,   # close module, switch screen, list keys
             0x03057C94, 0x0305AB80}               # pause / play and skip (headphone buttons)
-SHARED_CONSTS = set()   # `tbb` jump-table bytes are skipped by hook_literals(), so nothing here
+SHARED_CONSTS = {0x564F5046}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
               "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
@@ -262,7 +263,9 @@ def main(orig_path, new_path):
         print(f"         {name:24s} {n:5d} byte(s) changed")
 
     print("[3] code cave")
-    BLOB_END = (0x0306E000 + 0xFFF + len(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".bin"), "rb").read())) & ~0xFFF
+    # exact end of the compiled blob (word-aligned), not rounded to 4 KB: the blob now ends close to
+    # RECHO's .data image (0x03074B70), and rounding up would sweep RECHO's own pointers in
+    BLOB_END = (0x0306E000 + 3 + len(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".bin"), "rb").read())) & ~3
     lo, hi = CAVE_LO - RAM_OF_IMG, CAVE_HI - RAM_OF_IMG
     check(not any(a[lo:hi]), "cave is all zero in the original")
     used = [k for k in range(lo, hi) if b[k]]

@@ -65,3 +65,13 @@ build uses its own names.
 
 The Echo's stock firmware updater only accepts `ECHOVnnn.IMG`. From FiiO's firmware (or Podium),
 copy the patched image as `ECHOV4nn.IMG`; FiiO writes both slots. Afterwards, use `RECHOECH.IMG`.
+
+## Display fallback (VOP / GPIO)
+
+RECHO's panel start-up (`0x306C018`) writes `VOP1` to `0x0309FFB0` before trying the fast VOP bus and
+clears it after 5 s on VOP (`0x306BDA8`). A start that finds `VOP1` (the last one ended within 5 s)
+writes `VOPF` and uses the slow GPIO path; a start that finds `VOPF` does the same, so the fallback
+sticks while RAM stays powered (on a cable "off" is the charging screen). Up Next and the player strip
+push through the VOP bus and stay blank on the GPIO path. Since stage 32 `about_tick` clears `VOPF`
+after 5 s on the GPIO path, so the next start tries VOP again. Without the fix: unplug, switch off
+(power is cut, RAM is lost), switch on.

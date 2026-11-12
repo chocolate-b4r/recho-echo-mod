@@ -1189,8 +1189,18 @@ void about_request_open(void)
 
 STATE volatile u32 menu_last_module = 0;
 
+/* RECHO's display safety (0x306C018): a boot that ends within 5 s of trying the fast VOP bus
+ * leaves "VOP1" at 0x0309FFB0; the next boot then writes "VOPF" and uses the slow GPIO path, and
+ * keeps doing so while RAM stays powered (on a cable, "off" is the charging screen), because only
+ * 5 s on VOP clears it. Up Next and the Echo strip need VOP. After 5 s on the slow path we clear
+ * "VOPF", so the next start tries VOP again; a real VOP failure is still caught by RECHO then. */
+#define VOP_MARK  REG(0x0309FFB0)
+#define VOP_FAILED 0x564F5046u                     /* "VOPF" */
+
 void about_tick(void)
 {
+    if (VOP_MARK == VOP_FAILED && ms_now() > 5000u)
+        VOP_MARK = 0;
     u32 m = CURRENT_MODULE_ID;
     if (m == 47u && menu_last_module != 47u && about_state == 0u) {
         MENU_STATE[1] = 2u;                 /* the menu opens on Now playing */
