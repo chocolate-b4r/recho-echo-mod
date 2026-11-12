@@ -355,7 +355,8 @@ def main(orig_path, new_path):
     labels = []
     for k in range(9):
         p = u32(b, m47(0x0307AA64) + 4 * k)
-        s = b[m47(p):b.index(0, m47(p))].decode("latin1")
+        o = m47(p) if p >= 0x0307A000 else p - RAM_OF_IMG     # the Bluetooth label lives in the cave
+        s = b[o:b.index(0, o)].decode("latin1")
         labels.append(s)
     count = b[m47(0x0307A67C)]
     bound = b[m47(0x0307A19C)]
@@ -365,6 +366,7 @@ def main(orig_path, new_path):
     orig_tbb = a[m47(0x0307A1A4):m47(0x0307A1A4) + 9]
     orig_labels = [a[m47(u32(a, m47(0x0307AA64) + 4 * k)):].split(b"\0")[0].decode("latin1") for k in range(9)]
     target_of = {orig_labels[k]: orig_tbb[k] for k in range(9)}
+    target_of["Bluetooth"] = target_of["Supporters"]           # Supporters' case now opens Bluetooth
     check(all(tbb[k] == target_of[labels[k]] for k in range(count)), "each row still dispatches to its own handler")
     usb = labels.index("USB disk")
     check(b[m47(0x0307A04C)] == usb and b[m47(0x0307A6DA)] == usb, f"USB-disk row checks use row {usb}")
@@ -375,6 +377,14 @@ def main(orig_path, new_path):
         check(b[m47(0x0307A0E6)] == 15 and b[m47(0x0307A6E4)] == 15 and 15 >= count,
               "Power off removed; its row checks point at row 15, which no row has")
     check("Spectrum" not in labels[:count] and "Supporters" not in labels[:count], "Spectrum and Supporters gone")
+    ent6 = {k: int(v, 16) for k, v in (l.split() for l in open(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".entries")))}
+    check(labels[:count] == ["Files", "Now playing", "Bluetooth", "Settings", "USB disk", "About"],
+          "main menu: Files, Now playing, Bluetooth, Settings, USB disk, About")
+    so = m47(0x0307A1E4)
+    check(a[so:so + 8] == bytes.fromhex("01220023c5e90823") and bl_target(b, so, 0x0307A1E4) == ent6["bt_request_open"]
+          and b[so + 4:so + 6] == bytes.fromhex("efe7"),
+          "Supporters case 0x307a1e4 -> bl bt_request_open; b.n 0x307a1ca")
 
     print("[7] icon pack")
     pk = b[io:io + isz]
@@ -433,33 +443,19 @@ def main(orig_path, new_path):
     n0, l0, s0, t0, v0 = rows(a)
     n1, l1, s1, t1, v1 = rows(b)
     print(f"         rows: {l1[:n1]}")
-    hidden = {"Show tags", "On USB connect", "Debug strip", "Swap up/down"}
-    check(n1 == 17 - len(hidden) + 1 and not hidden & set(l1[:n1]) and l1[1] == "Bluetooth",
-          f"{n1} rows; {', '.join(sorted(hidden))} hidden; row 2 is Bluetooth")
+    hidden = {"Show tags", "On USB connect", "Debug strip", "Swap up/down", "Equalizer"}
+    check(n1 == 17 - len(hidden) and not hidden & set(l1[:n1]),
+          f"{n1} rows; {', '.join(sorted(hidden))} hidden")
     orig_sel = {l0[k]: s0[k] for k in range(17)}
     orig_val = {l0[k]: (t0[k] if k <= v0 else None) for k in range(17)}
-    orig_sel["Bluetooth"], orig_val["Bluetooth"] = orig_sel["Debug strip"], orig_val["Debug strip"]
-    check(all(s1[k] == orig_sel[l1[k]] for k in range(n1)),
-          "every Settings row selects its original handler (Bluetooth uses Debug strip's case)")
+    check(all(s1[k] == orig_sel[l1[k]] for k in range(n1)), "every Settings row selects its original handler")
     check(all((t1[k] if k <= v1 else None) == orig_val[l1[k]] for k in range(n1)),
-          "every Settings row shows its original value (Bluetooth uses Debug strip's case)")
-    ent9 = {k: int(v, 16) for k, v in (l.split() for l in open(os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build", HOOKS + ".entries")))}
-    lab_ptr = u32(b, A0 + 0x0307AF08 - B0 + 4)
-    check(lab_ptr == ent9["str_bluetooth"] and 0x0306E000 <= lab_ptr < CAVE_HI,
-          f"Bluetooth label points at str_bluetooth in the cave ({lab_ptr:#x})")
-    so = A0 + 0x0307A804 - B0
-    check(a[so:so + 8] == bytes.fromhex("674a137983f00103") and bl_target(b, so, 0x0307A804) == ent9["bt_request_open"]
-          and b[so + 4:so + 6] == bytes.fromhex("a7e7"),
-          "Debug strip select case 0x307a804 -> bl bt_request_open; b.n 0x307a75a (byte 4 no longer toggled)")
-    vo = A0 + 0x0307A3FE - B0
-    check(a[vo:vo + 6] == bytes.fromhex("294b1979f3e7") and bl_target(b, vo, 0x0307A3FE) == ent9["bt_value_r1"]
-          and b[vo + 4:vo + 6] == bytes.fromhex("f3e7"),
-          "Debug strip value case 0x307a3fe -> bl bt_value_r1 (On/Off = module on); b.n 0x307a3ec kept")
+          "every Settings row shows its original value")
     diff9 = {k for k in range(u32(a, A0 + 12)) if a[A0 + k] != b[A0 + k]}
     print(f"         m48: {len(diff9)} byte(s) changed")
     def row_of(img, addr):
         return img[A0 + addr - B0]
+    l1 = l1[:n1] + [l0[k] for k in range(17) if l0[k] not in l1[:n1]]   # hidden rows after the shown ones
     check(row_of(b, 0x0307A262) == l1.index("Clock") and row_of(b, 0x0307A0C2) == l1.index("Clock"),
           "Clock row checks follow the Clock row")
     check(row_of(b, 0x0307A456) == l1.index("Equalizer") and row_of(b, 0x0307A0B6) == l1.index("Equalizer"),

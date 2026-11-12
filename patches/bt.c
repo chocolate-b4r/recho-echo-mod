@@ -1,11 +1,11 @@
 /*
  * Bluetooth (both players) - step 2b: a Settings row and a Bluetooth screen.
  *
- *   Settings -> Bluetooth (On / Off) opens the Bluetooth screen:
+ *   Main menu -> Bluetooth opens the Bluetooth screen:
  *     Bluetooth           On / Off       powers the module and opens its serial line
  *     Search / Stop / Disconnect         30 s scan ("CS00"), stop ("CP00"), disconnect ("CT00")
  *     one row per device found           select = connect ("CL06" + address, "CH06" 4 s later)
- *   Vol keys move, Play selects, Back or Menu returns to Settings, hold Menu = main menu.
+ *   Vol keys move, Play selects, Back or Menu returns to the main menu.
  *   No audio is sent to the module yet (step 3), so connected headphones stay silent.
  *   The module is off at every start-up and is switched off before the charging screen.
  *
@@ -46,7 +46,7 @@ static inline u32 lit(u32 v)
 #define request_redraw FN(0x0305C51C, void (*)(const void *screen))
 #define switch_screen  FN(0x0305C3E4, void (*)(const void *screen))
 #define close_module   FN(0x0305BA54, void (*)(void))
-#define set_module     FN(0x0305B234, void (*)(int module))
+#define go_main_menu   FN(0x0305BA3C, void (*)(void))
 #define list_keys      FN(0x03059FE8, int (*)(volatile u32 *list, const u8 *key))
 
 #define LOG_TO_FILE    (((volatile u8 *)lit(0x0303EDD0u))[5])   /* settings block byte 5 */
@@ -750,7 +750,7 @@ int bt_key(const u8 *key)
         if (key[0] == 4)
             select_row(ms_now());
         else if (key[0] == 5 || key[0] == 6)
-            set_module(48);                       /* back to Settings */
+            go_main_menu();                       /* back to the main menu */
     }
     return 1;
 }

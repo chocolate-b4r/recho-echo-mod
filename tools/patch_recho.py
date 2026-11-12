@@ -62,9 +62,9 @@ def cmp_imm(reg, imm):
 NO_ROW = 15                        # a row number no menu has (row checks that should never match)
 
 
-def remove_menu_rows(d, drop):
-    """Rebuild the m47 main menu without the rows in `drop` (original indices)."""
-    keep = [r for r in range(ORIG_ROWS) if r not in drop]
+def remove_menu_rows(d, keep):
+    """Rebuild the m47 main menu with the original rows `keep`, in that order."""
+    keep = list(keep)
     n = len(keep)
     if ROW_USB not in keep or n < 2:
         raise SystemExit("the USB disk row must stay")
@@ -308,8 +308,8 @@ def m48(addr):
 
 # Both players: Swap up/down hidden too, and Debug strip (row 12) becomes the Bluetooth row,
 # second after Play mode (see settings_bluetooth_row).
-ECHO_SETTINGS_ORDER = [0, 12, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 10, 11]
-ECHO_SETTINGS_SHOWN = 14
+ECHO_SETTINGS_ORDER = [0, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 1, 2, 10, 11, 12]   # Equalizer hidden too
+ECHO_SETTINGS_SHOWN = 12
 ROW_DEBUG_STRIP = 12
 BT_SELECT_SITE = 0x0307A804   # select case of Debug strip: ldr r2,=settings; ldrb r3,[r2,#4]; eor ...
 BT_VALUE_SITE = 0x0307A3FE    # value case of Debug strip: ldr r3,=settings; ldrb r1,[r3,#4]; b.n 0x307a3ec
@@ -330,6 +330,24 @@ def settings_bluetooth_row(d, echo=False):
     put(d, m48(BT_VALUE_SITE), bytes.fromhex("294b1979"), thumb_bl(BT_VALUE_SITE, e["bt_value_r1"]),
         "Settings Bluetooth value")
     reseal_module(d, M48_IMG)
+
+
+ROW_SUPPORTERS = 5
+SUPPORTERS_HANDLER = 0x0307A1E4   # tbb case of Supporters: movs r2,#1; movs r3,#0; strd r2,r3,[r5,#32] ...
+MENU_DONE = 0x0307A1CA            # common tail of the select cases
+
+
+def menu_bluetooth_row(d, echo=False):
+    """Main menu: the Supporters row (kept in --menu-order) becomes Bluetooth."""
+    _, e = load_hooks("hooks-echo" if echo else "hooks")
+    labels = struct.unpack_from("<9I", d, m47(0x0307AA64))
+    idx = labels.index(0x0307A78B)                       # "Supporters", wherever the order put it
+    put(d, m47(0x0307AA64) + 4 * idx, struct.pack("<I", 0x0307A78B), struct.pack("<I", e["str_bluetooth"]),
+        "main menu Bluetooth label")
+    put(d, m47(SUPPORTERS_HANDLER), bytes.fromhex("01220023c5e90823"),
+        thumb_bl(SUPPORTERS_HANDLER, e["bt_request_open"]) + thumb_bn(SUPPORTERS_HANDLER + 4, MENU_DONE),
+        "main menu Bluetooth select")
+    reseal_module(d, M47_IMG)
 
 
 def thumb_bn(src, dst):
@@ -396,8 +414,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
     ap.add_argument("dst")
-    ap.add_argument("--drop-rows", default="2,5,6,7",
-                    help="original menu rows to remove (2=Spectrum, 5=Supporters, 6=Debug, 7=Power off)")
+    ap.add_argument("--menu-order", default="0,1,5,4,3,8",
+                    help="original menu rows to keep, in order (0 Files, 1 Now playing, 3 USB disk, 4 Settings, "
+                         "5 Supporters = Bluetooth, 8 About; 2 Spectrum, 6 Debug, 7 Power off left out)")
     ap.add_argument("--icons", help="folder of edited icon PNGs (tools/icons.py naming)")
     ap.add_argument("--no-charge-screen", action="store_true")
     ap.add_argument("--keep-bolt", action="store_true", help="keep the bolt glyph while charging")
@@ -409,10 +428,9 @@ def main():
     d = bytearray(open(a.src, "rb").read())
     if d[0x10:0x18].rstrip(b"\0") != EXPECT_BRAND or d[0x30:0x38].rstrip(b"\0") != EXPECT_TAG:
         raise SystemExit("this patcher only knows RECHO build 2d11bdcd")
-    drop = {int(x) for x in a.drop_rows.split(",") if x.strip()}
-    if drop:
-        keep = remove_menu_rows(d, drop)
-        print(f"patched: main menu rows kept {keep} (module m47 re-CRC'd)")
+    keep = [int(x) for x in a.menu_order.split(",") if x.strip()]
+    keep = remove_menu_rows(d, keep)
+    print(f"patched: main menu rows {keep} (module m47 re-CRC'd)")
     if not a.no_charge_screen:
         add_hooks(d, animation=not a.keep_bolt, echo=a.echo)
         print("patched: off-state charging screen hooked at 0x305a678")
@@ -424,10 +442,10 @@ def main():
     usb_chooser_charge_first(d)
     print("patched: USB chooser = Charge only / USB disk; no key for 5 s -> power off (charging screen); DAC removed")
     settings_hide_rows(d, ECHO_SETTINGS_ORDER, ECHO_SETTINGS_SHOWN)
-    print("patched: Settings without Show tags, On USB connect, Swap up/down")
+    print("patched: Settings without Show tags, On USB connect, Swap up/down, Debug strip, Equalizer")
     if not a.no_charge_screen:
-        settings_bluetooth_row(d, echo=a.echo)
-        print("patched: Settings row 2 = Bluetooth (was Debug strip): On/Off, opens the Bluetooth screen")
+        menu_bluetooth_row(d, echo=a.echo)
+        print("patched: main menu row 3 = Bluetooth (was Supporters): opens the Bluetooth screen")
     if not a.keep_bolt:
         charging_shows_level(d)
         print("patched: status bar shows the level cells while charging")

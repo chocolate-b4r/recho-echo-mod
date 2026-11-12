@@ -10,7 +10,13 @@ the next.
 | 2b | Settings → Bluetooth: on/off, search, connect, disconnect (`patches/bt.c`) | built (Mini v14, Echo stage 13); replaces the diagnostic |
 | 3 | Route audio to the module and back to the jacks | planned |
 
-## Settings → Bluetooth (step 2b, `patches/bt.c`)
+## Main menu → Bluetooth (step 2b, `patches/bt.c`)
+
+Since Mini v18 / Echo stage 18 the Bluetooth screen opens from the main menu (the Supporters row's
+slot: label → `str_bluetooth`, its select case at m47 `0x307A1E4` → `bl bt_request_open`), and Back
+returns to the main menu. The Settings row described below was removed.
+
+### Earlier: Settings → Bluetooth
 
 Settings' hidden **Debug strip** row became **Bluetooth** (second row, value On / Off). Selecting it
 opens the Bluetooth screen:

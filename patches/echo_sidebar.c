@@ -80,8 +80,10 @@ static inline u32 lit(u32 v)
 #define GREY  0x8410u
 #define SOFT  0xC618u
 #define player_state FN(0x03057BD0, int (*)(void))
-#define NEXT_DIM   0x9CF3u                /* later Up Next lines */
-#define NEXT_DIM_P 0x6B4Du                /* ... while paused */
+#define NEXT_FIRST   0xC618u              /* the next song */
+#define NEXT_FIRST_P 0x9CF3u              /* ... while paused */
+#define NEXT_DIM     0x6B4Du              /* later Up Next lines */
+#define NEXT_DIM_P   0x52AAu              /* ... while paused */
 #define FONT  1
 
 /* State lives in the cave (code RAM is plain SRAM; no MPU). */
@@ -207,7 +209,7 @@ static void draw_entry(u32 i)
     }
     /* the next song bright, the rest dimmer; everything one step dimmer while paused */
     int paused = player_state() == 2;
-    u32 c = i == 0 ? (paused ? SOFT : WHITE) : (paused ? NEXT_DIM_P : NEXT_DIM);
+    u32 c = i == 0 ? (paused ? NEXT_FIRST_P : NEXT_FIRST) : (paused ? NEXT_DIM_P : NEXT_DIM);
     draw_line(HEADER_H + (int)i * LINE_H, LINE_H, text, c, 0);
 }
 
