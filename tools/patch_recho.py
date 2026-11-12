@@ -323,6 +323,19 @@ def charging_shows_level(d):
     put(d, o, bytes.fromhex("40f08480"), bytes.fromhex("00bf00bf"), "status bar cable branch")
 
 
+# Glyphs nothing draws any more once these patches are in (checked against every UTF-8
+# reference in fw1 and the modules; see docs/05-icons.md):
+UNUSED_ICONS = (0xE002,                    # stop: only RECHO's Now Playing (replaced by np_draw)
+                0xE00C,                    # charging bolt: status-bar cable branch (NOPed), old chooser
+                0xE014,                    # wave: Spectrum row and DAC chooser row (both removed)
+                0xE016,                    # terminal: Debug row / Debug screen (removed)
+                0xE018, 0xE019,            # stereo / mono circles: RECHO's Now Playing
+                0xE01B,                    # menu lines: soft-key labels (no button bar any more)
+                0xE01C,                    # heart: Supporters row (removed)
+                0xE022, 0xE023, 0xE024, 0xE025, 0xE026, 0xE027, 0xE028, 0xE029)  # Now Playing badges
+ECHO_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B)   # battery cells: Echo top bars show no glyph
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
@@ -367,6 +380,8 @@ def main():
     if a.icons:
         from icons import do_import
         do_import(a.dst, a.icons, a.dst)
+    from icons import blank
+    blank(a.dst, UNUSED_ICONS + (ECHO_UNUSED_ICONS if a.echo else ()), a.dst)
     ok = info(open(a.dst, "rb").read())
     if not ok:
         raise SystemExit("seal check failed")

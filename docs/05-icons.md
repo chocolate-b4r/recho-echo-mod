@@ -35,3 +35,23 @@ python tools/icon_layout.py RECHO-0.10.1.IMG icons/layout     # labelled sheet +
 - The firmware's icon loader (`0x3058BC8`) has no checksum. A malformed pack makes it fall back to
   built-in glyphs; it does not brick. The verifier applies the loader's own rules anyway.
 - `tools/make_battery_icons.py` generates the 19 × 7 battery set.
+
+## Glyphs blanked by the patcher
+
+`tools/patch_recho.py` blanks every glyph that nothing draws any more after the patches. Each one
+becomes an empty 1 × 1 entry with one byte of bitmap; `icons.blank()` does this. The table entry
+stays, because glyphs are looked up by code point and removing an entry would shift every code
+after it. Deleting the entry outright would also change the part size, which means editing the
+outer header, and this mod never does that.
+
+| Build | Blanked | Reason |
+|---|---|---|
+| both | E002, E018, E019, E022–E029 | only RECHO's Now Playing drew them; `np_draw` replaces it |
+| both | E00C | status-bar cable branch (NOPed) and the old chooser |
+| both | E014, E016, E01C | Spectrum / DAC, Debug and Supporters rows, all removed |
+| both | E01B | soft-key labels; there is no button bar any more |
+| Echo | E007–E00B | battery cells; the Echo's top bars show no glyph (Up Next shows %) |
+
+The list comes from searching fw1 and every module for each glyph's UTF-8 bytes, then removing
+the uses that the patches made unreachable. E00D and E01D–E020 are never referenced directly but
+may be computed (base glyph + index), so they stay.

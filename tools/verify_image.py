@@ -34,7 +34,8 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x0305DA2C, 0x0305DAC4}                                       # clock chip read / decode
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
-           0x030041B4, 0x030399B8, 0x030399BC}                            # chooser cursor, countdown
+           0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
+           0x0303EDD0}                                                    # settings block (play mode, byte 7)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 

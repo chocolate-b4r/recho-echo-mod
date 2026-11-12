@@ -133,6 +133,29 @@ def do_import(path, indir, out, keep_size=True):
     print(f"{changed} icon(s) replaced, pack {size} -> {len(pack)} B")
 
 
+def blank(path, codes, out):
+    """Reduce glyphs nobody draws any more to an empty 1 x 1 entry (1 byte of bitmap).
+    The table entry stays, so every other code point keeps its glyph; the pack keeps its
+    part size, so the outer header is untouched."""
+    d = bytearray(open(path, "rb").read())
+    off, size = locate(d)
+    meta = parse(bytes(d[off:off + size]))
+    n = 0
+    for cp in codes:
+        i = cp - meta["first"]
+        if not 0 <= i < len(meta["icons"]):
+            raise SystemExit(f"U+{cp:04X} is not in the pack")
+        ic = meta["icons"][i]
+        if (ic["w"], ic["h"], ic["rows"]) != (1, 1, [b"\0"]):
+            meta["icons"][i] = dict(ic, w=1, h=1, rows=[b"\0"])
+            n += 1
+    pack = build(meta)
+    d[off:off + size] = pack + bytes(size - len(pack))
+    open(out, "wb").write(d)
+    seal(out)
+    print(f"{n} unused icon(s) blanked, pack {len(pack)} of {size} B")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1]
     if cmd == "export":

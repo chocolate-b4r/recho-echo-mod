@@ -57,6 +57,7 @@ static inline u32 lit(u32 v)
 #define USB_COUNTING REG(0x030399B8)
 #define USB_START    REG(0x030399BC)
 #define BATTERY      PTR(volatile int *, 0x030401EC)
+#define PLAY_MODE    (PTR(volatile unsigned char *, 0x0303EDD0)[7])   /* settings block, byte 7 */
 
 #define W 320
 #define SEP " \xee\x80\xa1 "      /* RECHO's own separator dot glyph (U+E021) */
@@ -255,6 +256,19 @@ void np_draw(void)
         p = put_num(p, qi ? (u32)qi[1] : 0u, qpos + 23);
     }
 #ifndef ECHO_PORT
+    if (p != qpos) {                      /* Mini: play-mode glyph in front (Up Next has it on the Echo) */
+        static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
+                                        "\xee\x80\x86", "\xee\x80\xab"};
+        u32 m = PLAY_MODE;
+        char tmp[24], *t = tmp;
+        if (m < 5u) {
+            t = put_str(t, MODE[m], tmp + 23);
+            t = put_str(t, " ", tmp + 23);
+        }
+        t = put_str(t, qpos, tmp + 23);
+        *t = 0;
+        p = put_str(qpos, tmp, qpos + 23);
+    }
     if (p != qpos)                        /* Mini: no Up Next column, battery % goes here */
         p = put_str(p, "   ", qpos + 23);
     p = put_pct(p, qpos + 23);
