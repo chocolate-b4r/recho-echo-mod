@@ -75,3 +75,7 @@ sticks while RAM stays powered (on a cable "off" is the charging screen). Up Nex
 push through the VOP bus and stay blank on the GPIO path. Since stage 32 `about_tick` clears `VOPF`
 after 5 s on the GPIO path, so the next start tries VOP again. Without the fix: unplug, switch off
 (power is cut, RAM is lost), switch on.
+
+Since stage 33 the top bar shows **Safe display: restart** in amber whenever RECHO is on the GPIO
+fallback, so the missing sidebar and strip are explained on screen; one restart brings them back.
+The verifier fails any image without the `VOPF` clear in `about_tick`.

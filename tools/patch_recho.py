@@ -113,7 +113,15 @@ POWER_TICK_ORIG = 0x0306A7C5
 
 
 def load_hooks(name="hooks"):
-    blob = open(os.path.join(ROOT, "build", name + ".bin"), "rb").read()
+    # Refuse a stale build: if build_hooks.sh failed, the old .bin is still there and would be
+    # patched in silently (this happened once, caught only because the build error was printed).
+    bin_path = os.path.join(ROOT, "build", name + ".bin")
+    pdir = os.path.join(ROOT, "patches")
+    newest = max(os.path.getmtime(os.path.join(pdir, f)) for f in os.listdir(pdir) if f.endswith((".c", ".h")))
+    if not os.path.exists(bin_path) or os.path.getmtime(bin_path) < newest:
+        sys.exit(f"build/{name}.bin is older than patches/ - run tools/build_hooks.sh"
+                 + (" echo" if "echo" in name else "") + " and fix its errors first")
+    blob = open(bin_path, "rb").read()
     entries = {}
     for line in open(os.path.join(ROOT, "build", name + ".entries")):
         n, addr = line.split()

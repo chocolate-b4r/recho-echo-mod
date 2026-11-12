@@ -250,8 +250,18 @@ static void top_bar(const char *right)
     top_bar_c(right, SOFT);
 }
 
+#ifdef ECHO_PORT
+#define VOP_ON REG(0x030089EC)              /* RECHO: panel on the VOP bus (sidebar and strip need it) */
+#endif
 static void top_bar_2(const char *right, u32 right_colour, const char *last, u32 last_colour)
 {
+#ifdef ECHO_PORT
+    if (!VOP_ON) {                          /* slow display fallback: sidebar / strip cannot draw */
+        right = "Safe display: restart";
+        right_colour = AMBER;
+        last = 0;
+    }
+#endif
     char t[8], d[16];
     clock_strings(t, d);
     int x = 8 + text_at(1, 8, 10, t, 60, WHITE);
@@ -642,9 +652,15 @@ void np_draw(void)
         const char *artist;
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
-        if (!text2x_line(W / 2, 30, artist, c_art, title, c_title))
-            track_line(46, paused);
-        text_centred(1, W / 2, 76, track_album(), 300, paused ? DIM : GREY);
+        if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
+            if (artist && *artist && title && *title && text_width(1, title) <= 150) {
+                text_centred(1, W / 2, 31, artist, 300, c_art);     /* artist over a 2x title */
+                text2x_line(W / 2, 44, 0, 0, title, c_title);
+            } else {
+                track_line(52, paused);
+            }
+        }
+        text_centred(1, W / 2, 84, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         u32 rg_unused;
         format_line_ex(info, sizeof info, &rg_unused, 0);
@@ -661,8 +677,8 @@ void np_draw(void)
             }
             *q = 0;
         }
-        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 96, info, 300, paused ? DIM : GREY);
-        fill_rect(60, 108, W - 61, 108, RULE);
+        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 102, info, 300, paused ? DIM : GREY);
+        fill_rect(60, 114, W - 61, 114, RULE);
 
         u32 lc = paused ? GREY : WHITE;
         if (ms_now() - VOLUME_AT < 2000u) {
@@ -675,12 +691,12 @@ void np_draw(void)
                 q = put_str(q, " dB", v + 23);
             }
             *q = 0;
-            text_centred(1, W / 2, 133, v, 300, WHITE);
+            text_centred(1, W / 2, 136, v, 300, WHITE);
         } else {
             const char *ly = lyrics_line();
-            if (ly && !text2x_line(W / 2, 118, 0, 0, ly, lc)) {
+            if (ly && !text2x_line(W / 2, 120, 0, 0, ly, lc)) {     /* rows 120..151, scratch at 152 */
                 int f = text_width(1, ly) <= 304 ? 1 : 0;
-                text_centred(f, W / 2, 133, ly, 304, lc);
+                text_centred(f, W / 2, 136, ly, 304, lc);
             }
         }
     }
@@ -733,8 +749,8 @@ void footer_row(int row, int on_now_playing)
             text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
         return;
     }
-    if (on_now_playing) {                 /* the lyric is in the picture: just the progress bar, */
-        if (row == 0)                     /* right under it, as on the Mini */
+    if (on_now_playing) {                 /* the lyric is in the picture: row 0 empty, the rule on top */
+        if (row == 1)                     /* of row 1 (echo_band.c), the progress bar under it */
             progress_at(13, paused);
         return;
     }
@@ -745,11 +761,6 @@ void footer_row(int row, int on_now_playing)
             text_centred(font, W / 2, 13, ly, 304, paused ? GREY : WHITE);
             return;
         }
-    }
-    if (on_now_playing) {                 /* format line is in the picture (draft C) */
-        if (row == 1)
-            progress_at(13, paused);
-        return;
     }
     if (row == 0) {
         int x0 = 10;
@@ -1195,12 +1206,16 @@ STATE volatile u32 menu_last_module = 0;
  * 5 s on VOP clears it. Up Next and the Echo strip need VOP. After 5 s on the slow path we clear
  * "VOPF", so the next start tries VOP again; a real VOP failure is still caught by RECHO then. */
 #define VOP_MARK  REG(0x0309FFB0)
+#define log_printf FN(0x0306C9EC, void (*)(const char *fmt, ...))
 #define VOP_FAILED 0x564F5046u                     /* "VOPF" */
 
 void about_tick(void)
 {
-    if (VOP_MARK == VOP_FAILED && ms_now() > 5000u)
-        VOP_MARK = 0;
+    if (VOP_MARK == VOP_FAILED && ms_now() > 5000u) {
+        VOP_MARK = 0;                       /* next start tries the fast display path again */
+        if (((volatile unsigned char *)lit(0x0303EDD0u))[5])
+            log_printf("display: VOPF fallback cleared after %u ms", ms_now());
+    }
     u32 m = CURRENT_MODULE_ID;
     if (m == 47u && menu_last_module != 47u && about_state == 0u) {
         MENU_STATE[1] = 2u;                 /* the menu opens on Now playing */

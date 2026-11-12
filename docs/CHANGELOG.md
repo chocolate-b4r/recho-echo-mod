@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v30 | safety: the patcher refuses a hooks build older than patches/ (a failed build can no longer slip in old code); verifier checks the VOPF clear is present; the clear is logged (Log to file on) | built, verified |
 | v29 | display fallback no longer sticks: after 5 s on the slow GPIO panel path the "VOPF" token at 0x0309FFB0 is cleared, so the next start tries VOP again | built, verified |
 | v28 | boot text in RECHO's regular small font (boot font only as a fallback); tab arrows centred, "sys" 2 px lower | built, verified |
 | v27 | terminal-style boot screen (`boot_screen` replaces the `RECHO 0.10.1` splash); owner's "sys" and Bluetooth tab icons; menu tips removed; play-mode glyph in the menu's top bar | built, verified |
@@ -45,6 +46,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 33 | Now Playing strip: progress bar back in the bottom row, the line moved down to sit right above it; title at 2x on one line, or artist over a 2x title when the pair is too wide; top bar says "Safe display: restart" in amber while on the slow GPIO fallback; safety as Mini v30 | built, verified |
 | 32 | as Mini v29 (Up Next and the strip need VOP; they vanished while RECHO stuck to the GPIO fallback after quick power-offs) | built, verified |
 | 31 | Now Playing strip: the progress bar right under the picture (no empty row); boot text and tab row as Mini v28 | built, verified |
 | 30 | boot screen as Mini v27; Now Playing section moved down a little, file info in the large font when it fits, no lyric in the strip on Now Playing; menu as Mini v27 | built, verified |
