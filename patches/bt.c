@@ -364,8 +364,8 @@ static void handle_frame(const u8 *b, u32 size, u32 now)
 {
     if (b[1] != 'Q')
         bt_answered = 1;
-    if (LOG_TO_FILE && b[1] != 'Q' && b[1] != 'S')
-        log_printf("bt: rx %c%c (%u bytes, state %u)", b[1], size > 2 ? b[2] : '.', size, bt_state);
+    if (LOG_TO_FILE && (b[1] == 'P' || b[1] == 'C' || b[1] == 'A' || b[1] == 'B'))
+        log_printf("bt: earbuds %c", b[1]);      /* P pause, C play, A previous, B next */
     switch (b[1]) {
     case 'V':
         if (size >= 4) {
@@ -442,37 +442,11 @@ static void drop_front(u32 k)
     bt_rx_len -= k;
 }
 
-/* raw capture: every byte for 300 ms after a CY0 command, logged as hex (diagnostic) */
-STATE volatile u32 bt_raw_until = 0;
-STATE volatile u32 bt_raw_len = 0;
-STATE volatile u32 bt_raw_open = 0;
-STATE u8 bt_raw[24] = {0};
-STATE char bt_raw_hex[24 * 3 + 1] = {0};
-
-static void raw_flush(u32 now)
-{
-    if (!bt_raw_open || (int)(now - bt_raw_until) < 0)
-        return;
-    bt_raw_open = 0;
-    static const char HX[] = "0123456789abcdef";
-    char *h = bt_raw_hex;
-    for (u32 i = 0; i < bt_raw_len; i++) {
-        *h++ = HX[bt_raw[i] >> 4];
-        *h++ = HX[bt_raw[i] & 15];
-        *h++ = ' ';
-    }
-    *h = 0;
-    if (LOG_TO_FILE)
-        log_printf("bt: raw after CY0: %u bytes [%s]", bt_raw_len, bt_raw_hex);
-}
-
 static void receive(u32 now)
 {
     for (u32 n = 0; n < 128u && (UART_LSR & 1u); n++) {
         u8 c = (u8)UART_DATA;
         bt_last_rx = now;
-        if (bt_raw_open && bt_raw_len < sizeof bt_raw)
-            bt_raw[bt_raw_len++] = c;
         if (bt_rx_len == 0 && c != 'C')
             continue;                             /* resync on 'C' (also drops the NULs) */
         if (bt_rx_len < RX_MAX)
@@ -576,9 +550,6 @@ static void disconnect(u32 now)
 static void stream_frame(u32 on)
 {
     u8 f[5] = {'C', 'Y', '0', (u8)(on ? 0x1Eu : 0u), 0};
-    bt_raw_len = 0;
-    bt_raw_open = 1;
-    bt_raw_until = ms_now() + 300u;
     send_bytes(f, 5);
 }
 
@@ -707,47 +678,12 @@ static void bt_volume(u32 now)            /* while routed and streaming */
     bt_vol_set = v;
 }
 
-/* full snapshot while streaming (read only): GRF and CRU 0x000-0x0FC, GPIO data / direction */
-STATE volatile u32 bt_dumps = 0;
-static void dump_regs(void)
-{
-    if (!LOG_TO_FILE || bt_dumps >= 2u)
-        return;
-    bt_dumps++;
-    static const u32 BLOCKS[2] = {0x50010000u, 0x40180000u};
-    static const char *const NAMES[2] = {"GRF", "CRU"};
-    for (u32 b = 0; b < 2u; b++) {
-        volatile u32 *r = (volatile u32 *)lit(BLOCKS[b]);
-        for (u32 o = 0; o < 64u; o += 8u)
-            log_printf("bt: dump %s+%02x %08x %08x %08x %08x %08x %08x %08x %08x", NAMES[b], o * 4u,
-                       r[o], r[o + 1], r[o + 2], r[o + 3], r[o + 4], r[o + 5], r[o + 6], r[o + 7]);
-    }
-    static const u32 GPIOS[3] = {0x40160000u, 0x40170000u, 0x50030000u};
-    for (u32 g = 0; g < 3u; g++) {
-        volatile u32 *r = (volatile u32 *)lit(GPIOS[g]);
-        log_printf("bt: dump GPIO%u data %08x dir %08x in %08x", g, r[0], r[1], r[20]);
-    }
-}
-
-static void log_audio_state(const char *when)
-{
-    if (!LOG_TO_FILE)
-        return;
-    log_printf("bt: %s: I2S1 TXCR %08x RXCR %08x CKR %08x XFER %08x DMACR %08x FIFOLR %08x",
-               when, REG(0x40030000), REG(0x40030004), REG(0x40030008), REG(0x4003001C),
-               REG(0x40030010), REG(0x4003000C));
-    log_printf("bt: %s pins 0.14=%u 2.0=%u 2.1=%u 2.2=%u 2.9=%u 2.14=%u 1.4=%u GRF+BC %08x +C4 %08x",
-               when, gpio_read_pin(0, 14), gpio_read_pin(2, 0), gpio_read_pin(2, 1), gpio_read_pin(2, 2),
-               gpio_read_pin(2, 9), gpio_read_pin(2, 14), gpio_read_pin(1, 4), REG(0x500100BC), REG(0x500100C4));
-}
-
 void bt_route(u32 on)
 {
     if ((on != 0u) == (bt_routed != 0u))
         return;
     if (on) {
         stock_write();                            /* every route, not just the first */
-        log_audio_state("before");
     }
     bt_routed = on ? 1u : 0u;                     /* DAC mute high, GPIO2.14 low (Podium / EchoPod) */
     bt_changed_at = ms_now();
@@ -755,10 +691,6 @@ void bt_route(u32 on)
     gpio_set_orig(2, 14, on ? 0u : echo_wired_level);
     if (LOG_TO_FILE)
         log_printf("bt: route %s", on ? "to the headphones" : "to the jacks");
-    if (on) {
-        log_audio_state("after");
-        dump_regs();
-    }
 }
 
 /* ---- tick (POWER service, every main-loop pass) --------------------------------- */
@@ -818,7 +750,6 @@ void bt_tick(void)
     default:
         break;
     }
-    raw_flush(now);
     if (bt_state == CONNECTED)
         follow_player(now);
 

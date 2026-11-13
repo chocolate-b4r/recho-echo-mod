@@ -52,14 +52,15 @@ belongs to RECHO first: get it from [its site](https://recho.atzkey.workers.dev/
 | Battery % green while charging, amber / red when low | ✅ top bar | ✅ Up Next |
 | Pixel-art main menu: Files · USB disk · Now Playing · Bluetooth · Settings | ✅ | ✅ |
 | **Hold ▶‖ on Files** in the main menu: play every song | ✅ | ✅ |
-| **↩ leaves USB disk** (the screen stays on) | ✅ | ✅ |
+| **↩ leaves USB disk** (the screen stays on), back to the main menu | ✅ | ✅ |
+| **Favourites:** hold ≡ on Now Playing, a heart after the title, saved as `FAVORITE.M3U` (phones read it) | ✅ | ✅ |
 | Terminal-style boot screen in RECHO's own font | ✅ | ✅ |
 | Off-state charging screen and charging animation | ✅ | ✅ |
 | Cable chooser *Charge only / USB disk*, idle 5 s = power off into the charging screen | ✅ | ✅ |
 | Shorter menu and Settings; unused screens, modules and icons removed | ✅ | ✅ |
 | Button remap (↩ = back, hold ≡ = Settings) | ✅ | ✅ |
 | ST7796S panel, Echo pin map, RECHO's updater under Echo-only names, maskrom hatch | | ✅ |
-| Bluetooth pairing (audio not working yet, see [docs/12](docs/12-bluetooth.md)) | 🚧 | 🚧 |
+| Bluetooth headphones: pair, play, earbud buttons ([docs/12](docs/12-bluetooth.md)) | ✅ | ✅ |
 
 **How to use it:** [docs/controls.md](docs/controls.md), with a printable cheat sheet.
 
@@ -128,7 +129,7 @@ Details, maskrom recovery and the exact commands: [docs/10-install-and-recovery.
 | 🎧 | [12 Bluetooth](docs/12-bluetooth.md) | Bluetooth work in progress and the hardware facts |
 | 🔬 | [13 Reverse engineering](docs/13-reverse-engineering.md) | Method, scripts (`tools/re/`), every finding with its evidence, how to replicate a build |
 | 📝 | [Echo port research notes](docs/research/echo-port-notes.md) | Sources, hardware facts Mini vs Echo, FiiO updater, RECHO RAM map |
-| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v41, Echo stages 1–49 |
+| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v42, Echo stages 1–50 |
 
 ## Repository layout
 

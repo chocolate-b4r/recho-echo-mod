@@ -27,6 +27,8 @@ points into the free range.
 | `0x03044000` | 16,640 B | strip: a saved frame-buffer corner (≤ 8,320 px) while the port draws | Up Next name cache, 9 × 64 B |
 | `0x03048200` | 276 B | file name buffer for Up Next | same |
 | `0x03048400` | 7,680 B | lyrics (`.lrc` text) | unused |
+| `0x03045000` | 4,098 B | favourites list while it is read or changed (inside the strip, which is free between draws) | favourites list |
+| `0x03046100` / `0x03046200` | 256 B / 512 B | the song's path / its line from `RQUEUE.M3U` | same |
 
 ## Cave rules
 

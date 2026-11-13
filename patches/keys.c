@@ -32,8 +32,9 @@ const char str_settings[] = "settings";
 
 void hold_menu(void)
 {
+    extern volatile u32 fav_request;      /* favs.c: add / remove the song playing */
     if (CURRENT_MODULE == MOD_NOW_PLAYING)
-        set_module(MOD_SETTINGS);
+        fav_request = 1;
     else
         go_main_menu();
 }

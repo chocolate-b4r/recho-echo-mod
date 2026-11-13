@@ -24,7 +24,7 @@ flowchart LR
 
     NP -- "↩ tap" --> MENU
     NP -- "≡ tap" --> FILES
-    NP -- "≡ hold" --> SET
+    MENU -- "▶‖ on Settings" --> SET
     MENU -- "▶‖ on a tab" --> FILES & SET & USB & BT & NP
     MENU -- "▶‖ hold on Files" --> NP
     FILES -- "▶‖ on a song or folder" --> NP
@@ -42,13 +42,37 @@ Holding <kbd>≡</kbd> on any screen other than Now Playing goes straight to the
 |:---:|---|---|
 | <kbd>▶‖</kbd> | play / pause | next track |
 | <kbd>↩</kbd> | back to the main menu | previous track |
-| <kbd>≡</kbd> | Files | Settings |
+| <kbd>≡</kbd> | Files | **add the song to favourites, or take it off** |
 | <kbd>+</kbd> <kbd>−</kbd> | volume up / down | keeps changing |
+
+A red heart after the song title means the song is a favourite. A message confirms each change
+(*Added to favourites* / *Removed from favourites*). See [Favourites](#favourites) below.
 
 The volume shows in the top bar before the output, for example `62 dB · 3.5 mm`, or
 `62 dB · BT <headphones>` in green on Bluetooth. RECHO's quietest step reads 0 dB. The battery %
 (Mini: top bar, Echo: Up Next) is green while the cable is in, amber at 35 % or less, red at 15 % or
 less.
+
+## Favourites
+
+Hold <kbd>≡</kbd> on Now Playing to add the song playing to your favourites; hold it again to take it
+off. The list is a playlist file, **`FAVORITE.M3U`**, at the top of the player's drive:
+
+```
+#EXTM3U
+Halsey - Ashley.flac
+Music/Album/Song.flac
+```
+
+- **It stays.** Firmware updates only write the firmware area, never your music drive, so the list
+  survives updates (and a trip to Podium and back).
+- **Phones and computers read it.** Copy your music with the same folders and `FAVORITE.M3U` next to
+  them; Poweramp, Musicolet, VLC, AIMP and most players open it as a playlist. It does not merge into an
+  app's own "liked songs", which each app keeps to itself.
+- **You can edit it** in any text editor: one song per line, as its path from the top of the drive.
+  Edit it on the computer, plug the player back in, and the hearts follow.
+- **Limits:** songs on the internal drive only (not an SD card), and up to 4 KB of list, about 50–60
+  songs; past that the player says *Favourites full* instead of risking the drive.
 
 ## Main menu
 

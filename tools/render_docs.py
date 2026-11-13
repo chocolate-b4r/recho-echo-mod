@@ -185,7 +185,7 @@ SECTIONS = [
     ("Now Playing", [
         (["play"], "tap", "play / pause"), (["play"], "hold", "next track"),
         (["back"], "tap", "back to the main menu"), (["back"], "hold", "previous track"),
-        (["menu"], "tap", "Files"), (["menu"], "hold", "Settings"),
+        (["menu"], "tap", "Files"), (["menu"], "hold", "favourite: add or take off"),
         (["vol+", "vol-"], "tap / hold", "volume (shown in the top bar)")]),
     ("Main menu", [
         (["vol+", "vol-"], "tap", "move between tabs"), (["play"], "tap", "open the tab"),

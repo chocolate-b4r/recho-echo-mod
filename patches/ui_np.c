@@ -505,6 +505,18 @@ static int format_left(int x, int y, int w, int y_max, int paused)
 #endif
 
 static const char *output_label(char *buf, int n, u32 *colour);
+
+/* favs.c: the song playing is in FAVORITE.M3U; a 9 x 8 heart after its title */
+extern volatile u32 fav_is_current;
+static void heart(int x, int y_top)
+{
+    static const char *const ROWS[8] = {".##...##.", "####.####", "#########", "#########",
+                                        ".#######.", "..#####..", "...###...", "....#...."};
+    for (int r = 0; r < 8; r++)
+        for (int c = 0; c < 9; c++)
+            if (ROWS[r][c] == '#')
+                fill_rect(x + c, y_top + r, x + c, y_top + r, RED);
+}
 #ifdef ECHO_PORT
 extern const char *lyrics_line(void);
 #define FB_PX PTR(volatile u16 *, 0x03008A00)
@@ -798,14 +810,20 @@ void np_draw(void)
         const char *artist;
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
-        if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
-            if (artist && *artist && title && *title && text_width(1, title) <= 150) {
-                text_centred(1, W / 2, 34, artist, 300, c_art);     /* artist over a 2x title */
-                text2x_line(W / 2, 42, 0, 0, title, c_title);
-            } else {
-                track_line(52, paused);
-            }
+        int hx = 6, hy = 48;                  /* heart: after the title, else at the left */
+        if (text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
+            int w = (artist && *artist) ? text_width(1, artist) + text_width(1, " - ") : 0;
+            hx = W / 2 + w + text_width(1, title) + 6;
+        } else if (artist && *artist && title && *title && text_width(1, title) <= 150) {
+            text_centred(1, W / 2, 34, artist, 300, c_art);         /* artist over a 2x title */
+            text2x_line(W / 2, 42, 0, 0, title, c_title);
+            hx = W / 2 + text_width(1, title) + 6;
+            hy = 54;
+        } else {
+            track_line(52, paused);
         }
+        if (fav_is_current)
+            heart(hx > W - 14 ? 6 : hx, hy);
         text_centred(1, W / 2, 82, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         format_line_ex(info, sizeof info, 1);   /* format, then the queue position ("3/500") */
@@ -835,14 +853,19 @@ void np_draw(void)
             y += 20;
         }
         char l1[96], l2[96];
+        int tw, ty;                               /* the title's last line: for the heart */
         if (split_two(title, 1, LW, l1, l2, sizeof l1)) {
             text_at(1, LX, y, l1, LW, c_title);
-            text_at(1, LX, y + 18, l2, LW, c_title);
+            tw = text_at(1, LX, y + 18, l2, LW, c_title);
+            ty = y + 18;
             y += 38;
         } else {
-            text_at(1, LX, y, title, LW, c_title);
+            tw = text_at(1, LX, y, title, LW, c_title);
+            ty = y;
             y += 20;
         }
+        if (fav_is_current)
+            heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, ty - 4);
         if (album && *album) {
             text_at(text_width(1, album) <= LW ? 1 : 0, LX, y, album, LW, paused ? DIM : GREY);
             y += 20;

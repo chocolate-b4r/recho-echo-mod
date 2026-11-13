@@ -158,3 +158,22 @@ On the Echo it blanks the whole panel, then pushes the 320 × 170 picture to col
 Files and Settings keep RECHO's top bar, with the volume text through `vol_text` (from 0 dB up). On
 the Echo its battery glyph is skipped: `bl draw_text` at `0x30594A4` becomes two NOPs and
 `rsb r4,r4,#304` at `0x30594A8` becomes `mov.w r4,#312`, so the volume moves to the right edge.
+
+## Favourites (`patches/favs.c`, both players)
+
+Hold ≡ on Now Playing (`hold_menu` in `keys.c`, which used to open Settings there) sets a request;
+`fav_tick` (POWER tick) does the work in the main loop:
+
+1. **The song's path.** `RQUEUE.IDX` has a 36-byte header, then one 36-byte entry per song: +16 is the
+   offset and +20 the length of its line in `RQUEUE.M3U`, which reads `file:///internal/` plus the
+   percent-encoded path. The line is read, checked and decoded to a plain UTF-8 path.
+2. **The list.** `FAVORITE.M3U` in the top folder of the internal drive, read with RECHO's
+   `0x30531F0(volume, "FAVORITEM3U", file)` (find by 8.3 name) and `0x3053934` (read). Adding appends
+   the path (with `#EXTM3U` first in a new file); removing takes its line out.
+3. **The write.** `0x3053BF4(volume, "FAVORITEM3U", buf, len)`, the routine RECHO saves `RECHO.CFG`
+   with. Up to one cluster (4 KB) it overwrites the file in place; the list is kept within that, and a
+   longer one is refused (*Favourites full*). The verifier checks that only `toggle` calls it.
+4. **The heart.** `fav_is_current` is worked out when the track changes on Now Playing; `np_draw` draws a
+   9 × 8 red heart after the title (Echo: after the 2x title; Mini: after its last line).
+
+Messages use RECHO's bar message (`0x305A874`, 2 s): the Echo's strip, the Mini's bottom bar.

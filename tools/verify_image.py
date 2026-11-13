@@ -38,7 +38,9 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x03065FE4,                                                   # queue "next" (pure computation): position in the play order
             0x0306C290,                                                   # RECHO's boot text routine (boot_screen)
             0x03064B64,                                                   # queue entry name (Up Next); which functions: checked below
-            0x0307A108, 0x0307A278, 0x0305A02C}                           # m47 key handler, m44 folder tree, select drive (hold Play on Files)
+            0x0307A108, 0x0307A278, 0x0305A02C,                           # m47 key handler, m44 folder tree, select drive (hold Play on Files)
+            0x030531F0, 0x03053934, 0x03053BF4,                           # favourites: find 8.3 file, read, write whole file (checked below)
+            0x0305A874}                                                   # bar message for 2 s (favourites)
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
@@ -48,7 +50,8 @@ UI_DATA = {0x03034B48,                                                    # font
            0x0309FFB0,                                                    # RECHO's VOP marker (display fallback)
            0x0303BD80, 0x03044000, 0x03048200,                            # queue store; Up Next cache and name buffer (free RAM)
            0x03006174, 0x0303AB2C, 0x0303BCC4, 0x0307A000,               # backlight duty, m44 SD flag, menu cursor, module overlay
-           0x0307A278}                                                    # m44 code, read only (signature check before calling it)
+           0x0307A278,                                                    # m44 code, read only (signature check before calling it)
+           0x03045000, 0x03046100, 0x03046200}                            # favourites: list, path and queue-line buffers (free RAM)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -61,7 +64,7 @@ BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
 SHARED_CONSTS = {0x564F5046,   # not addresses: "VOPF", "SFMD" and the first 16 bytes of m44's folder-tree routine
                  0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
-              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick", "bt_volume"}   # + one line per track from the lyrics loader (Log to file on)
+              "lyrics_tick", "set_stream", "bt_route", "follow_player", "about_tick", "bt_volume"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
@@ -352,6 +355,8 @@ def main(orig_path, new_path):
         text_ok = set(used) <= {0x03058D84, 0x03058D20} and not any(f & NO_TEXT_FNS for f in used.values())
         check(text_ok, "charging screen and power paths draw no text; only the two text routines are used"
               + f" ({ {hex(k): sorted(v) for k, v in used.items()} })")
+        writes = where.get(0x03053BF4, set())
+        check(writes == {"toggle"}, f"files are written only by the favourites toggle ({sorted(writes)})")
         tags = where.get(0x0305A8F8, set())
         check(tags and tags <= TAG_FNS, f"tag record read only by Now Playing and the player strip ({sorted(tags)})")
         qread = where.get(0x03064B64, set())
