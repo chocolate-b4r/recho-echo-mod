@@ -37,7 +37,8 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x0307A2B8,                                                   # m47's own draw (About / Supporters panels), only from menu_draw
             0x03065FE4,                                                   # queue "next" (pure computation): position in the play order
             0x0306C290,                                                   # RECHO's boot text routine (boot_screen)
-            0x03064B64}                                                   # queue entry name (Up Next); which functions: checked below
+            0x03064B64,                                                   # queue entry name (Up Next); which functions: checked below
+            0x0307A108, 0x0307A278, 0x0305A02C}                           # m47 key handler, m44 folder tree, select drive (hold Play on Files)
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
@@ -45,7 +46,9 @@ UI_DATA = {0x03034B48,                                                    # font
            0x03008A00, 0x0303BCC0,                                        # frame buffer (2x title), main menu state
            0x0303AB90, 0x0303AB98, 0x0303ABA8, 0x0303BD74, 0x0303BD78,    # queue object, seed, pass, active, current
            0x0309FFB0,                                                    # RECHO's VOP marker (display fallback)
-           0x0303BD80, 0x03044000, 0x03048200}                            # queue store; Up Next cache and name buffer (free RAM)
+           0x0303BD80, 0x03044000, 0x03048200,                            # queue store; Up Next cache and name buffer (free RAM)
+           0x03006174, 0x0303AB2C, 0x0303BCC4, 0x0307A000,               # backlight duty, m44 SD flag, menu cursor, module overlay
+           0x0307A278}                                                    # m44 code, read only (signature check before calling it)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -54,7 +57,8 @@ ALLOWED_DATA |= UI_DATA
 BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
             0x0305BA54, 0x0305C3E4, 0x03059FE8,   # close module, switch screen, list keys
             0x03057C94, 0x0305AB80}               # pause / play and skip (headphone buttons)
-SHARED_CONSTS = {0x564F5046}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
+SHARED_CONSTS = {0x564F5046,   # not addresses: "VOPF", "SFMD" and the first 16 bytes of m44's folder-tree routine
+                 0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
               "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
@@ -408,6 +412,12 @@ def main(orig_path, new_path):
     dp = m47(0x0307AAAC)
     check(u32(a, dp) == 0x0307A2B9 and u32(b, dp) == (ent6["menu_draw"] | 1) and a[m47(0x0307AA88):m47(0x0307AA88) + 4] == b"MENU",
           "main menu descriptor draw 0x307a2b9 -> menu_draw")
+    kp = m47(0x0307AAA4)
+    check(u32(a, kp) == 0x0307A109 and u32(b, kp) == (ent6["menu_key"] | 1),
+          "main menu descriptor key 0x307a109 -> menu_key (hold Play on Files plays everything)")
+    m44o = 0x28ED4 + 0x278
+    check(a[m44o:m44o + 16] == bytes.fromhex("2de9f04f8db003910546d7f7d9f90790") == b[m44o:m44o + 16],
+          "m44 folder-tree routine at 0x307a278 is the one play_all_tick checks for")
     so = m47(0x0307A1E4)
     check(a[so:so + 8] == bytes.fromhex("01220023c5e90823") and bl_target(b, so, 0x0307A1E4) == ent6["bt_request_open"]
           and b[so + 4:so + 6] == bytes.fromhex("efe7"),

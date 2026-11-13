@@ -70,6 +70,10 @@ u32 power_tick_wrap(void)
         clock_tick();
         bt_tick();
         about_tick();
+        {
+            extern void play_all_tick(void);   /* keys.c: hold ▶‖ on Files in the main menu */
+            play_all_tick();
+        }
     }
 #ifndef ECHO_PORT
     {

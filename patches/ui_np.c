@@ -451,45 +451,55 @@ static void progress_at(int y, int paused)
 }
 
 #ifndef ECHO_PORT
-/* Format line at x in the small font, within w: split at the separator dot that balances the two
- * lines best when it is too wide ("FLAC  44.1 kHz Â· 24 bit" / "1682 kbps Â· 9/10");
- * a single line sits on the lower row */
-static void format_left(int x, int y, int w, int paused)
+/* Format line from x, y in the large font, wrapped at the separator dots so each line fits w
+ * (like the artist / song / album lines above it); stops before y_max. Returns the next y. */
+static int format_left(int x, int y, int w, int y_max, int paused)
 {
-    char line[96], a[96];
+    char line[96], cur[96];
     format_line_ex(line, sizeof line, 1);
     u32 c = paused ? DIM : GREY;
-    if (text_width(0, line) <= w) {
-        text_at(0, x, y + 13, line, w, c);
-        return;
-    }
     const int sl = sizeof SEP - 1;
-    int best = -1, best_w = 1 << 30;
-    for (int i = 1; line[i]; i++) {
-        int k = 0;
-        while (k < sl && line[i + k] == SEP[k])
-            k++;
-        if (k < sl)
-            continue;
-        for (int j = 0; j < i; j++)
-            a[j] = line[j];
-        a[i] = 0;
-        int wa = text_width(0, a), wb = text_width(0, line + i + sl);
-        int m = wa > wb ? wa : wb;
-        if (m < best_w) {
-            best_w = m;
-            best = i;
+    int n = 0;                                   /* chars in cur */
+    const char *seg = line;
+    while (*seg && y <= y_max) {
+        const char *e = seg;                     /* end of this segment: next SEP or the end */
+        while (*e) {
+            int k = 0;
+            while (k < sl && e[k] == SEP[k])
+                k++;
+            if (k == sl)
+                break;
+            e++;
         }
+        char tryb[96];
+        int t = 0;
+        for (int i = 0; i < n && t < 95; i++)
+            tryb[t++] = cur[i];
+        if (n)
+            for (int i = 0; i < sl && t < 95; i++)
+                tryb[t++] = SEP[i];
+        for (const char *q = seg; q < e && t < 95; q++)
+            tryb[t++] = *q;
+        tryb[t] = 0;
+        if (n && text_width(1, tryb) > w) {      /* flush the line, start a new one with this segment */
+            cur[n] = 0;
+            text_at(1, x, y, cur, w, c);
+            y += 18;
+            n = 0;
+            for (const char *q = seg; q < e && n < 95; q++)
+                cur[n++] = *q;
+        } else {
+            for (n = 0; n < t; n++)
+                cur[n] = tryb[n];
+        }
+        seg = *e ? e + sl : e;
     }
-    if (best < 0) {
-        text_at(0, x, y + 13, line, w, c);
-        return;
+    if (n && y <= y_max) {
+        cur[n] = 0;
+        text_at(1, x, y, cur, w, c);
+        y += 18;
     }
-    for (int j = 0; j < best; j++)
-        a[j] = line[j];
-    a[best] = 0;
-    text_at(0, x, y, a, w, c);
-    text_at(0, x, y + 13, line + best + sl, w, c);
+    return y;
 }
 #endif
 
@@ -780,13 +790,13 @@ void np_draw(void)
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
             if (artist && *artist && title && *title && text_width(1, title) <= 150) {
-                text_centred(1, W / 2, 31, artist, 300, c_art);     /* artist over a 2x title */
-                text2x_line(W / 2, 44, 0, 0, title, c_title);
+                text_centred(1, W / 2, 34, artist, 300, c_art);     /* artist over a 2x title */
+                text2x_line(W / 2, 46, 0, 0, title, c_title);
             } else {
                 track_line(52, paused);
             }
         }
-        text_centred(1, W / 2, 84, track_album(), 300, paused ? DIM : GREY);
+        text_centred(1, W / 2, 82, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         format_line_ex(info, sizeof info, 1);   /* format, then the queue position ("3/500") */
         text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 102, info, 300, paused ? DIM : GREY);
@@ -814,6 +824,7 @@ void np_draw(void)
     (void)playing;
     return;
 #else
+    int fmt_y = 132;
     /* Mini (alternate layout): left half artist, song (two lines when long), album, then the
      * format line and queue position (or the volume for 2 s); right half Up Next in the small font
      * down to the progress bar (9 songs); progress bar across the bottom */
@@ -824,6 +835,7 @@ void np_draw(void)
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
         int y = 36;
+        (void)fmt_y;
         if (artist && *artist) {
             text_at(1, LX, y, artist, LW, c_art);
             y += 20;
@@ -837,10 +849,16 @@ void np_draw(void)
             text_at(1, LX, y, title, LW, c_title);
             y += 20;
         }
-        if (album && *album && y <= 110)
+        if (album && *album) {
             text_at(text_width(1, album) <= LW ? 1 : 0, LX, y, album, LW, paused ? DIM : GREY);
+            y += 20;
+        }
         fill_rect(160, 28, 160, 143, RULE);
         upnext_draw(168, 33, 144, paused);    /* rows 33, 46, ... 137 */
+        if (ms_now() - VOLUME_AT >= 2000u)
+            format_left(LX, y, LW, 140, paused);
+        else
+            fmt_y = y;
     }
     if (ms_now() - VOLUME_AT < 2000u) {
         char v[24], *q = put_str(v, "Volume ", v + 23);
@@ -852,9 +870,7 @@ void np_draw(void)
             q = put_str(q, " dB", v + 23);
         }
         *q = 0;
-        text_at(1, 8, 132, v, 146, WHITE);
-    } else {
-        format_left(8, 124, 146, paused);     /* rows 124 and 137 */
+        text_at(1, 8, fmt_y, v, 146, WHITE);   /* where the file details are */
     }
     progress_at(Y_PROGRESS, paused);
     (void)playing;

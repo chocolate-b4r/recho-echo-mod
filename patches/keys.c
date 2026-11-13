@@ -19,6 +19,7 @@ static inline u32 lit(u32 v)
 }
 #define FN(addr, type) ((type)lit((addr) | 1u))
 #define REG(addr)      (*(volatile u32 *)lit(addr))
+#define STATE __attribute__((section(".text.keys_state,\"ax\",%progbits@"), used))
 
 #define CURRENT_MODULE  REG(0x030399C8)                 /* id of the loaded screen module */
 #define set_module      FN(0x0305B234, void (*)(int module))
@@ -54,7 +55,6 @@ void hold_menu(void)
 #define BACK_LO 450u                                           /* RECHO's own ↩ band (0x305850E): 450..549 */
 #define BACK_HI 549u
 
-#define STATE __attribute__((section(".text.usb_state,\"ax\",%progbits@"), used))
 STATE static volatile u32 usb_adc_at = 0, usb_adc_chan = 0xFFFFFFFFu, usb_back_hits = 0;
 
 static void adc_start(u32 chan)
@@ -105,4 +105,66 @@ u32 usb_key_exit(void)
     adc_start(usb_adc_chan == 0xFFFFFFFFu ? 0u : usb_adc_chan);   /* RECHO's poll continues where it was */
     usb_adc_chan = 0xFFFFFFFFu;
     return 1;
+}
+
+/*
+ * Main menu: hold ▶‖ on the Files tab plays everything on the internal storage, as holding ▶‖
+ * on "Music" at the top of Files does. Only with the screen on (the menu gets no keys with the
+ * screen off; RECHO's own hold ▶‖ = next track still applies there).
+ *   menu_key      replaces the main menu descriptor's key handler (m47 0x307AAA4 = 0x307A109):
+ *                 hold ▶‖ on tab 0 (Files) -> open Files (m44) and remember the request;
+ *                 every other key goes to RECHO's handler unchanged.
+ *   play_all_tick (POWER tick) once m44 is loaded and has had 300 ms to open, and only if the
+ *                 code at 0x307A278 is m44's folder-tree routine byte for byte: select drive 0
+ *                 (0x305A02C) and call it as m44's own hold ▶‖ does: 0x307A278(0, "Music"). It
+ *                 queues the whole drive, starts playback and opens Now Playing.
+ */
+#define menu_key_orig  FN(0x0307A108, int (*)(const unsigned char *ev))   /* m47's own handler */
+#define select_volume  FN(0x0305A02C, int (*)(int drive))
+#define m44_tree       FN(0x0307A278, void (*)(int dir, const char *name))
+#define MENU_CURSOR    REG(0x0303BCC4)                                       /* main menu state [1] */
+#define BL_DUTY        REG(0x03006174)                                       /* backlight PWM, 0 = screen off */
+#define M44_SD_FLAG    REG(0x0303AB2C)                                       /* m44: "the drive is the SD card" */
+#define OVERLAY        ((const volatile u32 *)lit(0x0307A000u))             /* loaded module: "SFMD", id */
+
+STATE static volatile u32 play_all_pending = 0, play_all_at = 0, play_all_seen = 0;
+
+int menu_key(const unsigned char *ev)
+{
+    if (ev[0] == 4 && ev[1] == 3 && MENU_CURSOR == 0u && BL_DUTY != 0u) {
+        play_all_pending = 1;
+        play_all_seen = 0;
+        play_all_at = ms_now();
+        set_module(44);
+        return 1;
+    }
+    return menu_key_orig(ev);
+}
+
+void play_all_tick(void)
+{
+    if (!play_all_pending)
+        return;
+    u32 now = ms_now();
+    if (now - play_all_at > 4000u) {                 /* Files never opened: forget it */
+        play_all_pending = 0;
+        return;
+    }
+    if (CURRENT_MODULE != 44u || OVERLAY[0] != 0x444D4653u || OVERLAY[1] != 44u)
+        return;
+    if (!play_all_seen) {
+        play_all_seen = 1;
+        play_all_at = now;                           /* give m44 300 ms to open */
+        return;
+    }
+    if (now - play_all_at < 300u)
+        return;
+    play_all_pending = 0;
+    const volatile u32 *code = (const volatile u32 *)lit(0x0307A278u);
+    if (code[0] != 0x4FF0E92Du || code[1] != 0x9103B08Du || code[2] != 0xF7D74605u || code[3] != 0x9007F9D9u)
+        return;                                      /* not RECHO 0.10.1's m44: do nothing */
+    if (!select_volume(0))
+        return;
+    M44_SD_FLAG = 0;
+    m44_tree(0, "Music");
 }

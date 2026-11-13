@@ -71,3 +71,16 @@ Once armed, it leaves on `power_key_down()` at `0x305062C`; that call is now `bl
 transfers never wait for the ADC). Whichever key leaves, the hook waits for its release first, so
 the player sees no press afterwards. Before, the power press that ended USB mode also reached the UI,
 which switched the screen off.
+
+## Main menu: hold ▶‖ on Files plays everything
+
+With the Files tab selected and the screen on, **hold ▶‖** queues every song on the internal
+storage and starts playing, exactly as holding ▶‖ on **Music** at the top of Files does. The main
+menu descriptor's key handler (m47 `0x307AAA4`, RECHO's `0x307A109`) is now `menu_key`
+(`patches/keys.c`), which passes every other key to RECHO's handler. Hold ▶‖ on Files opens Files
+(`set_module(44)`) and sets a flag. `play_all_tick` waits until m44 is loaded and has had 300 ms
+to open. It then checks that the code at `0x307A278` is m44's folder-tree routine byte for byte,
+and runs m44's own sequence: `0x305A02C(0)` (select the internal drive), then
+`0x307A278(0, "Music")`. That routine queues the drive, starts playback and opens Now Playing.
+If Files does not open within 4 s, the request is dropped. With the screen off the menu gets no
+keys, so hold ▶‖ stays RECHO's "next track".

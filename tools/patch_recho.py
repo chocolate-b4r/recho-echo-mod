@@ -402,6 +402,17 @@ def main_menu_draw(d, echo=False):
     reseal_module(d, M47_IMG)
 
 
+MENU_KEY_PTR = 0x0307AAA4   # m47 descriptor +28: key handler (0x307A109)
+
+
+def main_menu_key(d, echo=False):
+    """Both players: hold Play on the Files tab plays the whole internal storage (patches/keys.c)."""
+    _, e = load_hooks("hooks-echo" if echo else "hooks")
+    put(d, m47(MENU_KEY_PTR), struct.pack("<I", 0x0307A109), struct.pack("<I", e["menu_key"] | 1),
+        "main menu key -> menu_key")
+    reseal_module(d, M47_IMG)
+
+
 def settings_about_row(d, echo=False):
     """Settings: Debug strip's slot = About (opens RECHO's own About panel, then back)."""
     _, e = load_hooks("hooks-echo" if echo else "hooks")
@@ -523,6 +534,7 @@ def main():
     if not a.no_charge_screen:
         menu_bluetooth_row(d, echo=a.echo)
         main_menu_draw(d, echo=a.echo)
+        main_menu_key(d, echo=a.echo)
         settings_about_row(d, echo=a.echo)
         print("patched: main menu = pixel-art tabs (menu_draw), Bluetooth in Supporters' slot; "
               "Settings last row = About (RECHO's About panel)")
