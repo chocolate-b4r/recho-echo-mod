@@ -82,6 +82,10 @@ static int read_level(int *full)
     if (mv < 2500u)              /* ADC not answering: use the last UI reading */
         mv = last_battery_mv();
     *full = gpio_read(2, 3) != 0;
+    /* While charging the cell reads about 50 mV above its resting voltage, so the % ran ahead;
+     * EchoPod subtracts the same (noted by echo-mini-newfw's ROADMAP). Not once the charger is done. */
+    if (!*full && mv > 3000u)
+        mv -= 50u;
     return mv ? mv_to_permille(mv) : -1;
 }
 

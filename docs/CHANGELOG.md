@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v52 / Echo stage 59 | charging screen: 50 mV off the reading while charging (the cell reads high on the cable, so the % ran ahead; EchoPod does the same, per echo-mini-newfw's ROADMAP); not once the charger reports full | built, verified |
 | v51 / Echo stage 58 | favourites: `FAVPHONE.M3U` next to `FAVORITE.M3U`, the same list without the `sd:` marks (phone-ready) | built, verified |
 | v50 / Echo stage 57 | **SD favourites never write to the card:** RECHO can't write exFAT ("exFAT (not supported here)"), so "not saved"; SD songs now go in the internal `FAVORITE.M3U` as `sd:` + path. Boot screen back to v48's black frame (v49 skipped the splash push and felt slower) | built, verified |
 | v48 / Echo stage 55 | **boot screen** is a black frame (the copied boot font, 1,289 B, is gone; the build no longer reads your RECHO image); **favourites on the SD card:** each drive keeps its own `FAVORITE.M3U`, the Favourites row plays both; **Echo: wired headset buttons** (`headset.c`: ADC channel 2 with FiiO's bands, RECHO's scan order {0, 2, 3} -> {0, 2, 2}) | built, verified |
