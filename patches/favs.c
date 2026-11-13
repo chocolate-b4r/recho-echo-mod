@@ -41,6 +41,13 @@ static inline u32 lit(u32 v)
 #define bar_message    FN(0x0305A874, void (*)(const char *text))
 #define current_screen FN(0x0305C41C, const volatile u32 *(*)(void))
 #define request_redraw FN(0x0305C51C, void (*)(const void *screen))
+#define find_name      FN(0x030638FC, int (*)(void *volume, u32 folder, const char *name, u32 len, char *rec))
+#define queue_start    FN(0x0305B3AC, void *(*)(void))                 /* RECHO's queue builder */
+#define queue_add      FN(0x03063F74, int (*)(void *q, u32 vol, u32 folder, const char *rec, const char *path))
+#define queue_finish   FN(0x0305B3F0, int (*)(int a, const char *name))
+#define queue_abandon  FN(0x0305B2FC, void (*)(void))
+#define set_module     FN(0x0305B234, void (*)(int module))
+#define M44_SD_FLAG    REG(0x0303AB2C)
 #define Q_ACTIVE       REG(0x0303BD74)
 #define Q_CURRENT      REG(0x0303BD78)
 #define CURRENT_MODULE REG(0x030399C8)
@@ -49,6 +56,8 @@ static inline u32 lit(u32 v)
 #define FAV_BUF  PTR(char *, 0x03045000)       /* FAV_MAX + 2 bytes, free RAM (docs/08-memory.md) */
 #define FAV_PATH PTR(char *, 0x03046100)       /* 256 bytes: the song's path */
 #define FAV_RAW  PTR(char *, 0x03046200)       /* 512 bytes: its line from RQUEUE.M3U */
+#define FAV_REC  PTR(char *, 0x03046400)       /* 276 bytes: a directory record from find_name */
+#define FAV_DIR  PTR(char *, 0x03046520)       /* 256 bytes: the song's folder as "/A/B/" */
 #define PATH_MAX 255u
 #define RAW_MAX  511u
 
@@ -56,6 +65,7 @@ static inline u32 lit(u32 v)
 STATE volatile u32 fav_is_current = 0;         /* np_draw: heart after the title */
 STATE volatile u32 fav_request = 0;            /* keys.c: hold ≡ on Now Playing */
 STATE volatile u32 fav_key = 0xFFFFFFFFu;      /* track + screen the flag belongs to */
+STATE volatile u32 fav_play_request = 0;       /* keys.c: ▶‖ on the Favourites folder in Files */
 
 static const char PREFIX[] = "file:///internal/";
 
@@ -199,9 +209,83 @@ __attribute__((noinline)) static void toggle(void)   /* the only file write: ver
     redraw();
 }
 
+/* Play FAVORITE.M3U: each line is walked folder by folder with RECHO's name lookup and added to
+ * a new queue with the routine Files uses for a folder (m44 0x307A278 -> 0x3063F74); RECHO then
+ * finishes the queue, starts playing and Now Playing opens, as after holding ▶‖ on a folder. */
+__attribute__((noinline)) static void play_list(void)
+{
+    void *v = volume_of(0);
+    u32 n = v ? list_load(v) : 0;
+    if (n > FAV_MAX)
+        n = FAV_MAX;
+    if (!n) {
+        bar_message("No favourites yet: hold \xe2\x89\xa1 on Now Playing");
+        return;
+    }
+    M44_SD_FLAG = 0;                           /* internal drive, as Files sets it */
+    void *q = queue_start();
+    if (!q)
+        return;                                /* RECHO showed why */
+    const char *b = FAV_BUF;
+    u32 added = 0;
+    for (u32 i = 0; i < n;) {
+        u32 e = i;
+        while (e < n && b[e] != '\n')
+            e++;
+        u32 l = e;
+        if (l > i && b[l - 1] == '\r')
+            l--;
+        if (l > i && b[i] != '#') {            /* a song: "A/B/Song.flac" */
+            char *dir = FAV_DIR;
+            u32 d = 0, folder = 0, s = i, ok = 1;
+            dir[d++] = '/';
+            for (u32 k = i; k <= l && ok; k++) {
+                if (k < l && b[k] != '/' && b[k] != '\\')
+                    continue;
+                u32 len = k - s;
+                if (!len || len > 250u) {
+                    ok = 0;
+                    break;
+                }
+                char *name = FAV_PATH;          /* one path part, NUL-terminated */
+                for (u32 j = 0; j < len; j++)
+                    name[j] = b[s + j];
+                name[len] = 0;
+                if (find_name(v, folder, name, len, FAV_REC) != 0) {
+                    ok = 0;
+                    break;
+                }
+                if (k < l) {                    /* a folder: go in */
+                    folder = *(const u32 *)(FAV_REC + 260);
+                    for (u32 j = 0; j < len && d < 250u; j++)
+                        dir[d++] = name[j];
+                    dir[d++] = '/';
+                }
+                s = k + 1u;
+            }
+            dir[d] = 0;
+            if (ok && queue_add(q, 0, folder, FAV_REC, dir) == 0)
+                added++;
+        }
+        i = e + 1u;
+    }
+    if (!added) {
+        queue_abandon();
+        bar_message("Favourites: no songs found");
+        return;
+    }
+    if (queue_finish(-1, "Favourites") >= 0)
+        set_module(45);
+}
+
 /* POWER tick: hold ≡ requests, and the heart for the song on Now Playing */
 void fav_tick(void)
 {
+    if (fav_play_request) {                    /* from Files (m44), handled before the module check */
+        fav_play_request = 0;
+        play_list();
+        return;
+    }
     if (CURRENT_MODULE != 45u) {
         fav_request = 0;
         fav_key = 0xFFFFFFFFu;                 /* look again when Now Playing opens */

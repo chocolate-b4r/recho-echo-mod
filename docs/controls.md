@@ -71,6 +71,10 @@ Music/Album/Song.flac
   app's own "liked songs", which each app keeps to itself.
 - **You can edit it** in any text editor: one song per line, as its path from the top of the drive.
   Edit it on the computer, plug the player back in, and the hearts follow.
+- **Play them:** open **Files** and press <kbd>▶‖</kbd> (tap or hold) on the **Favourites** folder at
+  the top of the drive. The player queues every song in `FAVORITE.M3U` and opens Now Playing; shuffle,
+  repeat, Up Next and resume work as for any folder. The folder itself stays empty: it is only the
+  button. (RECHO cannot create folders, so it is made once from a computer; delete it and the row goes.)
 - **Limits:** songs on the internal drive only (not an SD card), and up to 4 KB of list, about 50–60
   songs; past that the player says *Favourites full* instead of risking the drive.
 
@@ -120,7 +124,7 @@ These are RECHO's own; the mod's menu gestures only work while the screen is on.
 | Any time | <kbd>⏻</kbd> hold | power off (with a cable: the charging screen) |
 | Cable plugged in | <kbd>+</kbd> <kbd>−</kbd>, then <kbd>▶‖</kbd> | choose **Charge only** or **USB disk** |
 | Cable plugged in | nothing for 5 s | Charge only: the player powers off into the charging screen |
-| USB disk mode | <kbd>↩</kbd> tap (or <kbd>⏻</kbd>) | leave USB disk and go to the main menu; the screen stays on |
+| USB disk mode | <kbd>↩</kbd> tap | leave USB disk and go to the main menu; the screen stays on |
 | Charging screen | <kbd>⏻</kbd> tap | show the screen again |
 | Charging screen | <kbd>⏻</kbd> hold | start the player |
 

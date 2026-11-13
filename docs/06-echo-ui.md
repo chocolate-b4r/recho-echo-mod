@@ -177,3 +177,15 @@ Hold ≡ on Now Playing (`hold_menu` in `keys.c`, which used to open Settings th
    9 × 8 red heart after the title (Echo: after the 2x title; Mini: after its last line).
 
 Messages use RECHO's bar message (`0x305A874`, 2 s): the Echo's strip, the Mini's bottom bar.
+
+### Playing favourites from Files (`files_key`, `play_list`)
+
+Files' screen descriptor key handler (m44 `0x307B5A8`, RECHO's `0x307AE11`) is `files_key` (`keys.c`).
+It takes ▶‖ only when Files shows the top folder (state `0x030399D0` +16 = 0, the drive list
+`0x0303AB30` not shown) and the entry under the cursor (listing `0x03085BD0`, entry +43 = 0: a folder)
+is named *Favourites* or *Favorites*; everything else goes to RECHO. `play_list` (`favs.c`) then does
+what Files does for a folder (`0x307A278`): `0x305B3AC` starts a queue, each line of `FAVORITE.M3U` is
+walked folder by folder with `0x30638FC` (find a name in a folder, cluster at record +260) and added with
+`0x3063F74(queue, 0, folder, record, "/A/B/")`, then `0x305B3F0(-1, "Favourites")` finishes it and Now
+Playing opens. Lines that are not found are skipped; with none found the queue is abandoned
+(`0x305B2FC`).

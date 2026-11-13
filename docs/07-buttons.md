@@ -12,7 +12,8 @@
 | Now Playing | <kbd>≡</kbd> hold | main menu | add to / remove from favourites (`FAVORITE.M3U`) | fw1 `0x305BF18` → `hold_menu` → `favs.c` |
 | Main menu, Files tab | <kbd>▶‖</kbd> hold | next track | play every song on the internal storage | m47 key pointer `0x307AAA4` → `menu_key` |
 | USB disk | <kbd>↩</kbd> tap | nothing | leave USB disk | fw1 `0x305062C` → `usb_key_exit` |
-| USB disk | <kbd>⏻</kbd> tap | leave, and the press also turns the screen off | leave; the screen stays on | same |
+| USB disk | <kbd>⏻</kbd> tap | leave, and the press also turns the screen off | nothing (Back leaves; the screen says "or press back") | same; text at `0x305E877` |
+| Files, *Favourites* folder | <kbd>▶‖</kbd> tap / hold | open / play the folder | play `FAVORITE.M3U` | m44 key pointer `0x307B5A8` → `files_key` |
 | after USB disk | (any way out) | opens Files | opens the main menu | fw1 `0x305BC8A` `movs r2,#44` → `#47` |
 | Echo, anywhere | <kbd>≡</kbd> hold 10 s | nothing | maskrom | `echo_hatch_tick` ([04](04-echo-port.md)) |
 

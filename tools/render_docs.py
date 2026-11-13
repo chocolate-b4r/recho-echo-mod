@@ -194,6 +194,7 @@ SECTIONS = [
     ("Lists (Files, Settings)", [
         (["vol+", "vol-"], "tap", "move"), (["play"], "tap", "select / play the folder"),
         (["play"], "hold on a folder", "play the folder and all folders in it"),
+        (["play"], "on Favourites", "play your favourites"),
         (["back"], "tap", "back")]),
     ("Screen off", [
         (["play"], "tap", "play / pause"), (["play"], "hold", "next track"),

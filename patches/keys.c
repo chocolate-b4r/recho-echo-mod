@@ -78,8 +78,7 @@ static int back_now(void)                                     /* blocking read, 
 
 u32 usb_key_exit(void)
 {
-    int power = power_key_down() != 0, back = 0;
-    if (!power) {
+    {                                                         /* Back only (the screen says so) */
         u32 now = ms_now();
         if (usb_adc_chan == 0xFFFFFFFFu) {                    /* first call: remember RECHO's channel */
             usb_adc_chan = ADC[2] & 7u;
@@ -94,12 +93,11 @@ u32 usb_key_exit(void)
         usb_back_hits = (v >= BACK_LO && v <= BACK_HI) ? usb_back_hits + 1u : 0u;
         adc_start(1);
         usb_adc_at = now;
-        back = usb_back_hits >= 2u;                           /* two readings in a row, 20 ms apart */
-        if (!back)
+        if (usb_back_hits < 2u)                               /* two readings in a row, 20 ms apart */
             return 0;
     }
     for (u32 t = 0; t < 3000u; t += 10u) {                    /* wait for the release (3 s at most) */
-        if (power ? !power_key_down() : !back_now())
+        if (!back_now())
             break;
         delay_ms(10);
     }
@@ -168,4 +166,53 @@ void play_all_tick(void)
         return;
     M44_SD_FLAG = 0;
     m44_tree(0, "Music");
+}
+
+/*
+ * Files: a folder named "Favourites" (or "Favorites") at the top of the internal drive plays
+ * FAVORITE.M3U instead of opening (favs.c builds the queue). Files' screen descriptor key handler
+ * (m44 0x307B5A8 = 0x307AE11) is files_key; it takes ▶‖ only when Files shows the top folder
+ * (depth 0, not the drive list) and the entry under the cursor is that folder. Everything else,
+ * and anything that does not match, goes to RECHO's handler, so the folder then simply opens.
+ *   0x030399D0  Files state: [0] cursor, [4] folder depth
+ *   0x03085BD0  listing: [1] entries; entry i at +20i: +24 name (pool at +0x298), +43 type (0 folder)
+ *   0x0303AB30  m44: 1 while the drive list (Internal / SD card) is shown
+ */
+#define files_key_orig FN(0x0307AE10, int (*)(const unsigned char *ev))
+#define FILES_STATE    ((const volatile u32 *)lit(0x030399D0u))
+#define LISTING        ((const volatile unsigned char *)lit(0x03085BD0u))
+#define DRIVE_LIST     REG(0x0303AB30)
+
+static int is_favourites(const volatile unsigned char *s)
+{
+    static const char A[] = "favourites", B[] = "favorites";
+    int ia = 1, ib = 1, i = 0;
+    for (; s[i] && i < 12; i++) {
+        unsigned char c = s[i];
+        if (c >= 'A' && c <= 'Z')
+            c = (unsigned char)(c + 32);
+        if (i >= 10 || c != (unsigned char)A[i])
+            ia = 0;
+        if (i >= 9 || c != (unsigned char)B[i])
+            ib = 0;
+    }
+    return (ia && i == 10) || (ib && i == 9);
+}
+
+int files_key(const unsigned char *ev)
+{
+    extern volatile u32 fav_play_request;
+    if (ev[0] == 4 && !DRIVE_LIST && FILES_STATE[4] == 0u) {
+        u32 cur = FILES_STATE[0], count = *(const volatile u32 *)(LISTING + 4);
+        if (cur < count && cur < 256u) {
+            const volatile unsigned char *e = LISTING + 20u * cur;
+            u32 name = *(const volatile u32 *)(e + 24);
+            if (e[43] == 0u && name < 4096u && is_favourites(LISTING + 0x298u + name)) {
+                if (ev[1] == 2u || ev[1] == 3u)               /* tap or hold: play the list */
+                    fav_play_request = 1;
+                return 1;                                     /* press / repeat: nothing */
+            }
+        }
+    }
+    return files_key_orig(ev);
 }

@@ -214,10 +214,24 @@ def boot_splash(d, e):
 USB_KEY_CALL = 0x0305062C   # USB-disk loop callback: `bl power_key_down` (armed) -> leave USB disk
 
 
+USB_TEXT = 0x0305E877         # "eject on the computer, or press power" on the USB disk screen
+M44_IMG = 0x28ED4             # module m44 (Files)
+FILES_KEY_PTR = 0x0307B5A8    # m44 BROWSE descriptor +28: key handler (0x307AE11)
+
+
 def usb_back_key(d, e):
-    """Both players: Back (or power) leaves USB disk, after the key is released (patches/keys.c)."""
+    """Both players: Back leaves USB disk, after the key is released (patches/keys.c)."""
     put(d, USB_KEY_CALL - RAM_OF_IMG, thumb_bl(USB_KEY_CALL, 0x03051C70),
         thumb_bl(USB_KEY_CALL, e["usb_key_exit"]), "USB disk key -> usb_key_exit")
+    put(d, USB_TEXT - RAM_OF_IMG, b"eject on the computer, or press power\x00",
+        b"eject on the computer, or press back\x00\x00", "USB disk text: press back")
+
+
+def files_favourites(d, e):
+    """Both players: a "Favourites" folder at the top of Files plays FAVORITE.M3U (patches/keys.c)."""
+    o = M44_IMG + FILES_KEY_PTR - 0x0307A000
+    put(d, o, struct.pack("<I", 0x0307AE11), struct.pack("<I", e["files_key"] | 1), "Files key -> files_key")
+    reseal_module(d, M44_IMG)
 
 
 AFTER_USB_SCREEN = 0x0305BC8A   # after USB disk: `movs r2,#44` = the screen to open (Files)
@@ -304,6 +318,7 @@ def add_hooks(d, animation=True, echo=False):
     volume_text(d, e)
     boot_splash(d, e)
     usb_back_key(d, e)
+    files_favourites(d, e)
     after_usb_main_menu(d)
     ui_layout(d, e)
     if not echo:                                   # Bluetooth routing holds GPIO2.0 / GPIO2.14
