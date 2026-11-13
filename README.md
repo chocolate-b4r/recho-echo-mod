@@ -76,8 +76,8 @@ tools/build_hooks.sh            # Echo Mini  -> build/hooks.*
 tools/build_hooks.sh echo       # full Echo  -> build/hooks-echo.*
 
 # 2. patch your copy of RECHO 0.10.1 (it refuses any other build, and a stale hook build)
-python tools/patch_recho.py RECHO-0.10.1.IMG out/HIFIEC90.IMG              # Echo Mini
-python tools/patch_recho.py RECHO-0.10.1.IMG out/RECHOECH.IMG --echo       # full Echo
+python tools/patch_recho.py RECHO-0.10.1.IMG out/HIFIEC90.IMG --icons icons/mod          # Echo Mini
+python tools/patch_recho.py RECHO-0.10.1.IMG out/RECHOECH.IMG --icons icons/mod --echo   # full Echo
 
 # 3. check every changed byte against the original before flashing
 python tools/verify_image.py RECHO-0.10.1.IMG out/HIFIEC90.IMG
@@ -89,7 +89,9 @@ not in the default Windows location. The patcher refuses a `build/hooks*.bin` ol
 so a failed build can't slip old code into an image. The verifier compares the cave bytes with the
 build.
 
-Optional: `--icons DIR` replaces glyphs in the icon pack ([docs/05-icons.md](docs/05-icons.md)).
+`--icons icons/mod` adds the 15 glyphs this mod redraws (battery set, play / pause, …); leave it out
+to keep RECHO's ([docs/05-icons.md](docs/05-icons.md)). With the same toolchain the result is
+byte-identical to the released builds; [docs/13](docs/13-reverse-engineering.md#replicating-a-build).
 The first build needs `RECHO_IMG=/path/to/RECHO-0.10.1.IMG tools/build_hooks.sh`: it extracts the
 boot screen's 32 glyphs from your image into `build/boot_font.h` (`tools/make_boot_font.py`).
 `tools/render_docs.py` redraws the pictures in `docs/img/`.
@@ -124,13 +126,17 @@ Details, maskrom recovery and the exact commands: [docs/10-install-and-recovery.
 | 🛟 | [10 Install and recovery](docs/10-install-and-recovery.md) | Flashing, maskrom, rkdeveloptool, Zadig |
 | 🧩 | [11 Tweaking guide](docs/11-tweaking.md) | How to add your own patch safely |
 | 🎧 | [12 Bluetooth](docs/12-bluetooth.md) | Bluetooth work in progress and the hardware facts |
-| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v39, Echo stages 1–42 |
+| 🔬 | [13 Reverse engineering](docs/13-reverse-engineering.md) | Method, scripts (`tools/re/`), every finding with its evidence, how to replicate a build |
+| 📝 | [Echo port research notes](docs/research/echo-port-notes.md) | Sources, hardware facts Mini vs Echo, FiiO updater, RECHO RAM map |
+| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v39, Echo stages 1–43 |
 
 ## Repository layout
 
 ```
 patches/   C code linked into the firmware's free code cave (0x0306E000..)
 tools/     patcher, verifier, image and icon tools, hook build, boot font and doc pictures
+tools/re/  reverse-engineering helpers: dump + disassemble, callers, glyph uses, fonts
+icons/mod/ the 15 glyphs the mod redraws (everything else stays RECHO's)
 tests/     host-side render test for the charging screen
 docs/      everything above; docs/img/ holds the generated pictures
 ```

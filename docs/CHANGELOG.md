@@ -55,6 +55,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 43 | lyric 3 px lower (wrapped lyrics: first row 3 px, the second already ends on the last row); built with `icons/mod` (same icons, now in the repo) | built, verified |
 | 42 | no "Nothing playing" in the player strip or Up Next; after USB disk the main menu, as Mini v39 | built, verified |
 | 41 | song title over the artist 2 px higher; top-bar order as Mini v38 | built, verified |
 | 40 | volume overlay removed, redraw on volume change, as Mini v37 | built, verified |

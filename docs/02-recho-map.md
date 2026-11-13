@@ -15,8 +15,13 @@ use or depend on is listed.
 | `0x0306BF2C` | `fill_rect(x0, y0, x1, y1, colour)`, clipped |
 | `0x03058D84` | `draw_text(font, x, y, utf8, maxw, fg, bg)`. bg −1 = transparent; font 0 small, font 1 large |
 | `0x03058D20` | `text_width(font, utf8)` |
-| `0x030599EC` | centred text helper |
+| `0x030599EC` | centred text helper: `(y, text)` in font 1, colour `0xF79E` (the *Power off* message) |
 | `0x03034B48` | font table, 16 B per font: +8 height, +12 loaded flag |
+| `0x03058CF4` | 1 when both fonts are loaded (font 0 +12 and font 1 +12) |
+| `0x0306C290` | boot text `(x, y, s, colour, bg, scale)`: 6 × 11 built-in font; `draw_text` falls back to it while no font is loaded |
+| `0x0306C3E4` | boot splash ("RECHO 0.10.1"), called at `0x3050D7C`, ~0.17 s after reset, before the fonts load (~0.20 s) |
+| image parts 0 / 1 | small / large font: one cell per BMP code point, 32 B (12 rows) / 33 B (16 rows), 16-bit rows MSB left, then `0x80` \| advance |
+| `0x0306C018` | VOP setup; marks `0x0309FFB0` `"VOP1"` and clears it after 5 s; a start that finds it writes `"VOPF"` (slow GPIO path) |
 | `0x0306BC70` | `lcd_flush()` (sync push of dirty rows) |
 | `0x0306BAE0` | sync push of rows y0..y1 |
 | `0x0306B908` | DMA band push (≤ 16 rows) through the bounce buffer `0x030061A0` |
@@ -46,6 +51,12 @@ use or depend on is listed.
 | `0x03060B98` | HINTS service: rect 0,144..319,169, draw pointer at `0x03060BBC` (`0x0305AEED`) |
 | `0x0305AEEC` | HINTS draw: fills rows 144..169, a rule, five label cells or a message |
 | `0x0305AE28` | message to show in the bar instead of labels (or 0) |
+| `0x0305A874` | show a bar message `(text)` for 2 s (text at `0x0303AB4C`, expiry at `0x0303AB48`) |
+| `0x0307AA88` | m47 (main menu) descriptor `"MENU"`: key `0x307A109`, tick `0x307A211`, draw `0x307A2B9` |
+| `0x0303BCC0` | main menu state: [0] row count (written by the draw), [1] cursor, [6] About open |
+| m44 `0x307A278` | Files: queue a folder tree `(dir, name)`, `dir` 0 = the whole drive; starts playback, then `set_module(45)` |
+| `0x0305A02C` | select drive `(n)`: 0 internal ("Music"), 1 SD card; 0 = failed |
+| `0x0303AB2C` | m44: 1 while the selected drive is the SD card |
 
 Key event = two bytes: key id and event type.
 
@@ -58,7 +69,9 @@ Key event = two bytes: key id and event type.
 | 6 | ↩ | | | |
 
 Raw key ladder (ADC channel 1, value at `0x030041A8`): vol+ ≈ 124, vol− ≈ 1, ▶‖ ≈ 210–310,
-≡ ≈ 337–393, ↩ ≈ 480–545. The same values were seen on both players.
+≡ ≈ 337–393, ↩ ≈ 480–545. The same values were seen on both players. RECHO's poll (`0x30583A8`,
+every 10 ms) samples channel 1 on three passes out of four and channel 0 / 2 / 3 from the table at
+`0x3060180` on the fourth; it decodes ↩ as 450–549 (`0x305850E`).
 
 ## Player and queue
 
@@ -82,6 +95,10 @@ Raw key ladder (ADC channel 1, value at `0x030041A8`): vol+ ≈ 124, vol− ≈ 
 | `0x03064B64(store, entry, buf, &vol, 0)` | file name of an entry: one 36-byte index read, copies 276 B, 0 = ok. On an I/O error it resets the store |
 | `0x0303EDD0` | settings block; byte 7 = play mode (0 normal, 1 shuffle, 2 repeat one, 3 repeat all, 4 infinite shuffle) |
 | `0x0305BC30` | before USB-disk mode: stops the player, clears queue-active, closes the store |
+| `0x03054FB8` | USB-disk loop; exit reasons (table `0x3051384`): ejected, cable removed, host suspended, charger, error, key pressed |
+| `0x030505EC` | the loop's callback: watchdog, arms on power release, leaves on `power_key_down()` at `0x305062C`, redraws every 500 ms |
+| `0x0305BC6C` | after USB disk: restores state, `movs r2,#44` at `0x305BC8A` → module request (opens Files) |
+| `0x0305F35C` | USB screen descriptor `"USB"`: draw `0x3050261`, no key handler |
 
 ## Power, battery, clock, storage
 

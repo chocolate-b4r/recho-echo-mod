@@ -552,7 +552,7 @@ static void lyric_block(const char *ly, u32 c)
     while (ly[n] && n < 127)
         n++;
     if (text_width(1, ly) <= 200) {
-        text_scaled_line(W / 2, 134, 0, 0, ly, c, 3);
+        text_scaled_line(W / 2, 137, 0, 0, ly, c, 3);
         return;
     }
     int best = -1, best_w = 1 << 30;
@@ -570,7 +570,7 @@ static void lyric_block(const char *ly, u32 c)
         }
     }
     if (best < 0) {                       /* one long word: the large font, clipped */
-        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 145, ly, 304, c);
+        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 148, ly, 304, c);
         return;
     }
     for (int k = 0; k < best; k++)
@@ -581,12 +581,12 @@ static void lyric_block(const char *ly, u32 c)
         b[j++] = *q;
     b[j] = 0;
     if (best_w <= 200) {
-        text_scaled_line(W / 2, 121, 0, 0, a, c, 3);
-        text_scaled_line(W / 2, 145, 0, 0, b, c, 3);
+        text_scaled_line(W / 2, 124, 0, 0, a, c, 3);  /* 3 px lower; the second row already ends */
+        text_scaled_line(W / 2, 146, 0, 0, b, c, 3);  /* at the picture's last row (169) */
     } else {
         int f = best_w <= 304 ? 1 : 0;
-        text_centred(f, W / 2, 135, a, 304, c);
-        text_centred(f, W / 2, 155, b, 304, c);
+        text_centred(f, W / 2, 138, a, 304, c);
+        text_centred(f, W / 2, 158, b, 304, c);
     }
 }
 #endif

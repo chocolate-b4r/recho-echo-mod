@@ -9,7 +9,8 @@ out/
 # personal material
 logs/
 log/
-icons/
+icons/*
+!icons/mod/
 *.TXT
 
 # python

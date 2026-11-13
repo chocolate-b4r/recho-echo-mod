@@ -19,6 +19,12 @@ e.g. `"\xee\x80\x83"` for `U+E003`.
 | E022–E028 | FLAC / WAV / MP3 / EQ / RG / A / T badges | Now Playing |
 | E02A | info | main menu: About |
 
+## This mod's icons
+
+`icons/mod/` holds the 15 glyphs the mod redraws (`--icons icons/mod`): the 19 × 7 battery set
+(`U+E007`–`U+E00C`, from `tools/make_battery_icons.py`), play / pause and a few that are blanked
+anyway. `tools/re/re_glyphs.py` lists where each glyph is used.
+
 ## Changing icons
 
 ```bash
