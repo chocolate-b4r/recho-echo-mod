@@ -9,8 +9,8 @@ CFLAGS=(-mcpu=cortex-m3 -mthumb -Os -ffreestanding -fno-builtin -nostdlib -fno-p
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror -Ibuild)
 OUT=hooks
 OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/favs.o build/clock.o build/ui_np.o build/bt.o)
-ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|shell_key|battery_pct_shim|battery_colour_shim|vol_text|boot_screen|usb_key_exit|files_key|files_enter|files_draw|gpio_set_mini|gpio_set_orig|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
-UNDEF=(-u status_level_shim -u power_tick_wrap -u shell_key -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw -u battery_pct_shim -u vol_text -u boot_screen -u usb_key_exit -u files_key -u files_enter -u files_draw -u menu_key -u bt_request_open -u bt_value_r1 -u str_bluetooth -u menu_draw -u about_request_open -u str_about)
+ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|shell_key|battery_pct_shim|battery_colour_shim|vol_text|usb_key_exit|files_key|files_enter|files_draw|gpio_set_mini|gpio_set_orig|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
+UNDEF=(-u status_level_shim -u power_tick_wrap -u shell_key -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw -u battery_pct_shim -u vol_text -u usb_key_exit -u files_key -u files_enter -u files_draw -u menu_key -u bt_request_open -u bt_value_r1 -u str_bluetooth -u menu_draw -u about_request_open -u str_about)
 if [ "${1:-}" = "echo" ]; then
     OUT=hooks-echo
     CFLAGS+=(-DECHO_PORT)

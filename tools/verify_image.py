@@ -263,7 +263,7 @@ def main(orig_path, new_path):
                           (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer"),
                           (0x03059504, 4, "menu bar headphone glyph"),
                           (0x030594D4, 4, "menu bar volume text"), (0x0305A4B0, 4, "volume message text"),
-                          (0x03050D7C, 4, "boot splash call"),
+                          (0x03050D7C, 4, "boot splash call"), (0x03050D90, 4, "boot splash push"),
                           (0x0305062C, 4, "USB disk key call"),
                           (0x0305BC8A, 2, "after USB disk screen"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
@@ -570,8 +570,10 @@ def main(orig_path, new_path):
         t1 = bl_target(b, o, site) if kind == "bl" else bw_target(b, o, site)
         check(t0 == 0x0305C09E and t1 == entl["vol_text"], f"volume text at {site:#x}: {kind} 0x305c09e -> vol_text")
     bs = 0x03050D7C - RAM_OF_IMG
-    check(bl_target(a, bs, 0x03050D7C) == 0x0306C3E4 and bl_target(b, bs, 0x03050D7C) == entl["boot_screen"],
-          "boot splash 0x3050d7c: bl 0x306c3e4 -> bl boot_screen")
+    bp = 0x03050D90 - RAM_OF_IMG
+    check(bl_target(a, bs, 0x03050D7C) == 0x0306C3E4 and b[bs:bs + 4] == bytes.fromhex("012000bf")
+          and bl_target(a, bp, 0x03050D90) == 0x0306BAE0 and b[bp:bp + 4] == bytes.fromhex("00bf00bf"),
+          "boot splash skipped: call -> movs r0,#1 (RECHO stays silent), push -> nops")
     ut = 0x0305E877 - RAM_OF_IMG
     check(a[ut:ut + 38] == b"eject on the computer, or press power\x00"
           and b[ut:ut + 38] == b"eject on the computer, or press back\x00\x00", "USB disk text: or press back")

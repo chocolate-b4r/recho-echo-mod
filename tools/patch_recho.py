@@ -203,13 +203,17 @@ VOL_TEXT_BAR = 0x030594D4    # menu bar: bl 0x305C09E (snprintf "%d dB", volume)
 VOL_TEXT_MSG = 0x0305A4B0    # volume message: b.w 0x305C09E ("%d dB")
 
 
+BOOT_SPLASH_PUSH = 0x03050D90   # bl 0x306BAE0: push the splash rectangle to the panel
 BOOT_SPLASH_CALL = 0x03050D7C   # bl 0x306C3E4("RECHO 0.10.1", ...): the boot splash
 
 
 def boot_splash(d, e):
-    """Both players: terminal-style boot screen (patches/ui_np.c boot_screen)."""
-    put(d, BOOT_SPLASH_CALL - RAM_OF_IMG, thumb_bl(BOOT_SPLASH_CALL, 0x0306C3E4),
-        thumb_bl(BOOT_SPLASH_CALL, e["boot_screen"]), "boot splash -> boot_screen")
+    """Both players: no boot splash. The call is skipped (r0 = 1 keeps RECHO's "splash shown" flag,
+    so it stays silent instead of drawing its boot log) and so is the push of its rectangle."""
+    put(d, BOOT_SPLASH_CALL - RAM_OF_IMG, thumb_bl(BOOT_SPLASH_CALL, 0x0306C3E4), bytes.fromhex("012000bf"),
+        "boot splash call -> movs r0,#1; nop")
+    put(d, BOOT_SPLASH_PUSH - RAM_OF_IMG, thumb_bl(BOOT_SPLASH_PUSH, 0x0306BAE0), bytes.fromhex("00bf00bf"),
+        "boot splash push -> nop; nop")
 
 
 USB_KEY_CALL = 0x0305062C   # USB-disk loop callback: `bl power_key_down` (armed) -> leave USB disk
