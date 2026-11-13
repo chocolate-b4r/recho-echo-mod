@@ -851,11 +851,8 @@ void footer_row(int row, int on_now_playing)
 {
     int loaded = queue_loaded();
     int paused = player_state() == 2;
-    if (!loaded) {
-        if (row == 0)
-            text_centred(1, W / 2, 13, "Nothing playing", 300, GREY);
-        return;
-    }
+    if (!loaded)
+        return;                           /* nothing queued: the strip stays empty */
     if (on_now_playing) {                 /* the lyric is in the picture: row 0 empty, the rule on top */
         if (row == 1)                     /* of row 1 (echo_band.c), the progress bar under it */
             progress_at(13, paused);

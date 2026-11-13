@@ -13,6 +13,7 @@
 | Main menu, Files tab | <kbd>▶‖</kbd> hold | next track | play every song on the internal storage | m47 key pointer `0x307AAA4` → `menu_key` |
 | USB disk | <kbd>↩</kbd> tap | nothing | leave USB disk | fw1 `0x305062C` → `usb_key_exit` |
 | USB disk | <kbd>⏻</kbd> tap | leave, and the press also turns the screen off | leave; the screen stays on | same |
+| after USB disk | (any way out) | opens Files | opens the main menu | fw1 `0x305BC8A` `movs r2,#44` → `#47` |
 | Echo, anywhere | <kbd>≡</kbd> hold 10 s | nothing | maskrom | `echo_hatch_tick` ([04](04-echo-port.md)) |
 
 Play mode moved to Settings → Play mode. Lists (Files, Settings) keep RECHO's own keys: volume keys

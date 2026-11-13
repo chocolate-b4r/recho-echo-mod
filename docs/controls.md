@@ -96,7 +96,7 @@ These are RECHO's own; the mod's menu gestures only work while the screen is on.
 | Any time | <kbd>⏻</kbd> hold | power off (with a cable: the charging screen) |
 | Cable plugged in | <kbd>+</kbd> <kbd>−</kbd>, then <kbd>▶‖</kbd> | choose **Charge only** or **USB disk** |
 | Cable plugged in | nothing for 5 s | Charge only: the player powers off into the charging screen |
-| USB disk mode | <kbd>↩</kbd> tap (or <kbd>⏻</kbd>) | leave USB disk; the screen stays on |
+| USB disk mode | <kbd>↩</kbd> tap (or <kbd>⏻</kbd>) | leave USB disk and go to the main menu; the screen stays on |
 | Charging screen | <kbd>⏻</kbd> tap | show the screen again |
 | Charging screen | <kbd>⏻</kbd> hold | start the player |
 

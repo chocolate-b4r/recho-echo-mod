@@ -184,8 +184,8 @@ static void draw_line(int panel_row, int rows, const char *text, u32 colour, int
 static void draw_entry(u32 i)
 {
     const char *text = 0;
-    if (i == 0 && !sb_walk)
-        text = Q_ACTIVE ? "End of queue" : "Nothing playing";
+    if (i == 0 && !sb_walk && Q_ACTIVE)
+        text = "End of queue";            /* no queue at all: the column stays empty */
     if (sb_walk) {
         u32 cur = sb_cursor;
         int nxt = queue_next(QUEUE, cur, PLAY_MODE, 0);

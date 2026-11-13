@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v39 | leaving USB disk opens the main menu instead of Files (one byte at 0x305BC8A: module 44 -> 47) | built, verified |
 | v38 | top bars: volume first, then the output ("62 dB · 3.5 mm"); battery % green on the cable, amber / red when low (as the Echo's Up Next) | built, verified |
 | v37 | no volume overlay on Now Playing (the top bar shows it); Now Playing and the main menu redraw when the volume changes | built, verified |
 | v36 | top bars: volume after the output ("3.5 mm · 62 dB", "BT <name> · 62 dB", "muted") | built, verified |
@@ -54,6 +55,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 42 | no "Nothing playing" in the player strip or Up Next; after USB disk the main menu, as Mini v39 | built, verified |
 | 41 | song title over the artist 2 px higher; top-bar order as Mini v38 | built, verified |
 | 40 | volume overlay removed, redraw on volume change, as Mini v37 | built, verified |
 | 39 | 2x title 2 px higher again (it touched the album); top-bar volume as Mini v36 | built, verified |

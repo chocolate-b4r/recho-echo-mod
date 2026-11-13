@@ -220,6 +220,15 @@ def usb_back_key(d, e):
         thumb_bl(USB_KEY_CALL, e["usb_key_exit"]), "USB disk key -> usb_key_exit")
 
 
+AFTER_USB_SCREEN = 0x0305BC8A   # after USB disk: `movs r2,#44` = the screen to open (Files)
+
+
+def after_usb_main_menu(d):
+    """Both players: leaving USB disk opens the main menu (m47) instead of Files (m44)."""
+    put(d, AFTER_USB_SCREEN - RAM_OF_IMG, bytes.fromhex("2c22"), bytes.fromhex("2f22"),
+        "after USB disk: Files -> main menu")
+
+
 def volume_text(d, e):
     """Both players: volume shown from 0 dB (RECHO's -90 dB) upward."""
     put(d, VOL_TEXT_BAR - RAM_OF_IMG, thumb_bl(VOL_TEXT_BAR, 0x0305C09E), thumb_bl(VOL_TEXT_BAR, e["vol_text"]),
@@ -295,6 +304,7 @@ def add_hooks(d, animation=True, echo=False):
     volume_text(d, e)
     boot_splash(d, e)
     usb_back_key(d, e)
+    after_usb_main_menu(d)
     ui_layout(d, e)
     if echo:
         if not animation:
