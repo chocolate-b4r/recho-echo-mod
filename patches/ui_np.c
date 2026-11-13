@@ -725,22 +725,13 @@ void np_draw(void)
 {
     fill_rect(0, 0, W - 1, 169, BLACK);
     int loaded = queue_loaded();
-    char qpos[24];
+    char qpos[64];
     qpos[0] = 0;
     char *p = qpos;
-    if (loaded) {
-        p = put_qpos(qpos, qpos + 23);
-    }
 #ifdef ECHO_PORT
-    /* draft C: output in the top bar; "BT <headphones>" in green while Bluetooth is connected */
+    /* output and volume in the top bar; "BT <headphones>" in green while Bluetooth is connected */
     u32 right_colour = SOFT;
-    if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
-        p = put_str(qpos, "BT ", qpos + 23);
-        p = put_str(p, bt_conn_name, qpos + 23);
-        right_colour = GREEN;
-    } else {
-        p = put_str(qpos, loaded ? output_name() : 0, qpos + 23);
-    }
+    p = put_str(qpos, output_label(qpos + 32, 32, &right_colour), qpos + 31);
 #else
     /* Mini: play-mode glyph and the output ("3.5 mm", "BT <headphones>" in green), then the
      * battery in white; the queue position moved to the format line */
@@ -748,16 +739,16 @@ void np_draw(void)
     {
         static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
                                         "\xee\x80\x86", "\xee\x80\xab"};
-        char out[40];
+        char out[48];
         const char *o = output_label(out, sizeof out, &right_colour);
         u32 m = PLAY_MODE;
         p = qpos;
         if (loaded && m < 5u) {
-            p = put_str(p, MODE[m], qpos + 23);
+            p = put_str(p, MODE[m], qpos + 63);
             if (o)
-                p = put_str(p, " ", qpos + 23);
+                p = put_str(p, " ", qpos + 63);
         }
-        p = put_str(p, o, qpos + 23);
+        p = put_str(p, o, qpos + 63);
     }
 #endif
     *p = 0;
@@ -791,7 +782,7 @@ void np_draw(void)
         if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
             if (artist && *artist && title && *title && text_width(1, title) <= 150) {
                 text_centred(1, W / 2, 34, artist, 300, c_art);     /* artist over a 2x title */
-                text2x_line(W / 2, 46, 0, 0, title, c_title);
+                text2x_line(W / 2, 44, 0, 0, title, c_title);
             } else {
                 track_line(52, paused);
             }
@@ -1051,18 +1042,30 @@ static void text2x(int x, int y_top, const char *s, u32 c)
         }
 }
 
-/* right side of the top bars: "BT <headphones>" in green, or the output in use */
+/* right side of the top bars: "BT <headphones>" in green, or the output in use, then the
+ * volume as RECHO's dB + 90 ("3.5 mm Â· 62 dB", "muted") */
 static const char *output_label(char *buf, int n, u32 *colour)
 {
+    char *p = buf, *e = buf + n - 1;
     *colour = SOFT;
     if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
-        char *p = put_str(buf, "BT ", buf + n - 1);
-        p = put_str(p, bt_conn_name, buf + n - 1);
-        *p = 0;
+        p = put_str(p, "BT ", e);
+        p = put_str(p, bt_conn_name, e);
         *colour = GREEN;
-        return buf;
+    } else if (queue_loaded()) {
+        p = put_str(p, output_name(), e);
     }
-    return queue_loaded() ? output_name() : 0;
+    if (p != buf)
+        p = put_str(p, SEP, e);
+    int db = VOLUME_DB;
+    if (db <= -128) {
+        p = put_str(p, "muted", e);
+    } else {
+        p = put_num(p, (u32)(db + 90 > 0 ? db + 90 : 0), e);
+        p = put_str(p, " dB", e);
+    }
+    *p = 0;
+    return buf;
 }
 
 static const char *bt_words(u32 *colour)
@@ -1219,7 +1222,7 @@ void menu_draw(void)
     text2x(16, 28, it->title, WHITE);
     fill_rect(0, 104, W - 1, 169, BLACK);
 
-    char right[40];
+    char right[48];
     u32 rc;
     const char *r = output_label(right, sizeof right, &rc);
 #ifdef ECHO_PORT
@@ -1228,17 +1231,17 @@ void menu_draw(void)
     {                                       /* Mini: play mode + output, then the battery in white */
         static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
                                         "\xee\x80\x86", "\xee\x80\xab"};
-        char pct[8], lead[48];
+        char pct[8], lead[64];
         char *q = put_pct(pct, pct + 7);
         *q = 0;
         q = lead;
         u32 m = PLAY_MODE;
         if (m < 5u) {
-            q = put_str(q, MODE[m], lead + 47);
+            q = put_str(q, MODE[m], lead + 63);
             if (r)
-                q = put_str(q, " ", lead + 47);
+                q = put_str(q, " ", lead + 63);
         }
-        q = put_str(q, r, lead + 47);
+        q = put_str(q, r, lead + 63);
         *q = 0;
         top_bar_2(lead, rc, pct, WHITE);
     }

@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v36 | top bars: volume after the output ("3.5 mm · 62 dB", "BT <name> · 62 dB", "muted") | built, verified |
 | v35 | hold ▶‖ on the Files tab in the main menu plays the whole internal storage (as hold ▶‖ on "Music" in Files); Now Playing: file details right under the album in the large font, wrapped at the separator dots | built, verified |
 | v34 | Now Playing: format line and queue position on the left under the album (two lines, split at a separator dot); Up Next on the right down to the progress bar, 9 songs | built, verified |
 | v33 | alternate Now Playing: artist, song (two lines when long) and album on the left, Up Next (7 entries, small font, next one brighter) on the right; boot screen in RECHO's large "Power off" font, carried by the hooks (RECHO draws the boot screen before it loads its fonts, so every earlier version fell back to the bold boot font) | built, verified |
@@ -51,6 +52,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 39 | 2x title 2 px higher again (it touched the album); top-bar volume as Mini v36 | built, verified |
 | 38 | Now Playing: artist over the 2x title 3 px lower, title 2 px lower, album 2 px higher; hold ▶‖ on Files as Mini v35 | built, verified |
 | 37 | Now Playing: artist to file info back up 4 px, the rule stays (8 px of room above it) | built, verified |
 | 36 | Now Playing section 4 px lower; boot screen as Mini v33 | built, verified |
