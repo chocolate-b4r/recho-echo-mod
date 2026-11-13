@@ -69,7 +69,25 @@ remapped, so each visible row still selects and shows its original setting. Modu
 | m45 literal `0x307A1D8` | "menu" hold label → `str_settings` |
 | `0x305BF18` | global hold-≡ `bl 0x305BA3C` → `bl hold_menu`: Settings on Now Playing, main menu elsewhere |
 
+| m47 `0x307AAA4` | main menu key handler `0x307A109` → `menu_key`: hold ▶‖ on Files plays the whole internal drive |
+| `0x305062C` | USB-disk loop `bl power_key_down` → `bl usb_key_exit`: ↩ (or power) leaves, after the key is released |
+
 ↩ hold stays previous track. See [07-buttons.md](07-buttons.md).
+
+## 8 · Screens drawn by the mod (`patches/ui_np.c`)
+
+| Site | Change |
+|---|---|
+| m45 `0x307A1F0` | Now Playing draw → `b.w np_draw` |
+| m47 `0x307AAAC` | main menu draw pointer → `menu_draw` |
+| `0x3060AD4` | cable chooser draw pointer → `usb_draw` |
+| `0x3050D7C` | boot splash `bl 0x306C3E4` → `bl boot_screen` (glyphs in `build/boot_font.h`) |
+| `0x30594D4`, `0x305A4B0` | RECHO's `%d dB` volume text → `vol_text` (shown from 0 dB up) |
+
+## 9 · Removed
+
+Modules m49 (Spectrum) and m50 (Debug) are zeroed in the image; nothing can open them. Glyphs that
+nothing draws are shrunk to 1 × 1 ([05-icons.md](05-icons.md)).
 
 ## Full-size Echo only
 

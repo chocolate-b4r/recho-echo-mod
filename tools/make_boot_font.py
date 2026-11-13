@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Extract the boot screen's characters from RECHO's large font into patches/boot_font.h.
+"""Extract the boot screen's characters from RECHO's large font into build/boot_font.h.
 
-    py -3 -I tools/make_boot_font.py RECHO-0.10.1.IMG > patches/boot_font.h
+    py -3 -I tools/make_boot_font.py RECHO-0.10.1.IMG > build/boot_font.h
+
+(tools/build_hooks.sh does this when RECHO_IMG is set and build/boot_font.h is missing. The
+header holds glyphs from RECHO's font, so it is generated from your image and never committed.)
 
 The boot screen is drawn at ~0.17 s, before RECHO loads its fonts (~0.20 s, "font: bitmap
 fonts" in the log). With no font loaded, draw_text falls back to the bold 6 x 11 boot font.

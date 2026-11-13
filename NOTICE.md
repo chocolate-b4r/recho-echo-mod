@@ -5,7 +5,9 @@
 - **RECHO** (https://recho.atzkey.workers.dev/) is an independent custom firmware for the Echo Mini
   (build `2d11bdcd`, v0.10.1), the work of its author. It is not a FiiO or Snowsky product.
   This repository contains no part of it. The patcher reads your own copy and writes patch bytes
-  plus the compiled hook code from `patches/`.
+  plus the compiled hook code from `patches/`. The boot screen's glyphs are extracted from your copy
+  at build time (`build/boot_font.h`, not committed). `docs/img/boot.png` is a picture of the
+  patched boot screen, like a screenshot.
 - **FiiO / Snowsky** make the Echo Mini and Echo hardware and the stock firmware (Echo Mini `HIFIEC40`,
   Echo `ECHOV190` / `ECHOV200`), © FiiO.
   It is mentioned only as the recovery image; get it from FiiO.

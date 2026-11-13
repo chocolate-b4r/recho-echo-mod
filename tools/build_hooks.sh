@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ARM="${ARM:-/c/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/12.2 mpacbti-rel1/bin}"
 CFLAGS=(-mcpu=cortex-m3 -mthumb -Os -ffreestanding -fno-builtin -nostdlib -fno-pic
-        -ffunction-sections -fdata-sections -Wall -Wextra -Werror)
+        -ffunction-sections -fdata-sections -Wall -Wextra -Werror -Ibuild)
 OUT=hooks
 OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/clock.o build/ui_np.o build/bt.o)
 ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|hold_menu|battery_pct_shim|vol_text|boot_screen|usb_key_exit|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
@@ -19,6 +19,16 @@ if [ "${1:-}" = "echo" ]; then
     UNDEF+=(-u echo_panel_init -u gpio_set_echo -u echo_gpio_read)
 fi
 mkdir -p build
+# The boot screen's glyphs come from your RECHO image (RECHO draws the boot screen before it loads
+# its fonts). They are generated, not shipped: RECHO_IMG=/path/to/RECHO-0.10.1.IMG creates them.
+if [ ! -f build/boot_font.h ]; then
+    if [ -n "${RECHO_IMG:-}" ]; then
+        python tools/make_boot_font.py "$RECHO_IMG" > build/boot_font.h
+    else
+        echo "build/boot_font.h missing: run with RECHO_IMG=/path/to/RECHO-0.10.1.IMG once" >&2
+        exit 1
+    fi
+fi
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/charge_screen.c -o build/charge_screen.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/charge_anim.c -o build/charge_anim.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/keys.c -o build/keys.o

@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Render the pictures used by the documentation into docs/img/.
+
+    py -3 tools/render_docs.py
+
+  controls.png          button cheat sheet (both players)
+  now-playing-mini.png  Echo Mini Now Playing, 320 x 170, zones from patches/ui_np.c
+  now-playing-echo.png  Echo Now Playing, 480 x 222 panel: picture, player strip, Up Next
+  boot.png              the boot screen, pixel exact (glyphs from build/boot_font.h)
+
+Layouts use the coordinates in the C sources. RECHO's two bitmap fonts live in the firmware, so
+the screen pictures draw text with Segoe UI at the same sizes (the boot picture is the exception:
+it uses the real glyphs). Sample track data is made up.
+"""
+import os
+import re
+
+from PIL import Image, ImageDraw, ImageFont
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(ROOT, "docs", "img")
+FONTS = "C:/Windows/Fonts"
+S = 3  # supersampling for the screen pictures
+
+
+def rgb565(v):
+    r, g, b = (v >> 11) & 31, (v >> 5) & 63, v & 31
+    return (r * 255 // 31, g * 255 // 63, b * 255 // 31)
+
+
+WHITE, SOFT, GREY, DIM, RULE = (rgb565(v) for v in (0xF79E, 0xBDD7, 0x8410, 0x52AA, 0x4208))
+NEXT1, NEXTN, GREEN = rgb565(0xE71C), rgb565(0x6B4D), rgb565(0x47E8)
+
+
+def font(name, px):
+    return ImageFont.truetype(os.path.join(FONTS, name), px)
+
+
+# ---------------------------------------------------------------- screen pictures (3x) ----
+class Screen:
+    def __init__(self, w, h):
+        self.im = Image.new("RGB", (w * S, h * S), (0, 0, 0))
+        self.d = ImageDraw.Draw(self.im)
+        self.f = {0: font("segoeui.ttf", 11 * S), 1: font("segoeui.ttf", 14 * S),
+                  2: font("segoeui.ttf", 26 * S), 3: font("segoeui.ttf", 21 * S),
+                  "sym": font("seguisym.ttf", 13 * S)}
+
+    def text(self, f, x, y_mid, s, c, anchor="lm", maxw=None):
+        if maxw:                                  # clip like RECHO's draw_text: whole glyphs only
+            while s and self.width(f, s) > maxw:
+                s = s[:-1]
+        self.d.text((x * S, y_mid * S), s, font=self.f[f], fill=c, anchor=anchor)
+
+    def width(self, f, s):
+        return self.d.textlength(s, font=self.f[f]) / S
+
+    def rect(self, x0, y0, x1, y1, c):
+        self.d.rectangle((x0 * S, y0 * S, (x1 + 1) * S - 1, (y1 + 1) * S - 1), fill=c)
+
+    def save(self, path, scale=2):
+        w, h = self.im.size
+        self.im.resize((w * scale // S, h * scale // S), Image.LANCZOS).save(path)
+
+
+def top_bar(sc, x0, right, right_c=SOFT, last=None):
+    sc.text(1, x0 + 8, 10, "21:47", WHITE)
+    w = sc.width(1, "21:47")
+    sc.rect(x0 + 8 + w + 5, 4, x0 + 8 + w + 5, 16, GREY)
+    sc.text(1, x0 + 8 + w + 11, 10, "Fri 13 Nov", SOFT)
+    xr = x0 + 320 - 8
+    if last:
+        sc.text(1, xr, 10, last, WHITE, "rm")
+        xr -= sc.width(1, last) + 8
+    sc.text(1, xr, 10, right, right_c, "rm")
+
+
+def progress(sc, x0, y, frac=0.38):
+    sc.text(0, x0 + 10, y, "1:26", WHITE)
+    sc.text(0, x0 + 310, y, "3:47", WHITE, "rm")
+    b0, b1 = x0 + 50, x0 + 269
+    sc.rect(b0, y - 2, b1, y + 2, RULE)
+    sc.rect(b0, y - 2, b0 + int((b1 - b0) * frac), y + 2, WHITE)
+
+
+QUEUE = ["Next Artist - Opening Track", "Next Artist - Second Song", "Another Band - Long Song Name",
+         "Another Band - Interlude", "Someone - Ballad", "Someone - Closing Time", "Duo - Night Drive",
+         "Duo - Morning", "Trio - Encore", "Trio - Outro", "Solo - Last One"]
+
+
+def now_playing_mini():
+    sc = Screen(320, 170)
+    top_bar(sc, 0, "3.5 mm \u00b7 62 dB", last="87%")
+    sc.text("sym", 320 - 8 - sc.width(1, "87%") - 8 - sc.width(1, "3.5 mm \u00b7 62 dB") - 6, 10, "\u21c4", SOFT, "rm")
+    y = 36
+    sc.text(1, 8, y, "Artist Name", SOFT)
+    sc.text(1, 8, y + 20, "A Song Title That", WHITE)
+    sc.text(1, 8, y + 38, "Wraps Onto Two Lines", WHITE)
+    sc.text(1, 8, y + 58, "Album Name", GREY)
+    sc.text(1, 8, y + 78, "FLAC  44.1 kHz \u00b7 24 bit", GREY)
+    sc.text(1, 8, y + 96, "9/10", GREY)
+    sc.rect(160, 28, 160, 143, RULE)
+    for i in range(9):
+        sc.text(0, 168, 33 + 13 * i, QUEUE[i], NEXT1 if i == 0 else NEXTN, maxw=144)
+    progress(sc, 0, 158)
+    sc.save(os.path.join(OUT, "now-playing-mini.png"))
+
+
+def now_playing_echo():
+    sc = Screen(480, 222)
+    top_bar(sc, 0, "3.5 mm \u00b7 62 dB")
+    sc.text(1, 160, 34, "Artist Name", SOFT, "mm")
+    sc.text(2, 160, 60, "Song Title", WHITE, "mm")
+    sc.text(1, 160, 82, "Album Name", GREY, "mm")
+    sc.text(1, 160, 102, "FLAC  44.1 kHz \u00b7 24 bit \u00b7 1682 kbps \u00b7 9/10", GREY, "mm")
+    sc.rect(60, 118, 259, 118, RULE)
+    sc.text(3, 160, 133, "the line being sung, wrapped", WHITE, "mm")
+    sc.text(3, 160, 157, "onto a second row", WHITE, "mm")
+    # player strip: line above the progress bar on Now Playing
+    sc.rect(8, 196, 311, 196, RULE)
+    progress(sc, 0, 209)
+    # Up Next column
+    sc.rect(320, 0, 320, 221, GREY)
+    sc.text(1, 328, 10, "Up Next", WHITE)
+    sc.text("sym", 328 + sc.width(1, "Up Next") + 6, 10, "\u21c4", SOFT)
+    sc.text(1, 472, 10, "87%", WHITE, "rm")
+    sc.rect(320, 21, 479, 21, RULE)
+    for i in range(11):
+        sc.text(1, 328, 22 + 18 * i + 9, QUEUE[i], NEXT1 if i == 0 else NEXTN, maxw=146)
+    sc.save(os.path.join(OUT, "now-playing-echo.png"))
+
+
+# ---------------------------------------------------------------- boot screen (exact) -----
+def boot():
+    src = open(os.path.join(ROOT, "build", "boot_font.h"), encoding="utf-8").read()
+    top = int(re.search(r"BF_TOP (\d+)", src).group(1))
+    h = int(re.search(r"BF_H (\d+)", src).group(1))
+    cmap = re.search(r'BF_MAP\[\] = "(.*)";', src).group(1)
+    adv = [int(x) for x in re.search(r"BF_ADV\[\d+\] = \{(.*)\};", src).group(1).split(",")]
+    rows = [[int(v, 16) for v in re.findall(r"0x([0-9A-F]{4})", ln)]
+            for ln in src.splitlines() if ln.strip().startswith("{0x")]
+    im = Image.new("RGB", (320, 170))
+    px = im.load()
+
+    def fill(x0, y0, x1, y1):
+        for yy in range(y0, y1 + 1):
+            for xx in range(x0, x1 + 1):
+                if 0 <= xx < 320 and 0 <= yy < 170:
+                    px[xx, yy] = WHITE
+
+    def text(x, y, t, draw=True):
+        x0 = x
+        for ch in t:
+            i = cmap.find(ch)
+            if i < 0:
+                x += 4
+                continue
+            if draw:
+                for r in range(h):
+                    for c in range(16):
+                        if rows[i][r] & (0x8000 >> c):
+                            fill(x + c, y + top + r, x + c, y + top + r)
+            x += adv[i]
+        return x - x0
+
+    y = 4
+    for line in ("> init", "> boot", "> loading kernel...", "> compiling data...",
+                 "> applying interface...", "> system ready"):
+        text(4, y, line)
+        y += 20
+    tail = "] 100%> mounting /dev/cho4e..."
+    xb = 4 + text(4, y, "[")
+    xt = 320 - 4 - text(0, 0, tail, False)
+    fill(xb + 1, y + 6, xt - 3, y + 12)
+    text(xt, y, tail)
+    text(4, y + 20, "login: 0.10.1")
+    im.resize((640, 340), Image.NEAREST).save(os.path.join(OUT, "boot.png"))
+
+
+# ---------------------------------------------------------------- controls cheat sheet ----
+BG, CARD, EDGE, INK, MUTED, ACCENT = (17, 18, 22), (28, 30, 36), (52, 56, 66), (236, 238, 242), (150, 156, 168), (122, 162, 255)
+KEYS = {"play": "\u25b6\u2016", "menu": "\u2261", "back": "\u21a9", "vol+": "+", "vol-": "\u2212",
+        "power": "\u23fb"}
+
+SECTIONS = [
+    ("Now Playing", [
+        (["play"], "tap", "play / pause"), (["play"], "hold", "next track"),
+        (["back"], "tap", "back to the main menu"), (["back"], "hold", "previous track"),
+        (["menu"], "tap", "Files"), (["menu"], "hold", "Settings"),
+        (["vol+", "vol-"], "tap / hold", "volume (shown in the top bar)")]),
+    ("Main menu", [
+        (["vol+", "vol-"], "tap", "move between tabs"), (["play"], "tap", "open the tab"),
+        (["play"], "hold on Files", "play every song on the player"),
+        (["menu"], "hold", "main menu from any other screen")]),
+    ("Lists (Files, Settings)", [
+        (["vol+", "vol-"], "tap", "move"), (["play"], "tap", "select / play the folder"),
+        (["play"], "hold on a folder", "play the folder and all folders in it"),
+        (["back"], "tap", "back")]),
+    ("Screen off", [
+        (["play"], "tap", "play / pause"), (["play"], "hold", "next track"),
+        (["back"], "hold", "previous track"), (["power"], "tap", "screen on")]),
+    ("Power and cable", [
+        (["power"], "tap", "screen on / off"), (["power"], "hold", "power off"),
+        (["back"], "tap in USB disk", "leave USB disk (screen stays on)"),
+        (["vol+", "vol-"], "cable chooser", "pick Charge only or USB disk"),
+        ([], "no key for 5 s", "chooser: off into the charging screen")]),
+    ("Echo only", [
+        (["menu"], "hold 10 s", "maskrom (USB recovery mode)")]),
+]
+
+
+def keycap(d, x, y, label, f):
+    w = max(34, int(d.textlength(label, font=f)) + 18)
+    d.rounded_rectangle((x, y + 3, x + w, y + 33), 8, fill=(10, 11, 14))
+    d.rounded_rectangle((x, y, x + w, y + 30), 8, fill=(58, 63, 75), outline=(92, 99, 116), width=2)
+    d.text((x + w / 2, y + 15), label, font=f, fill=INK, anchor="mm")
+    return w
+
+
+def controls():
+    W, col_w, pad = 1300, 620, 30
+    h_title, f_key = font("segoeuib.ttf", 30), font("seguisym.ttf", 17)
+    f_sec, f_txt, f_when = font("seguisb.ttf", 21), font("segoeui.ttf", 18), font("segoeuii.ttf", 15)
+    row_h = 44
+
+    def card_h(rows):
+        return 58 + row_h * len(rows) + 14
+
+    cols = [[], []]
+    heights = [0, 0]
+    for sec in SECTIONS:
+        i = 0 if heights[0] <= heights[1] else 1
+        cols[i].append(sec)
+        heights[i] += card_h(sec[1]) + 22
+    H = 110 + max(heights) + 30
+    im = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(im)
+    d.text((pad, 34), "Controls", font=h_title, fill=INK)
+    d.text((pad + 150, 42), "RECHO mod \u00b7 Echo Mini and Echo \u00b7 + and \u2212 are the volume keys",
+           font=f_txt, fill=MUTED)
+    for ci, col in enumerate(cols):
+        x0, y = pad + ci * (col_w + 20), 100
+        for title, rows in col:
+            ch = card_h(rows)
+            d.rounded_rectangle((x0, y, x0 + col_w, y + ch), 14, fill=CARD, outline=EDGE, width=2)
+            d.rounded_rectangle((x0, y, x0 + 6, y + ch), 3, fill=ACCENT)
+            d.text((x0 + 22, y + 28), title, font=f_sec, fill=INK, anchor="lm")
+            ry = y + 56
+            for keys, when, what in rows:
+                kx = x0 + 22
+                for k in keys:
+                    kx += keycap(d, kx, ry, KEYS[k], f_key) + 6
+                d.text((x0 + 130, ry + 15), when, font=f_when, fill=MUTED, anchor="lm")
+                d.text((x0 + 270, ry + 15), what, font=f_txt, fill=INK, anchor="lm")
+                ry += row_h
+            y += ch + 22
+    im.save(os.path.join(OUT, "controls.png"))
+
+
+if __name__ == "__main__":
+    os.makedirs(OUT, exist_ok=True)
+    controls()
+    now_playing_mini()
+    now_playing_echo()
+    boot()
+    print("docs/img: controls.png now-playing-mini.png now-playing-echo.png boot.png")

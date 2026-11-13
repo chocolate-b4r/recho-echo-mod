@@ -1,17 +1,23 @@
-# 07 · Buttons
+# 07 · Buttons (internals)
 
-## Map (both players, Now Playing)
+> [!TIP]
+> Looking for what the buttons do? See **[controls.md](controls.md)** and its
+> [cheat sheet](img/controls.png). This page is about how each change is wired.
 
-| Key | Tap | Hold |
-|---|---|---|
-| Vol − / Vol + | volume | repeats |
-| ▶‖ | play / pause | next track |
-| ≡ | Files | **Settings** (main menu on every other screen) |
-| ↩ | **Back** to the main menu | previous track |
+## Every key change at a glance
 
-Play mode moved to Settings → Play mode. Lists (Files, menu, Settings) keep RECHO's own keys:
-volume keys move, ▶‖ selects, ↩ goes back. The Echo has no on-screen hint bar; the Echo Mini keeps
-its bar, which now reads **BACK / hold prev** and **FILES / hold settings**.
+| Where | Key | RECHO 0.10.1 | With the mod | Wired at |
+|---|---|---|---|---|
+| Now Playing | <kbd>↩</kbd> tap | next play mode + toast | back to the main menu | m45 `0x307A12C` |
+| Now Playing | <kbd>≡</kbd> hold | main menu | Settings | fw1 `0x305BF18` → `hold_menu` |
+| Main menu, Files tab | <kbd>▶‖</kbd> hold | next track | play every song on the internal storage | m47 key pointer `0x307AAA4` → `menu_key` |
+| USB disk | <kbd>↩</kbd> tap | nothing | leave USB disk | fw1 `0x305062C` → `usb_key_exit` |
+| USB disk | <kbd>⏻</kbd> tap | leave, and the press also turns the screen off | leave; the screen stays on | same |
+| Echo, anywhere | <kbd>≡</kbd> hold 10 s | nothing | maskrom | `echo_hatch_tick` ([04](04-echo-port.md)) |
+
+Play mode moved to Settings → Play mode. Lists (Files, Settings) keep RECHO's own keys: volume keys
+move, ▶‖ selects, ↩ goes back. There is no on-screen hint bar; on the Mini RECHO's bar only appears
+while it has a message.
 
 ## How keys reach screens
 

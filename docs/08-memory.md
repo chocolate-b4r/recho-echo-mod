@@ -20,17 +20,20 @@
 `ldr`/`ldr.w` in fw1 and in every module, plus every word of `.data`, and fails if any value
 points into the free range.
 
-## Echo build's use of free RAM
+## The mod's use of free RAM
 
-| Address | Size | Use |
-|---|---|---|
-| `0x03044000` | 16,640 B | strip: a saved frame-buffer corner (≤ 8,320 px) while the port draws |
-| `0x03048200` | 276 B | file name buffer for Up Next |
+| Address | Size | Echo | Echo Mini |
+|---|---|---|---|
+| `0x03044000` | 16,640 B | strip: a saved frame-buffer corner (≤ 8,320 px) while the port draws | Up Next name cache, 9 × 64 B |
+| `0x03048200` | 276 B | file name buffer for Up Next | same |
+| `0x03048400` | 7,680 B | lyrics (`.lrc` text) | unused |
 
 ## Cave rules
 
 The hooks are linked at `0x0306E000` (`-Ttext=0x0306E000`) and copied into the image. The current
-sizes are 1.2 KB for the Mini and 8.3 KB for the Echo, of 27 KB available.
+sizes are about 18 KB for the Mini and 26 KB for the Echo, of 27.4 KB available (`0x0306E000` up to
+`0x03074B70`, where RECHO's `.data` load image starts). The Echo has about 1 KB left: check the end
+of the blob before adding a feature there.
 
 - **No `.data`, no `.bss`.** Those would need load rows the image does not have.
   `tools/build_hooks.sh` refuses a build that produces any. State variables live in the cave itself
