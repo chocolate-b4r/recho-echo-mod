@@ -90,9 +90,11 @@ u32 power_tick_wrap(void)
         extern void echo_hatch_tick(void);
         extern void echo_sidebar_tick(void);
         extern void echo_band_tick(void);
+        extern void headset_tick(void);       /* headset.c: wired headset buttons */
         echo_hatch_tick();
         echo_sidebar_tick();
         echo_band_tick();
+        headset_tick();
     }
 #endif
     return busy;

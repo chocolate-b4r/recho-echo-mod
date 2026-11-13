@@ -11,13 +11,14 @@
   and calls 49 / 53 of RECHO's routines to do its work; the routines and addresses it relies on are
   listed in `docs/02-recho-map.md`.
 - No RECHO image, code or data is distributed here. The patcher reads your copy and writes patch
-  bytes plus the compiled hook code from `patches/`. The boot screen's 32 glyphs are extracted from
-  your copy at build time (`build/boot_font.h`, not committed).
+  bytes plus the compiled hook code from `patches/`. (Until v47 the build also extracted 32 glyphs of
+  RECHO's large font from your copy for the boot screen; the boot screen is now a black frame and
+  nothing is extracted.)
 - **Correction:** commit `062c438` added those glyphs to the repository as `patches/boot_font.h`
   (32 characters of RECHO's large font, about 1 KB). Commit `3a7a4b6` removed the file and moved the
   extraction into the build; the earlier commit is still in the history.
-- `docs/img/boot.png` is a picture of the patched boot screen and shows those glyphs, like a
-  screenshot. The other pictures in `docs/img/` use a stand-in typeface.
+- The pictures in `docs/img/` use a stand-in typeface. (`docs/img/boot.png`, a picture of the old
+  boot screen drawn with those glyphs, was removed with it; it is still in the history.)
 
 ## FiiO / Snowsky
 

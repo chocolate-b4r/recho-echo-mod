@@ -46,7 +46,7 @@ image offset + `0x0304F298`; every module runs at `0x0307A000`, header included,
 | Why did the boot text always look bold? | Log: `0.174 lcd: … name drawn and pushed`, then `0.201 font: bitmap fonts from selected slot` | RECHO draws the splash **before** it loads its fonts. `draw_text` (`0x3058D84`) checks font+12 and falls back to the 6 × 11 boot font (`0x306C290`) |
 | Which font does *Power off* use? | power-off routine `0x305A618`: `movs r0,#76; ldr r1,="Power off"; bl 0x30599EC`; that helper calls `text_width(1, …)` and `draw_text(1, …)` | the large font (font 1), colour `0xF79E` |
 | Font format | image parts 0 and 1: 2,104,326 and 2,169,862 bytes = 65,536 cells | small: 32 B per glyph (12 rows × 16 bit, byte 24 = `0x80` \| advance); large: 33 B (16 rows, byte 32). Both 1-pixel strokes |
-| Fix | | the hooks carry the 32 needed glyphs, extracted at build time (`tools/make_boot_font.py`) |
+| Fix | | v8–v47: the hooks carried the 32 needed glyphs (1,289 B). Since v48 the boot screen is a black frame |
 
 ### USB disk
 
@@ -103,8 +103,8 @@ there is still no audio.
 ## Replicating a build
 
 ```bash
-RECHO_IMG="RECHO-0.10.1.IMG" tools/build_hooks.sh          # boot glyphs from your image, Mini hooks
-RECHO_IMG="RECHO-0.10.1.IMG" tools/build_hooks.sh echo     # Echo hooks
+tools/build_hooks.sh          # Mini hooks
+tools/build_hooks.sh echo     # Echo hooks
 python tools/patch_recho.py RECHO-0.10.1.IMG out/HIFIEC90.IMG --icons icons/mod
 python tools/patch_recho.py RECHO-0.10.1.IMG out/RECHOECH.IMG --icons icons/mod --echo
 python tools/verify_image.py RECHO-0.10.1.IMG out/HIFIEC90.IMG

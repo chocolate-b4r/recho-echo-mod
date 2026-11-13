@@ -102,7 +102,9 @@ ECHO_CALLS = {0x0306AF98, 0x0306AF6C, 0x0305DA2C, 0x0305DAC4,  # + clock chip re
               0x0305A1CC, 0x0305A1C4, 0x03057DB4, 0x03057DC0, 0x03059AE8, 0x0305C41C, 0x0305AE28,
               0x0305B234, 0x0305BA3C,                      # open module n, go to main menu (key remap)
               # lyrics (patches/lyrics.c): volume of a number, find a name in a folder, file object, file read
-              0x0305A02C, 0x030638FC, 0x03053900, 0x03053934}
+              0x0305A02C, 0x030638FC, 0x03053900, 0x03053934,
+              # headset buttons (patches/headset.c): volume key, skip, play / pause
+              0x0305A464, 0x0305AB80, 0x03057C94}
 ECHO_TRAMPOLINE = 0x03051594                                # back into GPIO set after its prologue
 ECHO_DATA = {0x030089EC, 0x030041A8,                       # VOP-active flag, key-ladder raw value
              0x03006174, 0x03004114, 0x03034B48, 0x03008A00,  # backlight duty, clip rect, font table, frame buffer
@@ -112,7 +114,8 @@ ECHO_DATA = {0x030089EC, 0x030041A8,                       # VOP-active flag, ke
              0x030041D8, 0x0303E730,                          # content area rect, "screen has a button bar" flag
              0x030041D0, 0x0303AB8C,                          # volume dB, time of the last volume change
              0x030041B4, 0x030399B8, 0x030399BC,              # cable chooser cursor, countdown flag / start
-             0x030399C8}                                      # current module id
+             0x030399C8,                                      # current module id
+             0x0300418C}                                      # RECHO's last ADC reading per channel (headset line)
 ECHO_CONSTS = {0xDF014001,  # not an address: column window bytes 01 40 01 DF (cols 320..479)
                0x811C9DC5, 0x811CC79F,  # not addresses: FNV-1a start values (button-bar change check)
                0x8F015000}  # not an address: column window bytes 00 50 01 8F (cols 80..399, centred charge screen)
@@ -274,7 +277,8 @@ def main(orig_path, new_path):
                               (0x03055EE8, 4, "echo: 4.4 mm read"), (0x03055F6A, 4, "echo: GPIO2.0 read"),
                               (0x03050FBE, 4, "echo: FW1 repair call"), (0x0305F3BF, 11, "echo: update file name"),
                               (0x0305F3CB, 6, "echo: update file prefix"),
-                              (0x030594A4, 8, "echo: status-bar battery glyph and volume x")):
+                              (0x030594A4, 8, "echo: status-bar battery glyph and volume x"),
+                              (0x03060182, 1, "echo: ADC scan order (headset line)")):
             allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
     io, isz = u32(a, 0x78 + 8 * ICONS_PART), u32(a, 0x7C + 8 * ICONS_PART)
     allowed.append((io, io + isz, "icon pack"))
@@ -722,8 +726,11 @@ def main(orig_path, new_path):
         check(bl_target(a, at(0x0305118C), 0x0305118C) == 0x0305BC30, "main loop calls it before USB disk mode")
         # Echo hooks must keep the POWER tick wrapper calling both Echo ticks.
         tick = [ln for ln in dis.split("<power_tick_wrap>:")[1].split("\n\n")[0].splitlines() if "bl\t" in ln]
-        check(all(any(f"<{f}>" in ln for ln in tick) for f in ("echo_hatch_tick", "echo_sidebar_tick", "echo_band_tick")),
-              "POWER tick wrapper calls echo_hatch_tick, echo_sidebar_tick and echo_band_tick")
+        check(all(any(f"<{f}>" in ln for ln in tick) for f in ("echo_hatch_tick", "echo_sidebar_tick", "echo_band_tick", "headset_tick")),
+              "POWER tick wrapper calls echo_hatch_tick, echo_sidebar_tick, echo_band_tick and headset_tick")
+        so = 0x03060180 - RAM_OF_IMG
+        check(a[so:so + 3] == bytes([0, 2, 3]) and b[so:so + 3] == bytes([0, 2, 2]),
+              "ADC scan order {0, 2, 3} -> {0, 2, 2}: headset line read twice as often, battery unchanged")
         cs = [ln for ln in dis.split("<charge_screen>:")[1].split("\n\n")[0].splitlines() if "bl\t" in ln]
         dr = [ln for ln in dis.split("<draw>:")[1].split("\n\n")[0].splitlines() if "bl\t" in ln or "b.w\t" in ln]
         check(any("<echo_panel_fill>" in ln for ln in cs) and any("<echo_flush_centred>" in ln for ln in dr)

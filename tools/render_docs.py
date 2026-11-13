@@ -6,11 +6,9 @@
   controls.png          button cheat sheet (both players)
   now-playing-mini.png  Echo Mini Now Playing, 320 x 170, zones from patches/ui_np.c
   now-playing-echo.png  Echo Now Playing, 480 x 222 panel: picture, player strip, Up Next
-  boot.png              the boot screen, pixel exact (glyphs from build/boot_font.h)
 
 Layouts use the coordinates in the C sources. RECHO's two bitmap fonts live in the firmware, so
-the screen pictures draw text with Segoe UI at the same sizes (the boot picture is the exception:
-it uses the real glyphs). Sample track data is made up.
+the screen pictures draw text with Segoe UI at the same sizes. Sample track data is made up.
 """
 import os
 import re
@@ -129,53 +127,6 @@ def now_playing_echo():
     sc.save(os.path.join(OUT, "now-playing-echo.png"))
 
 
-# ---------------------------------------------------------------- boot screen (exact) -----
-def boot():
-    src = open(os.path.join(ROOT, "build", "boot_font.h"), encoding="utf-8").read()
-    top = int(re.search(r"BF_TOP (\d+)", src).group(1))
-    h = int(re.search(r"BF_H (\d+)", src).group(1))
-    cmap = re.search(r'BF_MAP\[\] = "(.*)";', src).group(1)
-    adv = [int(x) for x in re.search(r"BF_ADV\[\d+\] = \{(.*)\};", src).group(1).split(",")]
-    rows = [[int(v, 16) for v in re.findall(r"0x([0-9A-F]{4})", ln)]
-            for ln in src.splitlines() if ln.strip().startswith("{0x")]
-    im = Image.new("RGB", (320, 170))
-    px = im.load()
-
-    def fill(x0, y0, x1, y1):
-        for yy in range(y0, y1 + 1):
-            for xx in range(x0, x1 + 1):
-                if 0 <= xx < 320 and 0 <= yy < 170:
-                    px[xx, yy] = WHITE
-
-    def text(x, y, t, draw=True):
-        x0 = x
-        for ch in t:
-            i = cmap.find(ch)
-            if i < 0:
-                x += 4
-                continue
-            if draw:
-                for r in range(h):
-                    for c in range(16):
-                        if rows[i][r] & (0x8000 >> c):
-                            fill(x + c, y + top + r, x + c, y + top + r)
-            x += adv[i]
-        return x - x0
-
-    y = 4
-    for line in ("> init", "> boot", "> loading kernel...", "> compiling data...",
-                 "> applying interface...", "> system ready"):
-        text(4, y, line)
-        y += 20
-    tail = "] 100%> mounting /dev/cho4e..."
-    xb = 4 + text(4, y, "[")
-    xt = 320 - 4 - text(0, 0, tail, False)
-    fill(xb + 1, y + 6, xt - 3, y + 12)
-    text(xt, y, tail)
-    text(4, y + 20, "login: 0.10.1")
-    im.resize((640, 340), Image.NEAREST).save(os.path.join(OUT, "boot.png"))
-
-
 # ---------------------------------------------------------------- controls cheat sheet ----
 BG, CARD, EDGE, INK, MUTED, ACCENT = (17, 18, 22), (28, 30, 36), (52, 56, 66), (236, 238, 242), (150, 156, 168), (122, 162, 255)
 KEYS = {"play": "\u25b6\u2016", "menu": "\u2261", "back": "\u21a9", "vol+": "+", "vol-": "\u2212",
@@ -262,5 +213,4 @@ if __name__ == "__main__":
     controls()
     now_playing_mini()
     now_playing_echo()
-    boot()
-    print("docs/img: controls.png now-playing-mini.png now-playing-echo.png boot.png")
+    print("docs/img: controls.png now-playing-mini.png now-playing-echo.png")

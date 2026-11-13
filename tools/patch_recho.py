@@ -287,6 +287,9 @@ def key_remap(d, e):
         "SHELL key filter -> shell_key (≡: tap Files, hold favourite)")
 
 
+ADC_SCAN_ORDER = 0x03060180   # key poll: channel read every 4th time, in turn (channel 1 otherwise)
+
+
 def echo_port(d, e):
     for site in ECHO_PANEL_INIT_CALLS:
         put(d, site - RAM_OF_IMG, thumb_bl(site, 0x0306B000), thumb_bl(site, e["echo_panel_init"]),
@@ -297,6 +300,8 @@ def echo_port(d, e):
         "GPIO set entry")
     for site in ECHO_READ_SITES:
         put(d, site - RAM_OF_IMG, thumb_bl(site, 0x03051610), thumb_bl(site, e["echo_gpio_read"]), "jack read")
+    # RECHO's ADC scan order {0, 2, 3} -> {0, 2, 2}: the headset line (channel 2) twice as often
+    put(d, ADC_SCAN_ORDER - RAM_OF_IMG, bytes([0, 2, 3]), bytes([0, 2, 2]), "ADC scan order: headset line")
     # The FW1-from-FW2 repair stays off (not needed for updates; one less writer).
     put(d, REPAIR_CALL - RAM_OF_IMG, thumb_bl(REPAIR_CALL, 0x0305444C), bytes.fromhex("012000bf"),
         "FW1 repair (-> result 1, normal start)")

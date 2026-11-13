@@ -1439,56 +1439,14 @@ int vol_text(char *buf, u32 size, const char *fmt, int v)
     return (int)(p - buf);
 }
 
-/* Boot screen (replaces RECHO's "RECHO 0.10.1" splash, `bl 0x306C3E4` at 0x3050D7C).
- * It is drawn at ~0.17 s, before RECHO loads its fonts (~0.20 s), so draw_text would fall back to
- * the bold 6 x 11 boot font. The glyphs come from boot_font.h instead: the boot text's characters
- * copied from RECHO's large font, the one "Power off" is drawn in (tools/make_boot_font.py).
- * *rect gets the whole screen so RECHO pushes all of it to the panel. */
-#include "boot_font.h"
-
-static int bf_text(int x, int y, const char *t, u32 c, int draw)
-{
-    int x0 = x;
-    for (; *t; t++) {
-        int i = 0;
-        while (BF_MAP[i] && BF_MAP[i] != *t)
-            i++;
-        if (!BF_MAP[i]) {
-            x += 4;
-            continue;
-        }
-        for (int r = 0; draw && r < BF_H; r++) {
-            u32 v = BF_ROWS[i][r];
-            for (int col = 0; col < 16; col++) {
-                if (!(v & (0x8000u >> col)))
-                    continue;
-                int run = col;
-                while (run < 15 && (v & (0x8000u >> (run + 1))))
-                    run++;
-                fill_rect(x + col, y + BF_TOP + r, x + run, y + BF_TOP + r, c);
-                col = run;
-            }
-        }
-        x += BF_ADV[i];
-    }
-    return x - x0;
-}
-
+/* Boot screen (replaces RECHO's "RECHO 0.10.1" splash, `bl 0x306C3E4` at 0x3050D7C): a black frame.
+ * RECHO draws it at ~0.17 s, before it loads its fonts (~0.20 s), and goes straight on starting up
+ * (it does not wait after the splash), so the frame shows for a split second only. *rect gets the
+ * whole screen so RECHO pushes all of it to the panel. */
 int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
 {
-    (void)s; (void)a; (void)b; (void)z;
-    static const char *const LINES[6] = {"> init", "> boot", "> loading kernel...", "> compiling data...",
-                                         "> applying interface...", "> system ready"};
-    static const char TAIL[] = "] 100%> mounting /dev/cho4e...";
+    (void)s; (void)a; (void)b; (void)colour; (void)z;
     fill_rect(0, 0, W - 1, 169, BLACK);
-    int y = 4;                                                /* 16 px lines, 20 px apart */
-    for (int i = 0; i < 6; i++, y += 20)
-        bf_text(4, y, LINES[i], colour, 1);
-    int xb = 4 + bf_text(4, y, "[", colour, 1);               /* [##########] 100%> mounting ... */
-    int xt = W - 4 - bf_text(0, 0, TAIL, colour, 0);
-    fill_rect(xb + 1, y + 6, xt - 3, y + 12, colour);
-    bf_text(xt, y, TAIL, colour, 1);
-    bf_text(4, y + 20, "login: 0.10.1", colour, 1);
     rect[0] = 0;
     rect[1] = 0;
     rect[2] = W - 1;

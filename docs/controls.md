@@ -58,7 +58,8 @@ less.
 ## Favourites
 
 Hold <kbd>≡</kbd> on Now Playing, or with the screen off, to add the song playing to your favourites;
-hold it again to take it off. The list is a playlist file, **`FAVORITE.M3U`**, at the top of the player's drive:
+hold it again to take it off. Songs on the internal storage and on an SD card both work. Each drive
+keeps its own list, a playlist file **`FAVORITE.M3U`** at the top of that drive:
 
 ```
 #EXTM3U
@@ -74,11 +75,11 @@ Music/Album/Song.flac
 - **You can edit it** in any text editor: one song per line, as its path from the top of the drive.
   Edit it on the computer, plug the player back in, and the hearts follow.
 - **Play them:** open **Files**; under **Internal** and **SD card** there is a third row,
-  **Favourites**. Press <kbd>▶‖</kbd> (tap or hold) on it: the player queues every song in
-  `FAVORITE.M3U` and opens Now Playing; shuffle, repeat, Up Next and resume work as for any folder.
+  **Favourites**. Press <kbd>▶‖</kbd> (tap or hold) on it: the player queues the internal list, then
+  the SD card's, and opens Now Playing; shuffle, repeat, Up Next and resume work as for any folder.
   Nothing has to be made on the drive for it.
-- **Limits:** songs on the internal drive only (not an SD card), and up to 4 KB of list, about 50–60
-  songs; past that the player says *Favourites full* instead of risking the drive.
+- **Limits:** up to 4 KB of list per drive, about 50–60 songs each; past that the player says
+  *Favourites full* instead of risking the drive.
 
 ## Main menu
 
@@ -116,7 +117,22 @@ Holding <kbd>▶‖</kbd> on **Music** or **SD card** at the top level of Files 
 | <kbd>↩</kbd> | | previous track |
 | <kbd>+</kbd> <kbd>−</kbd> | volume | keeps changing |
 
-These are RECHO's own; the mod's menu gestures only work while the screen is on.
+These are RECHO's own; the mod's menu gestures only work while the screen is on. Hold <kbd>≡</kbd>
+adds the song playing to favourites (or takes it off), with the screen off too.
+
+## Echo only: headset buttons
+
+A wired headset with buttons on the 3.5 mm jack works from any screen, with the screen off too, as
+on FiiO's own firmware (the Echo Mini's jack has no button line):
+
+| Button | Tap | Hold |
+|:---:|---|---|
+| middle | 1 tap play / pause · 2 taps next · 3 taps previous | |
+| + | volume up | next track |
+| − | volume down | previous track |
+
+Headphones without a mic are ignored. Apple EarPods: only the middle button works (their + and −
+need a chip the player can't talk to, on FiiO's firmware too). Not while playing over Bluetooth.
 
 ## Power, cable and USB
 
@@ -174,10 +190,7 @@ Lyrics come from a `.lrc` file with the same name as the song, in the same folde
 
 ### Boot screen (both)
 
-![Boot screen](img/boot.png)
-
-Drawn with RECHO's large font, the one the *Power off* message uses. The glyphs travel with the mod
-because RECHO draws this screen before it loads its fonts.
+Black for a split second while the player starts; RECHO's "RECHO 0.10.1" splash is not shown.
 
 <sub>The two Now Playing pictures are drawn by `tools/render_docs.py` from the coordinates in
 `patches/ui_np.c`; the text uses a stand-in typeface and made-up track data. The boot picture is

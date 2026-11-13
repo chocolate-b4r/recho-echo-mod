@@ -6,7 +6,6 @@ For the buttons, see [controls.md](controls.md).
 | Screen | Echo Mini | Echo |
 |---|---|---|
 | Now Playing | ![](img/now-playing-mini.png) | ![](img/now-playing-echo.png) |
-| Boot | ![](img/boot.png) | same picture, top-left 320 × 170 |
 
 ## The Echo's panel
 
@@ -136,11 +135,11 @@ it closes (`about_tick`). Spectrum (m49) and Debug (m50) are blanked in the imag
 
 ## Boot screen (`boot_screen`)
 
-RECHO's splash call (`bl 0x306C3E4` at `0x3050D7C`) → `boot_screen`. RECHO draws it at ~0.17 s, but
-loads its fonts at ~0.20 s, so `draw_text` would fall back to the bold 6 × 11 boot font. The mod
-therefore carries the 32 characters it needs, extracted from RECHO's large font (the one *Power off*
-is drawn in) by `tools/make_boot_font.py` into `build/boot_font.h`, and draws them with
-`fill_rect` runs.
+RECHO's splash call (`bl 0x306C3E4` at `0x3050D7C`) → `boot_screen`, which draws a black frame
+instead of "RECHO 0.10.1". RECHO draws it at ~0.17 s and goes straight on starting up (nothing waits
+after the splash), so it shows for a split second. Until v47 it showed terminal-style text in
+RECHO's large font; RECHO loads its fonts only at ~0.20 s, so that needed 32 copied glyphs
+(1,289 B of hook code), which now go to SD favourites and the Echo's headset buttons.
 
 ## Cable chooser (`usb_draw`)
 
@@ -194,3 +193,17 @@ walked folder by folder with `0x30638FC` (find a name in a folder, cluster at re
 `0x3063F74(queue, 0, folder, record, "/A/B/")`, then `0x305B3F0(-1, "Favourites")` finishes it and Now
 Playing opens. Lines that are not found are skipped; with none found the queue is abandoned
 (`0x305B2FC`).
+
+## Headset buttons (`headset.c`, Echo only)
+
+The 3.5 mm plug's mic contact is ADC channel 2. RECHO's key poll (`0x30583A8`, every 10 ms) reads
+channel 1 three times in four and, every fourth time, the next channel of the table at `0x3060180`;
+each reading that moves more than 24 is kept in `0x300418C[channel]` (and logged as
+`keys: adc ch2 a -> b`). The table goes from {0, 2, 3} to {0, 2, 2} (channel 3 is only kept there,
+nothing reads it), so channel 2 is read every 40 / 80 ms. `headset_tick` (POWER tick) decodes FiiO
+2.0.0's bands as Podium documents them: below 16 play, 16-45 volume up, 46-100 volume down. Play taps
+count until 300 ms pass (1 `0x3057C94(state == 1)`, as RECHO's ▶‖ tap; 2 `0x305AB80(+1)`; 3
+`0x305AB80(-1)`); a tap of + / − is `0x305A464(±1)`, RECHO's volume key, a 400 ms hold skips. Only
+with a 3.5 mm plug in (`0x3055EC0` bit 0) and Bluetooth not routed. After a plug goes in, the first
+state the line holds for 500 ms decides whether there is a remote (a 3-pole plug reads 0-1, the play
+band); play held over 1 s counts as no remote until the line leaves the band for 500 ms.

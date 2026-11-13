@@ -14,22 +14,12 @@ UNDEF=(-u status_level_shim -u power_tick_wrap -u shell_key -u str_back -u str_s
 if [ "${1:-}" = "echo" ]; then
     OUT=hooks-echo
     CFLAGS+=(-DECHO_PORT)
-    OBJS+=(build/echo_port.o build/echo_sidebar.o build/echo_band.o build/lyrics.o)
+    OBJS+=(build/echo_port.o build/echo_sidebar.o build/echo_band.o build/lyrics.o build/headset.o)
     ENTRIES="$ENTRIES|echo_panel_init|gpio_set_echo|gpio_set_orig|echo_gpio_read|echo_hatch_tick|hatch_since|echo_sidebar_tick|echo_blank_outside|echo_panel_fill|sb_dirty|echo_band_tick|ui_borrow|ui_return|echo_push_rows"
     UNDEF+=(-u echo_panel_init -u gpio_set_echo -u echo_gpio_read)
 fi
 [ "${1:-}" = "echo" ] || UNDEF+=(-u gpio_set_mini -u battery_colour_shim)
 mkdir -p build
-# The boot screen's glyphs come from your RECHO image (RECHO draws the boot screen before it loads
-# its fonts). They are generated, not shipped: RECHO_IMG=/path/to/RECHO-0.10.1.IMG creates them.
-if [ ! -f build/boot_font.h ]; then
-    if [ -n "${RECHO_IMG:-}" ]; then
-        python tools/make_boot_font.py "$RECHO_IMG" > build/boot_font.h
-    else
-        echo "build/boot_font.h missing: run with RECHO_IMG=/path/to/RECHO-0.10.1.IMG once" >&2
-        exit 1
-    fi
-fi
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/charge_screen.c -o build/charge_screen.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/charge_anim.c -o build/charge_anim.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/keys.c -o build/keys.o
@@ -42,6 +32,7 @@ if [ "$OUT" = "hooks-echo" ]; then
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_sidebar.c -o build/echo_sidebar.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_band.c -o build/echo_band.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/lyrics.c -o build/lyrics.o
+    "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/headset.c -o build/headset.o
 fi
 "$ARM/arm-none-eabi-ld.exe" -e charge_screen "${UNDEF[@]}" \
     -Ttext=0x0306E000 --gc-sections -o "build/$OUT.elf" "${OBJS[@]}"
