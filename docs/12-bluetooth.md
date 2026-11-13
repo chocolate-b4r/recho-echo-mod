@@ -201,3 +201,27 @@ bt: stock after 5 s: …
 `wrong` is a bit per register in the order GRF `+0xC4`, CRU `+0x84`, `+0xA0`, `+0xC0`, GRF
 `+0x14`, `+0x54`. If it plays now, narrow down which register matters; if it stays silent with
 `wrong 00` throughout, the settings are not the cause.
+
+### Result (2026-11-13): the settings are not the cause
+
+Echo stage 45, earbuds "Ear (2)" connected, music playing with nothing in the jacks: still silent.
+
+```
+12.483 bt: stock before route: GRF+C4 00003040 CRU+84 0000cd92 +A0 00007cf2 +C0 0000026f GRF+14 00000028 +54 00000001 wrong 00 fixes 0
+13.483 bt: stock after 1 s:   (same)                                                                                   wrong 00 fixes 0
+17.483 bt: stock after 5 s:   (same)                                                                                   wrong 00 fixes 0
+```
+
+All six registers already hold stock's bits **before** the mod writes them, and RECHO never changes
+them while routed. (The `f040` → `3040` change seen earlier is in GRF `+0xC4` bits 14–15, which none of
+the six writes cover.) The routing pins read as Podium sets them: GPIO2.1 = 1, GPIO2.14 = 0.
+
+Open doubt: Podium's Bluetooth notes (`docs/hardware.md`, known issues, release notes) are copied
+word for word from EchoPod, which runs on the **Echo Mini** and names Mini pins (GPIO2.0 / 2.14).
+Podium maps them to the Echo by analogy (mute GPIO2.1), and nothing in its notes shows Bluetooth audio
+tested on a full-size Echo. A decisive test: install Podium 4.6.1 on the Echo and try the same
+earbuds. If it plays, the hardware path works and its register state can be compared with RECHO's;
+if it is silent too, the Echo's routing is not what either project assumes.
+
+The Echo Mini build has no routing at all yet (streaming is hard-wired off), so it cannot play over
+Bluetooth whatever the settings.
