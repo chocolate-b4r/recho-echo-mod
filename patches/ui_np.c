@@ -398,6 +398,7 @@ static const char *track_album(void)
     return without_ext(folder_name(), album_buf, sizeof album_buf);
 }
 
+#ifdef ECHO_PORT
 /* "Artist - Song" from x (or centred when x < 0), artist light grey, song white */
 static void track_line_xy(int x_or_centre, int y, int paused)
 {
@@ -422,6 +423,7 @@ static void track_line(int y, int paused)
 {
     track_line_xy(-1, y, paused);
 }
+#endif
 
 static void progress_at(int y, int paused)
 {
@@ -508,7 +510,7 @@ static void lyric_block(const char *ly, u32 c)
     while (ly[n] && n < 127)
         n++;
     if (text_width(1, ly) <= 200) {
-        text_scaled_line(W / 2, 132, 0, 0, ly, c, 3);
+        text_scaled_line(W / 2, 134, 0, 0, ly, c, 3);
         return;
     }
     int best = -1, best_w = 1 << 30;
@@ -526,7 +528,7 @@ static void lyric_block(const char *ly, u32 c)
         }
     }
     if (best < 0) {                       /* one long word: the large font, clipped */
-        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 143, ly, 304, c);
+        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 145, ly, 304, c);
         return;
     }
     for (int k = 0; k < best; k++)
@@ -537,49 +539,144 @@ static void lyric_block(const char *ly, u32 c)
         b[j++] = *q;
     b[j] = 0;
     if (best_w <= 200) {
-        text_scaled_line(W / 2, 120, 0, 0, a, c, 3);
+        text_scaled_line(W / 2, 121, 0, 0, a, c, 3);
         text_scaled_line(W / 2, 145, 0, 0, b, c, 3);
     } else {
         int f = best_w <= 304 ? 1 : 0;
-        text_centred(f, W / 2, 133, a, 304, c);
-        text_centred(f, W / 2, 153, b, 304, c);
+        text_centred(f, W / 2, 135, a, 304, c);
+        text_centred(f, W / 2, 155, b, 304, c);
     }
 }
 #endif
 
 #ifndef ECHO_PORT
-/* "Next  Artist - Title" in the small font: the next entry in the play order (RECHO's own
- * next routine), its tags from RECHO's tag record (read in the background; "..." until then) */
-static void next_line(int y, int paused)
+/* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
+ * The upcoming entries in play order (RECHO's own "next", 0x3065FE4), named from the queue
+ * store as the Echo's Up Next does (0x3064B64: one 36-byte index read per entry). Read one
+ * entry per main-loop pass by mini_upnext_tick, only on Now Playing and only after the queue
+ * or the track changed (300 ms settle); np_draw only draws the cached names. */
+#define queue_name  FN(0x03064B64, int (*)(void *store, u32 entry, char *buf, unsigned char *vol, u32 flag))
+#define QSTORE      PTR(void *, 0x0303BD80)
+#define UPN_BUF     PTR(char *, 0x03048200)        /* 276 B name buffer (free RAM, as on the Echo) */
+#define UPN_CACHE   PTR(char *, 0x03044000)        /* UPN_N x UPN_LEN names (free RAM) */
+#define UPN_N       7
+#define UPN_LEN     64
+#define UPN_SETTLE  300u
+STATE volatile u32 upn_key[6] = {0xFFFFFFFFu, 0, 0, 0, 0, 0};
+STATE volatile u32 upn_have = 0, upn_cursor = 0, upn_walk = 0, upn_at = 0, upn_end = 0;
+
+static void upn_redraw(void)
 {
-    if (!QUEUE_ACTIVE)
+    const volatile u32 *scr = current_screen();
+    if (scr)
+        request_redraw((const void *)scr);
+}
+
+void mini_upnext_tick(void)
+{
+    if (REG(0x030399C8) != 45u)              /* Now Playing only */
         return;
-    int nx = queue_next_entry(QUEUE_OBJ, QUEUE_CURRENT, PLAY_MODE, 0);
-    const char *qinfo_end = 0;
     const volatile int *qi = queue_info();
     u32 n = (qi && qi[1] > 0) ? (u32)qi[1] : 0u;
-    char line[96], *p = line, *end = line + 95;
-    if (nx < 0 || (u32)nx >= n || (u32)nx == QUEUE_CURRENT) {
-        qinfo_end = "End of queue";
-    } else {
-        const char *t = tag_record(nx);
-        if (t && t[0]) {
-            if (t[160]) {
-                p = put_str(p, t + 160, end);
-                p = put_str(p, " - ", end);
-            }
-            p = put_str(p, t, end);
-        } else {
-            p = put_str(p, "...", end);
+    u32 key[6] = {QUEUE_ACTIVE, QUEUE_CURRENT, PLAY_MODE, QUEUE_SEED, QUEUE_PASS, n};
+    u32 now = ms_now();
+    int changed = 0;
+    for (int i = 0; i < 6; i++)
+        if (key[i] != upn_key[i])
+            changed = 1;
+    if (changed) {
+        for (int i = 0; i < 6; i++)
+            upn_key[i] = key[i];
+        upn_have = 0;
+        upn_end = 0;
+        upn_cursor = key[1];
+        upn_walk = key[0] && n > 1u;
+        upn_at = now;
+        return;
+    }
+    if (!upn_walk || upn_have >= UPN_N || now - upn_at < UPN_SETTLE)
+        return;
+    int nx = queue_next_entry(QUEUE_OBJ, upn_cursor, PLAY_MODE, 0);
+    if (nx < 0 || (u32)nx == upn_cursor || (u32)nx >= n) {
+        upn_walk = 0;
+        upn_end = 1;
+        upn_redraw();
+        return;
+    }
+    unsigned char vol = 0;
+    char *buf = UPN_BUF;
+    buf[0] = 0;
+    if (queue_name(QSTORE, (u32)nx, buf, &vol, 0) != 0) {
+        upn_walk = 0;                        /* lookup failed: stop, never retry here */
+        upn_redraw();
+        return;
+    }
+    buf[275] = 0;
+    char *dot = 0, *q;
+    for (q = buf; *q; q++)
+        if (*q == '.')
+            dot = q;
+    if (dot && dot != buf && q - dot <= 5)
+        *dot = 0;
+    char *dst = UPN_CACHE + upn_have * UPN_LEN;
+    int k = 0;
+    while (buf[k] && k < UPN_LEN - 1) {
+        dst[k] = buf[k];
+        k++;
+    }
+    dst[k] = 0;
+    upn_have++;
+    upn_cursor = (u32)nx;
+    if (upn_have == 1u || upn_have >= UPN_N)  /* first name at once, the rest in one redraw */
+        upn_redraw();
+}
+
+static void upnext_draw(int x, int y0, int w, int paused)
+{
+    if (!upn_have) {
+        const char *t = upn_end ? "End of queue" : (QUEUE_ACTIVE ? "..." : 0);
+        if (t)
+            text_at(0, x, y0, t, w, DIM);
+        return;
+    }
+    for (u32 i = 0; i < upn_have && i < UPN_N; i++) {
+        u32 c = i == 0 ? (paused ? GREY : 0xE71Cu) : (paused ? 0x52AAu : 0x6B4Du);
+        text_at(0, x, y0 + (int)i * 13, UPN_CACHE + i * UPN_LEN, w, c);
+    }
+}
+
+/* s in two lines of at most maxw (font f), split at the most even space; 0 if it fits in one */
+static int split_two(const char *s, int f, int maxw, char *a, char *b, int cap)
+{
+    if (!s || text_width(f, s) <= maxw)
+        return 0;
+    int n = 0;
+    while (s[n] && n < cap - 1)
+        n++;
+    int best = -1, best_w = 1 << 30;
+    for (int i = 1; i < n - 1; i++) {
+        if (s[i] != ' ')
+            continue;
+        for (int k = 0; k < i; k++)
+            a[k] = s[k];
+        a[i] = 0;
+        int wa = text_width(f, a), wb = text_width(f, s + i + 1);
+        int m = wa > wb ? wa : wb;
+        if (m < best_w) {
+            best_w = m;
+            best = i;
         }
     }
-    *p = 0;
-    int wl = text_width(0, "Next  ");
-    const char *body = qinfo_end ? qinfo_end : line;
-    int wb = text_width(0, body);
-    int total = wl + (wb > 280 - wl ? 280 - wl : wb), x = (W - total) / 2;
-    text_at(0, x, y, "Next  ", wl + 1, DIM);
-    text_at(0, x + wl, y, body, 280 - wl, paused ? DIM : GREY);
+    if (best < 0)
+        return 0;
+    for (int k = 0; k < best; k++)
+        a[k] = s[k];
+    a[best] = 0;
+    int j = 0;
+    for (const char *q = s + best + 1; *q && j < cap - 1; q++)
+        b[j++] = *q;
+    b[j] = 0;
+    return 1;
 }
 #endif
 
@@ -650,19 +747,19 @@ void np_draw(void)
         const char *artist;
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
-        if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
+        if (!text2x_line(W / 2, 40, artist, c_art, title, c_title)) {
             if (artist && *artist && title && *title && text_width(1, title) <= 150) {
-                text_centred(1, W / 2, 31, artist, 300, c_art);     /* artist over a 2x title */
-                text2x_line(W / 2, 44, 0, 0, title, c_title);
+                text_centred(1, W / 2, 35, artist, 300, c_art);     /* artist over a 2x title */
+                text2x_line(W / 2, 48, 0, 0, title, c_title);
             } else {
-                track_line(52, paused);
+                track_line(56, paused);
             }
         }
-        text_centred(1, W / 2, 84, track_album(), 300, paused ? DIM : GREY);
+        text_centred(1, W / 2, 88, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         format_line_ex(info, sizeof info, 1);   /* format, then the queue position ("3/500") */
-        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 102, info, 300, paused ? DIM : GREY);
-        fill_rect(60, 114, W - 61, 114, RULE);
+        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 106, info, 300, paused ? DIM : GREY);
+        fill_rect(60, 118, W - 61, 118, RULE);
 
         u32 lc = paused ? GREY : WHITE;
         if (ms_now() - VOLUME_AT < 2000u) {
@@ -675,7 +772,7 @@ void np_draw(void)
                 q = put_str(q, " dB", v + 23);
             }
             *q = 0;
-            text_centred(1, W / 2, 136, v, 300, WHITE);
+            text_centred(1, W / 2, 138, v, 300, WHITE);
         } else {
             const char *ly = lyrics_line();
             if (ly)
@@ -686,14 +783,33 @@ void np_draw(void)
     (void)playing;
     return;
 #else
-    /* Artist - Song, album */
-    track_line(Y_TITLE, paused);
-    const char *album = track_album();
-    text_centred(1, W / 2, Y_ALBUM, album, 300, paused ? DIM : GREY);
-#endif
-
-#ifndef ECHO_PORT
-    /* Mini: the next song in one small line, or the volume for 2 s after it changed */
+    /* Mini (alternate layout): left half artist, song (two lines when long), album; right half
+     * Up Next in the small font; format line (or the volume for 2 s) and progress bar below */
+    {
+        const char *artist;
+        const char *title = track_title(&artist);
+        const char *album = track_album();
+        u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
+        const int LX = 8, LW = 146;
+        int y = 36;
+        if (artist && *artist) {
+            text_at(1, LX, y, artist, LW, c_art);
+            y += 20;
+        }
+        char l1[96], l2[96];
+        if (split_two(title, 1, LW, l1, l2, sizeof l1)) {
+            text_at(1, LX, y, l1, LW, c_title);
+            text_at(1, LX, y + 18, l2, LW, c_title);
+            y += 38;
+        } else {
+            text_at(1, LX, y, title, LW, c_title);
+            y += 20;
+        }
+        if (album && *album && y <= 116)
+            text_at(text_width(1, album) <= LW ? 1 : 0, LX, y, album, LW, paused ? DIM : GREY);
+        fill_rect(160, 28, 160, 118, RULE);
+        upnext_draw(168, 33, 144, paused);
+    }
     if (ms_now() - VOLUME_AT < 2000u) {
         char v[24], *q = put_str(v, "Volume ", v + 23);
         int db = VOLUME_DB;
@@ -704,12 +820,11 @@ void np_draw(void)
             q = put_str(q, " dB", v + 23);
         }
         *q = 0;
-        text_centred(1, W / 2, Y_NEXT, v, 300, WHITE);
+        text_centred(1, W / 2, Y_FORMAT, v, 300, WHITE);
     } else {
-        next_line(Y_NEXT, paused);
+        format_at(Y_FORMAT, paused);
     }
     progress_at(Y_PROGRESS, paused);
-    format_at(Y_FORMAT, paused);
     (void)playing;
     return;
 #endif
@@ -1229,20 +1344,38 @@ int vol_text(char *buf, u32 size, const char *fmt, int v)
 }
 
 /* Boot screen (replaces RECHO's "RECHO 0.10.1" splash, `bl 0x306C3E4` at 0x3050D7C).
- * Drawn with RECHO's own boot text routine 0x306C290 (6 x 11 font, works before the fonts load)
- * into the frame buffer; *rect gets the whole screen so RECHO pushes all of it to the panel. */
-#define boot_text FN(0x0306C290, void (*)(int x, int y, const char *s, u32 colour, int bg, int scale))
-static int boot_put(int thin, int x, int y, const char *t, u32 colour)
+ * It is drawn at ~0.17 s, before RECHO loads its fonts (~0.20 s), so draw_text would fall back to
+ * the bold 6 x 11 boot font. The glyphs come from boot_font.h instead: the boot text's characters
+ * copied from RECHO's large font, the one "Power off" is drawn in (tools/make_boot_font.py).
+ * *rect gets the whole screen so RECHO pushes all of it to the panel. */
+#include "boot_font.h"
+
+static int bf_text(int x, int y, const char *t, u32 c, int draw)
 {
-    if (thin) {
-        draw_text(0, x, y, t, 316 - x, colour, -1);
-        return text_width(0, t);
+    int x0 = x;
+    for (; *t; t++) {
+        int i = 0;
+        while (BF_MAP[i] && BF_MAP[i] != *t)
+            i++;
+        if (!BF_MAP[i]) {
+            x += 4;
+            continue;
+        }
+        for (int r = 0; draw && r < BF_H; r++) {
+            u32 v = BF_ROWS[i][r];
+            for (int col = 0; col < 16; col++) {
+                if (!(v & (0x8000u >> col)))
+                    continue;
+                int run = col;
+                while (run < 15 && (v & (0x8000u >> (run + 1))))
+                    run++;
+                fill_rect(x + col, y + BF_TOP + r, x + run, y + BF_TOP + r, c);
+                col = run;
+            }
+        }
+        x += BF_ADV[i];
     }
-    boot_text(x, y, t, colour, 0, 1);
-    int n = 0;
-    while (t[n])
-        n++;
-    return n * 6;
+    return x - x0;
 }
 
 int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
@@ -1250,17 +1383,16 @@ int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
     (void)s; (void)a; (void)b; (void)z;
     static const char *const LINES[6] = {"> init", "> boot", "> loading kernel...", "> compiling data...",
                                          "> applying interface...", "> system ready"};
+    static const char TAIL[] = "] 100%> mounting /dev/cho4e...";
     fill_rect(0, 0, W - 1, 169, BLACK);
-    /* RECHO's small font: thin, 1 px strokes (the large one looks bold at this size). Fonts are
-     * loaded before the splash ("font: bitmap fonts" at ~0.2 s); the 6 x 11 boot font otherwise */
-    int thin = FONTS[0 * 4 + 3] != 0;
-    int h = thin ? font_h(0) : 11, y = 6;
+    int y = 4;                                                /* 16 px lines, 20 px apart */
     for (int i = 0; i < 6; i++, y += 20)
-        boot_put(thin, 4, y, LINES[i], colour);
-    int xb = 4 + boot_put(thin, 4, y, "[", colour);           /* [####################] 100%> ... */
-    fill_rect(xb + 2, y + 2, xb + 141, y + h - 3, colour);
-    boot_put(thin, xb + 144, y, "] 100%> mounting /dev/cho4e...", colour);
-    boot_put(thin, 4, y + 20, "login: 0.10.1", colour);
+        bf_text(4, y, LINES[i], colour, 1);
+    int xb = 4 + bf_text(4, y, "[", colour, 1);               /* [##########] 100%> mounting ... */
+    int xt = W - 4 - bf_text(0, 0, TAIL, colour, 0);
+    fill_rect(xb + 1, y + 6, xt - 3, y + 12, colour);
+    bf_text(xt, y, TAIL, colour, 1);
+    bf_text(4, y + 20, "login: 0.10.1", colour, 1);
     rect[0] = 0;
     rect[1] = 0;
     rect[2] = W - 1;

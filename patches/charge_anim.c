@@ -71,6 +71,12 @@ u32 power_tick_wrap(void)
         bt_tick();
         about_tick();
     }
+#ifndef ECHO_PORT
+    {
+        extern void mini_upnext_tick(void);   /* ui_np.c: Up Next names for Now Playing */
+        mini_upnext_tick();
+    }
+#endif
 #ifdef ECHO_PORT
     {
         extern void echo_hatch_tick(void);

@@ -36,14 +36,16 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x03055EC0,                                                   # RECHO's jack detection (bit 0 3.5 mm, bit 1 4.4 mm)
             0x0307A2B8,                                                   # m47's own draw (About / Supporters panels), only from menu_draw
             0x03065FE4,                                                   # queue "next" (pure computation): position in the play order
-            0x0306C290}                                                   # RECHO's boot text routine (boot_screen)
+            0x0306C290,                                                   # RECHO's boot text routine (boot_screen)
+            0x03064B64}                                                   # queue entry name (Up Next); which functions: checked below
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
            0x0303EDD0,                                                    # settings block (play mode, byte 7)
            0x03008A00, 0x0303BCC0,                                        # frame buffer (2x title), main menu state
            0x0303AB90, 0x0303AB98, 0x0303ABA8, 0x0303BD74, 0x0303BD78,    # queue object, seed, pass, active, current
-           0x0309FFB0}                                                    # RECHO's VOP marker (display fallback)
+           0x0309FFB0,                                                    # RECHO's VOP marker (display fallback)
+           0x0303BD80, 0x03044000, 0x03048200}                            # queue store; Up Next cache and name buffer (free RAM)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -342,7 +344,7 @@ def main(orig_path, new_path):
         if ECHO:
             check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar and the lyrics loader ({sorted(qread)})")
         else:
-            check(not qread, "no queue reads on the Echo Mini")
+            check(qread and qread <= {"mini_upnext_tick"}, f"Mini: queue reads only from the Up Next tick ({sorted(qread)})")
     sbw = struct.unpack_from("<HH", b, 0x0305945A - RAM_OF_IMG)
     check(struct.unpack_from("<HH", a, 0x0305945A - RAM_OF_IMG) == (0xF040, 0x8084) and sbw == (0xBF00, 0xBF00),
           "status bar: on-cable branch to the bolt glyph replaced by two NOPs")
