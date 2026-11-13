@@ -1439,3 +1439,17 @@ int vol_text(char *buf, u32 size, const char *fmt, int v)
     return (int)(p - buf);
 }
 
+/* Boot screen (replaces RECHO's "RECHO 0.10.1" splash, `bl 0x306C3E4` at 0x3050D7C): a black frame.
+ * RECHO draws it at ~0.17 s, before it loads its fonts (~0.20 s), and goes straight on starting up
+ * (it does not wait after the splash), so the frame shows for a split second only. *rect gets the
+ * whole screen so RECHO pushes all of it to the panel. */
+int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
+{
+    (void)s; (void)a; (void)b; (void)colour; (void)z;
+    fill_rect(0, 0, W - 1, 169, BLACK);
+    rect[0] = 0;
+    rect[1] = 0;
+    rect[2] = W - 1;
+    rect[3] = 169;
+    return 1;
+}
