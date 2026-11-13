@@ -451,14 +451,45 @@ static void progress_at(int y, int paused)
 }
 
 #ifndef ECHO_PORT
-static void format_at(int y, int paused)
+/* Format line at x in the small font, within w: split at the separator dot that balances the two
+ * lines best when it is too wide ("FLAC  44.1 kHz Â· 24 bit" / "1682 kbps Â· 9/10");
+ * a single line sits on the lower row */
+static void format_left(int x, int y, int w, int paused)
 {
-    char line[96];
+    char line[96], a[96];
     format_line_ex(line, sizeof line, 1);
-    int wl = text_width(0, line);
-    if (wl > 300)
-        wl = 300;
-    text_at(0, (W - wl) / 2, y, line, 300, paused ? DIM : GREY);
+    u32 c = paused ? DIM : GREY;
+    if (text_width(0, line) <= w) {
+        text_at(0, x, y + 13, line, w, c);
+        return;
+    }
+    const int sl = sizeof SEP - 1;
+    int best = -1, best_w = 1 << 30;
+    for (int i = 1; line[i]; i++) {
+        int k = 0;
+        while (k < sl && line[i + k] == SEP[k])
+            k++;
+        if (k < sl)
+            continue;
+        for (int j = 0; j < i; j++)
+            a[j] = line[j];
+        a[i] = 0;
+        int wa = text_width(0, a), wb = text_width(0, line + i + sl);
+        int m = wa > wb ? wa : wb;
+        if (m < best_w) {
+            best_w = m;
+            best = i;
+        }
+    }
+    if (best < 0) {
+        text_at(0, x, y + 13, line, w, c);
+        return;
+    }
+    for (int j = 0; j < best; j++)
+        a[j] = line[j];
+    a[best] = 0;
+    text_at(0, x, y, a, w, c);
+    text_at(0, x, y + 13, line + best + sl, w, c);
 }
 #endif
 
@@ -559,7 +590,7 @@ static void lyric_block(const char *ly, u32 c)
 #define QSTORE      PTR(void *, 0x0303BD80)
 #define UPN_BUF     PTR(char *, 0x03048200)        /* 276 B name buffer (free RAM, as on the Echo) */
 #define UPN_CACHE   PTR(char *, 0x03044000)        /* UPN_N x UPN_LEN names (free RAM) */
-#define UPN_N       7
+#define UPN_N       9
 #define UPN_LEN     64
 #define UPN_SETTLE  300u
 STATE volatile u32 upn_key[6] = {0xFFFFFFFFu, 0, 0, 0, 0, 0};
@@ -747,19 +778,19 @@ void np_draw(void)
         const char *artist;
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
-        if (!text2x_line(W / 2, 40, artist, c_art, title, c_title)) {
+        if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
             if (artist && *artist && title && *title && text_width(1, title) <= 150) {
-                text_centred(1, W / 2, 35, artist, 300, c_art);     /* artist over a 2x title */
-                text2x_line(W / 2, 48, 0, 0, title, c_title);
+                text_centred(1, W / 2, 31, artist, 300, c_art);     /* artist over a 2x title */
+                text2x_line(W / 2, 44, 0, 0, title, c_title);
             } else {
-                track_line(56, paused);
+                track_line(52, paused);
             }
         }
-        text_centred(1, W / 2, 88, track_album(), 300, paused ? DIM : GREY);
+        text_centred(1, W / 2, 84, track_album(), 300, paused ? DIM : GREY);
         char info[64];
         format_line_ex(info, sizeof info, 1);   /* format, then the queue position ("3/500") */
-        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 106, info, 300, paused ? DIM : GREY);
-        fill_rect(60, 118, W - 61, 118, RULE);
+        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 102, info, 300, paused ? DIM : GREY);
+        fill_rect(60, 118, W - 61, 118, RULE);  /* 8 px of room under the file info */
 
         u32 lc = paused ? GREY : WHITE;
         if (ms_now() - VOLUME_AT < 2000u) {
@@ -783,8 +814,9 @@ void np_draw(void)
     (void)playing;
     return;
 #else
-    /* Mini (alternate layout): left half artist, song (two lines when long), album; right half
-     * Up Next in the small font; format line (or the volume for 2 s) and progress bar below */
+    /* Mini (alternate layout): left half artist, song (two lines when long), album, then the
+     * format line and queue position (or the volume for 2 s); right half Up Next in the small font
+     * down to the progress bar (9 songs); progress bar across the bottom */
     {
         const char *artist;
         const char *title = track_title(&artist);
@@ -805,10 +837,10 @@ void np_draw(void)
             text_at(1, LX, y, title, LW, c_title);
             y += 20;
         }
-        if (album && *album && y <= 116)
+        if (album && *album && y <= 110)
             text_at(text_width(1, album) <= LW ? 1 : 0, LX, y, album, LW, paused ? DIM : GREY);
-        fill_rect(160, 28, 160, 118, RULE);
-        upnext_draw(168, 33, 144, paused);
+        fill_rect(160, 28, 160, 143, RULE);
+        upnext_draw(168, 33, 144, paused);    /* rows 33, 46, ... 137 */
     }
     if (ms_now() - VOLUME_AT < 2000u) {
         char v[24], *q = put_str(v, "Volume ", v + 23);
@@ -820,9 +852,9 @@ void np_draw(void)
             q = put_str(q, " dB", v + 23);
         }
         *q = 0;
-        text_centred(1, W / 2, Y_FORMAT, v, 300, WHITE);
+        text_at(1, 8, 132, v, 146, WHITE);
     } else {
-        format_at(Y_FORMAT, paused);
+        format_left(8, 124, 146, paused);     /* rows 124 and 137 */
     }
     progress_at(Y_PROGRESS, paused);
     (void)playing;
