@@ -87,11 +87,19 @@ static int read_level(int *full)
 
 /* ---- drawing (rectangles only) ----------------------------------------- */
 
+#ifdef ECHO_PORT                          /* the Echo shows this picture small, centred on its panel */
 #define CELL_W 28
 #define CELL_H 52
 #define CELL_GAP 6
 #define CHAMFER 4
 #define LINE 3
+#else                                     /* Echo Mini: about 60 %, centred on its own screen */
+#define CELL_W 17
+#define CELL_H 31
+#define CELL_GAP 4
+#define CHAMFER 3
+#define LINE 2
+#endif
 
 static void pill(int x, int y, int solid, u32 colour)
 {
@@ -107,10 +115,25 @@ static void pill(int x, int y, int solid, u32 colour)
     fill_rect(x1 - LINE + 1, y + CHAMFER, x1, y1 - CHAMFER, colour);
 }
 
+#ifdef ECHO_PORT
 #define DIG_W 20
 #define DIG_H 38
 #define DIG_T 5
 #define DIG_GAP 8
+#define PCT_W 22
+#define PCT_DOT 6
+#define GAUGE_Y 26
+#define DIGITS_Y 100
+#else
+#define DIG_W 12
+#define DIG_H 23
+#define DIG_T 3
+#define DIG_GAP 5
+#define PCT_W 13
+#define PCT_DOT 4
+#define GAUGE_Y 50                        /* 31 gauge + 16 gap + 23 digits = 70 rows, centred in 170 */
+#define DIGITS_Y 97
+#endif
 
 static const unsigned char SEGMENTS[10] = {
     0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, /* bits a b c d e f g */
@@ -129,16 +152,14 @@ static void digit(int x, int y, int d, u32 c)
     if (s & 0x40) fill_rect(x, m - DIG_T / 2, x1, m - DIG_T / 2 + DIG_T - 1, c); /* g */
 }
 
-#define PCT_W 22
-
 static void percent_sign(int x, int y, u32 c)
 {
-    fill_rect(x, y + 2, x + 5, y + 7, c);
-    fill_rect(x + PCT_W - 6, y + DIG_H - 8, x + PCT_W - 1, y + DIG_H - 3, c);
+    fill_rect(x, y + 2, x + PCT_DOT - 1, y + PCT_DOT + 1, c);
+    fill_rect(x + PCT_W - PCT_DOT, y + DIG_H - PCT_DOT - 2, x + PCT_W - 1, y + DIG_H - 3, c);
     for (int i = 0; i < 8; i++) {               /* stepped diagonal, bottom-left to top-right */
         int sx = x + 1 + i * (PCT_W - 4) / 8;
         int sy = y + DIG_H - 1 - (i + 1) * DIG_H / 8;
-        fill_rect(sx, sy, sx + 3, sy + DIG_H / 8, c);
+        fill_rect(sx, sy, sx + PCT_DOT / 2 + 1, sy + DIG_H / 8, c);
     }
 }
 
@@ -154,7 +175,7 @@ static void draw(int permille, int full)
     fill_rect(0, 0, 319, 169, BLACK);
 
     const int total = 4 * CELL_W + 3 * CELL_GAP;
-    const int gx = (320 - total) / 2, gy = 26;
+    const int gx = (320 - total) / 2, gy = GAUGE_Y;
     for (int c = 0; c < 4; c++)
         pill(gx + c * (CELL_W + CELL_GAP), gy, c < lit, c < lit ? colour : GREY);
 
@@ -164,7 +185,7 @@ static void draw(int permille, int full)
         v /= 10;
     } while (v && n < 3);
     int width = n * (DIG_W + DIG_GAP) + PCT_W;
-    int x = (320 - width) / 2, y = 100;
+    int x = (320 - width) / 2, y = DIGITS_Y;
     for (int i = n - 1; i >= 0; i--) {
         digit(x, y, digits[i], full ? GREEN : WHITE);
         x += DIG_W + DIG_GAP;

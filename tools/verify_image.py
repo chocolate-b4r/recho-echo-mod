@@ -42,7 +42,7 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x030531F0, 0x03053934, 0x03053BF4,                           # favourites: find 8.3 file, read, write whole file (checked below)
             0x0305A874,                                                   # bar message for 2 s (favourites)
             0x030638FC, 0x0305B3AC, 0x03063F74, 0x0305B3F0, 0x0305B2FC,   # find name in folder; queue start / add / finish / abandon (play favourites)
-            0x0307AE10}                                                   # m44 Files key handler (files_key passes everything else on)
+            0x0307AE10, 0x0307A898}                                       # m44 Files key handler and open (files_key / files_enter call them)
 UI_DATA = {0x03034B48,                                                    # font table
            0x030041D0, 0x0303AB8C,                                        # volume dB, last volume change
            0x030041B4, 0x030399B8, 0x030399BC,                            # chooser cursor, countdown
@@ -54,7 +54,7 @@ UI_DATA = {0x03034B48,                                                    # font
            0x03006174, 0x0303AB2C, 0x0303BCC4, 0x0307A000,               # backlight duty, m44 SD flag, menu cursor, module overlay
            0x0307A278,                                                    # m44 code, read only (signature check before calling it)
            0x03045000, 0x03046100, 0x03046200, 0x03046400, 0x03046520,    # favourites: list, path, queue line, record, folder (free RAM)
-           0x030399D0, 0x03085BD0, 0x0303AB30}                            # Files: state (cursor, depth), listing, drive-list flag
+           0x030399D0, 0x03085BD0, 0x0303AB30, 0x030399D4}                # Files: state (cursor, depth), listing, drive-list flag
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -570,6 +570,9 @@ def main(orig_path, new_path):
     check(u32(a, fk) == 0x0307AE11 and u32(b, fk) == (ent_f["files_key"] | 1)
           and a[0x28ED4 + 0x158C:0x28ED4 + 0x1592] == b"BROWSE",
           "Files descriptor key 0x307ae11 -> files_key (Favourites folder plays the list)")
+    fe = 0x28ED4 + 0x0307B5A4 - 0x0307A000
+    check(u32(a, fe) == 0x0307A899 and u32(b, fe) == (ent_f["files_enter"] | 1),
+          "Files descriptor open 0x307a899 -> files_enter (opens on the drive list)")
     au = 0x0305BC8A - RAM_OF_IMG
     check(a[au:au + 2] == bytes.fromhex("2c22") and b[au:au + 2] == bytes.fromhex("2f22")
           and a[0x0305BC8C - RAM_OF_IMG:0x0305BC8E - RAM_OF_IMG] == b[0x0305BC8C - RAM_OF_IMG:0x0305BC8E - RAM_OF_IMG],

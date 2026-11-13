@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v44 | Files always opens on the drive list (Internal / SD card), cursor on Internal; off-state charging screen about 60 % size, centred (Mini) | built, verified |
 | v43 | **play favourites from Files:** ▶‖ on the *Favourites* folder at the top of the drive queues `FAVORITE.M3U` with RECHO's own queue builder; USB disk left with Back only, its screen says "or press back" | built, verified |
 | v42 | **favourites:** hold ≡ on Now Playing adds / removes the song, a heart after the title, saved as `FAVORITE.M3U` (a playlist phones read); Bluetooth diagnostic logging removed (raw capture, register and pin dumps, every module message; earbud buttons still logged) | built, verified |
 | v41 | **Bluetooth audio on the Mini:** routing ported from the Echo (DAC mute GPIO2.0 high, GPIO2.14 low, held by a GPIO-set hook as on the Echo; RECHO's muted DACs kept at the user's volume while streaming) | built, verified |
@@ -59,6 +60,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 52 | Files opens on the drive list, as Mini v44 | built, verified |
 | 51 | favourites from Files and Back-only USB, as Mini v43 | built, verified |
 | 50 | favourites and the logging clean-up, as Mini v42 | built, verified |
 | 49 | lyric letters at 1.5x drawn as 2 x 2 blocks, so every stroke is 2 px (was 1 or 2 px); Bluetooth code shared with the Mini | built, verified |

@@ -216,3 +216,16 @@ int files_key(const unsigned char *ev)
     }
     return files_key_orig(ev);
 }
+
+/* Files always opens on the drive list (Internal / SD card), cursor on Internal, not where it was
+ * left: Files' descriptor open routine (m44 0x307B5A4 = 0x307A899) is files_enter, which sets the
+ * drive-list flag and the cursor, then runs RECHO's open (which keeps both as they are). */
+#define files_enter_orig FN(0x0307A898, void (*)(void))
+
+void files_enter(void)
+{
+    REG(0x0303AB30) = 1;                  /* drive list, as Back at a drive's top folder sets it */
+    REG(0x030399D0) = 0;                  /* cursor: Internal */
+    REG(0x030399D4) = 0;
+    files_enter_orig();
+}

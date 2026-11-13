@@ -217,6 +217,7 @@ USB_KEY_CALL = 0x0305062C   # USB-disk loop callback: `bl power_key_down` (armed
 USB_TEXT = 0x0305E877         # "eject on the computer, or press power" on the USB disk screen
 M44_IMG = 0x28ED4             # module m44 (Files)
 FILES_KEY_PTR = 0x0307B5A8    # m44 BROWSE descriptor +28: key handler (0x307AE11)
+FILES_ENTER_PTR = 0x0307B5A4  # m44 BROWSE descriptor +24: open (0x307A899)
 
 
 def usb_back_key(d, e):
@@ -231,6 +232,8 @@ def files_favourites(d, e):
     """Both players: a "Favourites" folder at the top of Files plays FAVORITE.M3U (patches/keys.c)."""
     o = M44_IMG + FILES_KEY_PTR - 0x0307A000
     put(d, o, struct.pack("<I", 0x0307AE11), struct.pack("<I", e["files_key"] | 1), "Files key -> files_key")
+    o = M44_IMG + FILES_ENTER_PTR - 0x0307A000
+    put(d, o, struct.pack("<I", 0x0307A899), struct.pack("<I", e["files_enter"] | 1), "Files open -> files_enter")
     reseal_module(d, M44_IMG)
 
 
