@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v40 | clock: re-read right after Settings closes and every minute (was 5 min), so a newly set time shows at once; weekday worked out from the date (the chip's weekday can disagree) | built, verified |
 | v39 | leaving USB disk opens the main menu instead of Files (one byte at 0x305BC8A: module 44 -> 47) | built, verified |
 | v38 | top bars: volume first, then the output ("62 dB · 3.5 mm"); battery % green on the cable, amber / red when low (as the Echo's Up Next) | built, verified |
 | v37 | no volume overlay on Now Playing (the top bar shows it); Now Playing and the main menu redraw when the volume changes | built, verified |
@@ -55,6 +56,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 44 | clock fixes as Mini v40 | built, verified |
 | 43 | lyric 3 px lower (wrapped lyrics: first row 3 px, the second already ends on the last row); built with `icons/mod` (same icons, now in the repo) | built, verified |
 | 42 | no "Nothing playing" in the player strip or Up Next; after USB disk the main menu, as Mini v39 | built, verified |
 | 41 | song title over the artist 2 px higher; top-bar order as Mini v38 | built, verified |

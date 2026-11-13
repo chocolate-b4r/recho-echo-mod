@@ -48,7 +48,7 @@ Up Next instead.
 
 | Piece | Source |
 |---|---|
-| time and date | `clock.c`: the clock chip via `0x305DA2C` / `0x305DAC4`, read at boot, wake and every 5 min |
+| time and date | `clock.c`: the clock chip via `0x305DA2C` / `0x305DAC4`, read at boot, wake, every minute and when Settings closes; weekday from the date |
 | output | GPIO2.8 jack test (inverted on the Mini), `0x3055EC0` 4.4 mm detection, Bluetooth state |
 | volume | `0x030041D0`, shown as RECHO's dB + 90 (RECHO's quietest step is −90 dB) |
 
