@@ -65,7 +65,7 @@ static inline u32 lit(u32 v)
 STATE volatile u32 fav_is_current = 0;         /* np_draw: heart after the title */
 STATE volatile u32 fav_request = 0;            /* keys.c: hold ≡ on Now Playing */
 STATE volatile u32 fav_key = 0xFFFFFFFFu;      /* track + screen the flag belongs to */
-STATE volatile u32 fav_play_request = 0;       /* keys.c: ▶‖ on the Favourites folder in Files */
+STATE volatile u32 fav_play_request = 0;       /* keys.c: ▶‖ on the Favourites row in Files */
 
 static const char PREFIX[] = "file:///internal/";
 

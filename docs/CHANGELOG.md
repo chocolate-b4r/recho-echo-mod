@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v45 / Echo stage 53 | **Favourites is a row in Files' drive list**, under Internal and SD card (▶‖ plays `FAVORITE.M3U`); the *Favourites* folder is no longer needed (removed from both players) | built, verified |
 | v44 | Files always opens on the drive list (Internal / SD card), cursor on Internal; off-state charging screen about 60 % size, centred (Mini) | built, verified |
 | v43 | **play favourites from Files:** ▶‖ on the *Favourites* folder at the top of the drive queues `FAVORITE.M3U` with RECHO's own queue builder; USB disk left with Back only, its screen says "or press back" | built, verified |
 | v42 | **favourites:** hold ≡ on Now Playing adds / removes the song, a heart after the title, saved as `FAVORITE.M3U` (a playlist phones read); Bluetooth diagnostic logging removed (raw capture, register and pin dumps, every module message; earbud buttons still logged) | built, verified |

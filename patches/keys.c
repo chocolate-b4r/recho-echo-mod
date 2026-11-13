@@ -169,52 +169,62 @@ void play_all_tick(void)
 }
 
 /*
- * Files: a folder named "Favourites" (or "Favorites") at the top of the internal drive plays
- * FAVORITE.M3U instead of opening (favs.c builds the queue). Files' screen descriptor key handler
- * (m44 0x307B5A8 = 0x307AE11) is files_key; it takes ▶‖ only when Files shows the top folder
- * (depth 0, not the drive list) and the entry under the cursor is that folder. Everything else,
- * and anything that does not match, goes to RECHO's handler, so the folder then simply opens.
- *   0x030399D0  Files state: [0] cursor, [4] folder depth
- *   0x03085BD0  listing: [1] entries; entry i at +20i: +24 name (pool at +0x298), +43 type (0 folder)
- *   0x0303AB30  m44: 1 while the drive list (Internal / SD card) is shown
+ * Files: the drive list has a third row, Favourites, under Internal and SD card; ▶‖ on it plays
+ * FAVORITE.M3U (favs.c builds the queue). RECHO's drive list knows two rows only: its draw loop
+ * draws drives 0 and 1, and up / down set the cursor straight to 0 or 1. So, while the drive list
+ * shows, files_key moves the cursor over the three rows itself and takes ▶‖ on row 2; files_draw
+ * runs RECHO's draw, then adds the row in RECHO's own style (20 px rows from the panel top + 22,
+ * highlight 0x24DF with black text, else 0xF79E, chevron glyph on the right).
+ *   m44 BROWSE descriptor 0x307B58C: +28 key (0x307AE11) -> files_key, +36 draw (0x307A911) -> files_draw
+ *   0x030399D0  Files state: [0] cursor          0x0303AB30  1 while the drive list shows
  */
-#define files_key_orig FN(0x0307AE10, int (*)(const unsigned char *ev))
-#define FILES_STATE    ((const volatile u32 *)lit(0x030399D0u))
-#define LISTING        ((const volatile unsigned char *)lit(0x03085BD0u))
-#define DRIVE_LIST     REG(0x0303AB30)
-
-static int is_favourites(const volatile unsigned char *s)
-{
-    static const char A[] = "favourites", B[] = "favorites";
-    int ia = 1, ib = 1, i = 0;
-    for (; s[i] && i < 12; i++) {
-        unsigned char c = s[i];
-        if (c >= 'A' && c <= 'Z')
-            c = (unsigned char)(c + 32);
-        if (i >= 10 || c != (unsigned char)A[i])
-            ia = 0;
-        if (i >= 9 || c != (unsigned char)B[i])
-            ib = 0;
-    }
-    return (ia && i == 10) || (ib && i == 9);
-}
+#define files_key_orig  FN(0x0307AE10, int (*)(const unsigned char *ev))
+#define files_draw_orig FN(0x0307A910, void (*)(void))
+#define key_dir         FN(0x03059F74, int (*)(int key))       /* list step of a key: <0 up, >0 down, 0 none */
+#define screen_redraw   FN(0x0305C51C, void (*)(const void *desc))
+#define panel_rect      FN(0x0305C428, const int *(*)(void))    /* x0, y0, x1, y1 of the list panel */
+#define draw_text       FN(0x03058D84, int (*)(int font, int x, int y, const char *s, int maxw, u32 fg, int bg))
+#define draw_right      FN(0x03059CFE, int (*)(int y, const char *s, u32 fg))
+#define fill_rect       FN(0x0306BF2C, void (*)(int, int, int, int, u32))
+#define FILES_CURSOR    REG(0x030399D0)
+#define DRIVE_LIST      REG(0x0303AB30)
+#define BROWSE_DESC     ((const void *)lit(0x0307B58Cu))
 
 int files_key(const unsigned char *ev)
 {
     extern volatile u32 fav_play_request;
-    if (ev[0] == 4 && !DRIVE_LIST && FILES_STATE[4] == 0u) {
-        u32 cur = FILES_STATE[0], count = *(const volatile u32 *)(LISTING + 4);
-        if (cur < count && cur < 256u) {
-            const volatile unsigned char *e = LISTING + 20u * cur;
-            u32 name = *(const volatile u32 *)(e + 24);
-            if (e[43] == 0u && name < 4096u && is_favourites(LISTING + 0x298u + name)) {
-                if (ev[1] == 2u || ev[1] == 3u)               /* tap or hold: play the list */
-                    fav_play_request = 1;
-                return 1;                                     /* press / repeat: nothing */
+    if (DRIVE_LIST) {
+        u32 cur = FILES_CURSOR;
+        if (ev[0] == 4 && cur == 2u) {
+            if (ev[1] == 2u || ev[1] == 3u)                   /* tap or hold: play the list */
+                fav_play_request = 1;
+            return 1;                                         /* press / repeat: nothing */
+        }
+        if (ev[1] == 1u || ev[1] == 4u) {                     /* press / repeat: move */
+            int d = key_dir(ev[0]);
+            if (d) {
+                FILES_CURSOR = d > 0 ? (cur < 2u ? cur + 1u : 2u) : (cur ? cur - 1u : 0u);
+                screen_redraw(BROWSE_DESC);
+                return 1;
             }
         }
     }
     return files_key_orig(ev);
+}
+
+void files_draw(void)
+{
+    files_draw_orig();
+    if (!DRIVE_LIST)
+        return;
+    int y = panel_rect()[1] + 22 + 2 * 20;
+    u32 fg = 0xF79E;
+    if (FILES_CURSOR == 2u) {
+        fill_rect(8, y, 311, y + 19, 0x24DF);
+        fg = 0;
+    }
+    draw_text(1, 12, y + 2, "Favourites", 280, fg, -1);
+    draw_right(y, "\xee\x80\x9a", fg);
 }
 
 /* Files always opens on the drive list (Internal / SD card), cursor on Internal, not where it was

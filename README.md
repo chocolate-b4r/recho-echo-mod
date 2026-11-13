@@ -53,7 +53,7 @@ belongs to RECHO first: get it from [its site](https://recho.atzkey.workers.dev/
 | Pixel-art main menu: Files · USB disk · Now Playing · Bluetooth · Settings | ✅ | ✅ |
 | **Hold ▶‖ on Files** in the main menu: play every song | ✅ | ✅ |
 | **↩ leaves USB disk** (the screen stays on), back to the main menu | ✅ | ✅ |
-| **Favourites:** hold ≡ on Now Playing, a heart after the title, play them from a *Favourites* folder in Files; saved as `FAVORITE.M3U` (phones read it) | ✅ | ✅ |
+| **Favourites:** hold ≡ on Now Playing, a heart after the title, play them from the *Favourites* row in Files; saved as `FAVORITE.M3U` (phones read it) | ✅ | ✅ |
 | Terminal-style boot screen in RECHO's own font | ✅ | ✅ |
 | Off-state charging screen and charging animation | ✅ | ✅ |
 | Cable chooser *Charge only / USB disk*, idle 5 s = power off into the charging screen | ✅ | ✅ |

@@ -180,10 +180,15 @@ Messages use RECHO's bar message (`0x305A874`, 2 s): the Echo's strip, the Mini'
 
 ### Playing favourites from Files (`files_key`, `play_list`)
 
-Files' screen descriptor key handler (m44 `0x307B5A8`, RECHO's `0x307AE11`) is `files_key` (`keys.c`).
-It takes ▶‖ only when Files shows the top folder (state `0x030399D0` +16 = 0, the drive list
-`0x0303AB30` not shown) and the entry under the cursor (listing `0x03085BD0`, entry +43 = 0: a folder)
-is named *Favourites* or *Favorites*; everything else goes to RECHO. `play_list` (`favs.c`) then does
+Files' drive list (Internal / SD card, shown while `0x0303AB30` = 1) gets a third row, *Favourites*.
+RECHO's draw (m44 `0x307A910`) loops over drives 0 and 1 only, 20 px rows from the list panel's top
+(`0x305C428()[1]`) + 22, and its up / down step (`0x307AC18`) sets the cursor straight to 0 or 1. So
+the BROWSE descriptor's draw (`0x307B5B0`, RECHO's `0x307A911`) is `files_draw`, which runs RECHO's
+draw and then adds the row in its style: highlight `0x24DF` with black text, else `0xF79E`, the chevron
+glyph right-aligned with `0x3059CFE`. The key handler (`0x307B5A8`, RECHO's `0x307AE11`) is `files_key`
+(`keys.c`): on the drive list it moves the cursor over the three rows itself (`0x3059F74` gives a key's
+step, `0x305C51C(0x307B58C)` redraws) and takes ▶‖ on row 2; everything else goes to RECHO.
+`play_list` (`favs.c`) then does
 what Files does for a folder (`0x307A278`): `0x305B3AC` starts a queue, each line of `FAVORITE.M3U` is
 walked folder by folder with `0x30638FC` (find a name in a folder, cluster at record +260) and added with
 `0x3063F74(queue, 0, folder, record, "/A/B/")`, then `0x305B3F0(-1, "Favourites")` finishes it and Now
