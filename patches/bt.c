@@ -632,20 +632,64 @@ static void follow_player(u32 now)
  * match_stock_housekeeping() (board/bluetooth.c), Echo pins from Podium's board_pins.c. */
 extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
 extern volatile u32 echo_mute_level, echo_wired_level, echo_dacb_level;   /* echo_port.c: RECHO's last requests */
-STATE volatile u32 bt_stock_done = 0;
 #define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
-/* Test build 2: each time streaming starts, the next routing variant is tried and logged.
- * Round 1 (GPIO2.1 high with GPIO2.14 low or untouched, GPIO2.9 low or not) was silent, and
- * GPIO2.1 already reads high while the jacks play, so this round tries it low:
- *   0  GPIO2.1 low,  GPIO2.14 low
- *   1  GPIO2.1 low,  GPIO2.14 untouched
- *   2  GPIO2.1 high, GPIO2.14 untouched, GPIO2.2 (DAC B enable) low
- *   3  GPIO2.1 low,  GPIO2.14 low,       GPIO2.2 low */
-#define V_MUTE_HIGH(v)  ((v) == 2u || (v) == 4u)
-#define V_WIRED_LOW(v)  ((v) == 0u || (v) == 3u || (v) == 4u)   /* 4: Podium's routing, the default */
-#define V_DACB_LOW(v)   ((v) == 2u || (v) == 3u)
-STATE volatile u32 bt_variant = 4;      /* both test rounds were silent: Podium's routing, fixed */
-STATE volatile u32 bt_variant_used = 0;
+
+/* Stock's start-up settings (Podium / EchoPod match_stock_housekeeping): register, write.
+ * All six are write-masked registers: the high half says which low bits the write sets. In
+ * Podium nothing else touches them; under RECHO something rewrites at least GRF +0xC4 (seen
+ * going f040 -> 3040 between routes). Test: apply them on every route, check them once a second
+ * while routed, log what changed and apply them again. */
+static const u32 STOCK[6][2] = {
+    {0x500100C4u, 0x00010000u},           /* GRF +0xC4 bit 0 cleared */
+    {0x40180084u, 0x00920092u},           /* CRU gates 0x11, 0x14, 0x17 off */
+    {0x401800A0u, 0x00020002u},           /* CRU gate 0x81 off */
+    {0x401800C0u, 0x00680068u},           /* I2S0 and SPI0/1 held in reset */
+    {0x50010014u, 0x00200020u},           /* GRF pull GPIO0.13 as stock */
+    {0x50010054u, 0x00010001u}};          /* GRF pull GPIO2.8 as stock */
+STATE volatile u32 bt_watch_at = 0;
+STATE volatile u32 bt_watch_n = 0;
+STATE volatile u32 bt_fixes = 0;
+
+static u32 stock_wrong(void)              /* bit i set: register i no longer holds stock's bits */
+{
+    u32 bad = 0;
+    for (u32 i = 0; i < 6u; i++) {
+        u32 w = STOCK[i][1], mask = w >> 16;
+        if ((REG(STOCK[i][0]) & mask) != (w & mask))
+            bad |= 1u << i;
+    }
+    return bad;
+}
+
+static void stock_log(const char *why, u32 bad)
+{
+    if (LOG_TO_FILE)
+        log_printf("bt: stock %s: GRF+C4 %08x CRU+84 %08x +A0 %08x +C0 %08x GRF+14 %08x +54 %08x wrong %02x fixes %u",
+                   why, REG(0x500100C4), REG(0x40180084), REG(0x401800A0), REG(0x401800C0),
+                   REG(0x50010014), REG(0x50010054), bad, bt_fixes);
+}
+
+static void stock_write(void)
+{
+    for (u32 i = 0; i < 6u; i++)
+        REG(STOCK[i][0]) = STOCK[i][1];
+}
+
+/* while routed: once a second; logs at 1 s and 5 s, and whenever RECHO changed one back */
+static void stock_watch(u32 now)
+{
+    if (now - bt_watch_at < 1000u)
+        return;
+    bt_watch_at = now;
+    bt_watch_n++;
+    u32 bad = stock_wrong();
+    if (bad || bt_watch_n == 1u || bt_watch_n == 5u)
+        stock_log(bad ? "changed back" : (bt_watch_n == 1u ? "after 1 s" : "after 5 s"), bad);
+    if (bad) {
+        stock_write();
+        bt_fixes++;
+    }
+}
 
 /* full snapshot while streaming (read only): GRF and CRU 0x000-0x0FC, GPIO data / direction */
 STATE volatile u32 bt_dumps = 0;
@@ -673,8 +717,8 @@ static void log_audio_state(const char *when)
 {
     if (!LOG_TO_FILE)
         return;
-    log_printf("bt: %s variant %u: I2S1 TXCR %08x RXCR %08x CKR %08x XFER %08x DMACR %08x FIFOLR %08x",
-               when, bt_variant_used, REG(0x40030000), REG(0x40030004), REG(0x40030008), REG(0x4003001C),
+    log_printf("bt: %s: I2S1 TXCR %08x RXCR %08x CKR %08x XFER %08x DMACR %08x FIFOLR %08x",
+               when, REG(0x40030000), REG(0x40030004), REG(0x40030008), REG(0x4003001C),
                REG(0x40030010), REG(0x4003000C));
     log_printf("bt: %s pins 0.14=%u 2.0=%u 2.1=%u 2.2=%u 2.9=%u 2.14=%u 1.4=%u GRF+BC %08x +C4 %08x",
                when, gpio_read_pin(0, 14), gpio_read_pin(2, 0), gpio_read_pin(2, 1), gpio_read_pin(2, 2),
@@ -685,35 +729,19 @@ void bt_route(u32 on)
 {
     if ((on != 0u) == (bt_routed != 0u))
         return;
-    if (on && !bt_stock_done) {
-        bt_stock_done = 1;
-        if (LOG_TO_FILE)
-            log_printf("bt: before stock settings GRF+C4 %08x CRU+84 %08x +A0 %08x +C0 %08x",
-                       REG(0x500100C4), REG(0x40180084), REG(0x401800A0), REG(0x401800C0));
-        REG(0x500100C4) = 0x00010000u;            /* GRF +0xC4 bit 0 cleared */
-        REG(0x40180084) = 0x00920092u;            /* gates 0x11, 0x14, 0x17 off */
-        REG(0x401800A0) = 0x00020002u;            /* gate 0x81 off */
-        REG(0x401800C0) = 0x00680068u;            /* I2S0 and SPI0/1 held in reset */
-        REG(0x50010014) = 0x00200020u;            /* jack sense pulls as stock */
-        REG(0x50010054) = 0x00010001u;
-    }
     if (on) {
-        bt_variant_used = bt_variant;
+        stock_log("before route", stock_wrong());
+        stock_write();                            /* every route, not just the first */
+        bt_watch_at = ms_now();
+        bt_watch_n = 0;
         log_audio_state("before");
     }
-    u32 v = bt_variant_used;
-    /* bt_routed: bit 0 routed, bit 1 GPIO2.14 untouched, bit 2 GPIO2.1 held low */
-    bt_routed = on ? (1u | (V_WIRED_LOW(v) ? 0u : 2u) | (V_MUTE_HIGH(v) ? 0u : 4u)) : 0u;
+    bt_routed = on ? 1u : 0u;                     /* Podium: DAC mute GPIO2.1 high, GPIO2.14 low */
     bt_changed_at = ms_now();
-    gpio_set_orig(2, 1, on ? (V_MUTE_HIGH(v) ? 1u : 0u) : echo_mute_level);
-    if (!on || V_WIRED_LOW(v))
-        gpio_set_orig(2, 14, on ? 0u : echo_wired_level);
-    if (on && V_DACB_LOW(v))
-        gpio_set_orig(2, 2, 0);
-    else if (!on)
-        gpio_set_orig(2, 2, echo_dacb_level);
+    gpio_set_orig(2, 1, on ? 1u : echo_mute_level);
+    gpio_set_orig(2, 14, on ? 0u : echo_wired_level);
     if (LOG_TO_FILE)
-        log_printf("bt: route %s (variant %u)", on ? "to the headphones" : "to the jacks", v);
+        log_printf("bt: route %s", on ? "to the headphones" : "to the jacks");
     if (on) {
         log_audio_state("after");
         dump_regs();
@@ -777,6 +805,10 @@ void bt_tick(void)
     raw_flush(now);
     if (bt_state == CONNECTED)
         follow_player(now);
+#ifdef ECHO_PORT
+    if (bt_routed)
+        stock_watch(now);                         /* test: does RECHO undo stock's settings? */
+#endif
     u32 period = bt_state == CONNECTING ? QUERY_FAST_MS : QUERY_MS;
     if (now - bt_last_query >= period && (int)(now - bt_quiet_until) >= 0) {
         bt_last_query = now;

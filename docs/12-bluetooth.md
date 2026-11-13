@@ -187,6 +187,17 @@ might. The dump above shows GRF `+0xC4` reading `f040` on the first route and `3
 ones, so RECHO does rewrite at least that register between routes. Their notes also say it is not
 known which of the six writes is needed.
 
-**Next experiment:** apply the six writes on every route (not once), log them again 1 s and 5 s
-into the stream to see what RECHO changes back, and keep re-applying them while routed. If that
-plays, narrow down which register matters.
+**Test build (Echo stage 45):** the six writes are applied on every route (not once), checked
+once a second while routed, and applied again whenever one has changed. The log (Settings → Log
+to file) shows:
+
+```
+bt: stock before route: GRF+C4 … CRU+84 … +A0 … +C0 … GRF+14 … +54 … wrong 00 fixes 0
+bt: stock after 1 s: …
+bt: stock changed back: … wrong 01 fixes 0      <- bit i = which of the six RECHO undid
+bt: stock after 5 s: …
+```
+
+`wrong` is a bit per register in the order GRF `+0xC4`, CRU `+0x84`, `+0xA0`, `+0xC0`, GRF
+`+0x14`, `+0x54`. If it plays now, narrow down which register matters; if it stays silent with
+`wrong 00` throughout, the settings are not the cause.

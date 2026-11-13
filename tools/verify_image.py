@@ -60,7 +60,7 @@ BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
 SHARED_CONSTS = {0x564F5046,   # not addresses: "VOPF", "SFMD" and the first 16 bytes of m44's folder-tree routine
                  0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
-              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick"}   # + one line per track from the lyrics loader (Log to file on)
+              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick", "stock_log"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
