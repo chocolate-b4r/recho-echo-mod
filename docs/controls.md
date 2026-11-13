@@ -45,8 +45,10 @@ Holding <kbd>≡</kbd> on any screen other than Now Playing goes straight to the
 | <kbd>≡</kbd> | Files | Settings |
 | <kbd>+</kbd> <kbd>−</kbd> | volume up / down | keeps changing |
 
-The volume shows in the top bar next to the output, for example `3.5 mm · 62 dB`, or
-`BT <headphones> · 62 dB` in green on Bluetooth. RECHO's quietest step reads 0 dB.
+The volume shows in the top bar before the output, for example `62 dB · 3.5 mm`, or
+`62 dB · BT <headphones>` in green on Bluetooth. RECHO's quietest step reads 0 dB. The battery %
+(Mini: top bar, Echo: Up Next) is green while the cable is in, amber at 35 % or less, red at 15 % or
+less.
 
 ## Main menu
 

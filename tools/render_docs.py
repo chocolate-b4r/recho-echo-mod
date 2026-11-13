@@ -89,8 +89,8 @@ QUEUE = ["Next Artist - Opening Track", "Next Artist - Second Song", "Another Ba
 
 def now_playing_mini():
     sc = Screen(320, 170)
-    top_bar(sc, 0, "3.5 mm \u00b7 62 dB", last="87%")
-    sc.text("sym", 320 - 8 - sc.width(1, "87%") - 8 - sc.width(1, "3.5 mm \u00b7 62 dB") - 6, 10, "\u21c4", SOFT, "rm")
+    top_bar(sc, 0, "62 dB \u00b7 3.5 mm", last="87%")
+    sc.text("sym", 320 - 8 - sc.width(1, "87%") - 8 - sc.width(1, "62 dB \u00b7 3.5 mm") - 6, 10, "\u21c4", SOFT, "rm")
     y = 36
     sc.text(1, 8, y, "Artist Name", SOFT)
     sc.text(1, 8, y + 20, "A Song Title That", WHITE)
@@ -107,9 +107,9 @@ def now_playing_mini():
 
 def now_playing_echo():
     sc = Screen(480, 222)
-    top_bar(sc, 0, "3.5 mm \u00b7 62 dB")
+    top_bar(sc, 0, "62 dB \u00b7 3.5 mm")
     sc.text(1, 160, 34, "Artist Name", SOFT, "mm")
-    sc.text(2, 160, 60, "Song Title", WHITE, "mm")
+    sc.text(2, 160, 58, "Song Title", WHITE, "mm")
     sc.text(1, 160, 82, "Album Name", GREY, "mm")
     sc.text(1, 160, 102, "FLAC  44.1 kHz \u00b7 24 bit \u00b7 1682 kbps \u00b7 9/10", GREY, "mm")
     sc.rect(60, 118, 259, 118, RULE)

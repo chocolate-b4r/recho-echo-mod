@@ -14,6 +14,28 @@ own copy of RECHO 0.10.1 and get a new image that a verifier checks byte by byte
 </tr>
 </table>
 
+## Built on RECHO
+
+This project is **RECHO with a layer of patches on top**, not a firmware of its own. Everything that
+makes the player a player is RECHO's work: audio decoding and gapless playback, the file system and
+SD card, the queue and its shuffle order, tags, settings, USB disk mode, the updater, power
+management, the display driver, the fonts and icons, and the Files, Settings and menu screens. The
+mod replaces how a few screens look, remaps some keys and adds small features, and it does that by
+calling RECHO's own routines.
+
+| | Echo Mini image | Echo image |
+|---|---:|---:|
+| bytes that differ from RECHO 0.10.1 | 28,715 of 5,242,884 (0.55 %) | 34,136 of 5,242,884 (0.65 %) |
+| of which the mod's own code (in a free area of RECHO's image) | 16,147 | 21,519 |
+| of which two RECHO modules blanked (Spectrum, Debug) | 11,516 | 11,516 |
+| RECHO routines the mod's code calls | 49 | 53 |
+
+Even the new screens are drawn with RECHO's text and rectangle routines and RECHO's fonts; the
+boot screen's 32 glyphs are copied out of RECHO's large font at build time. The full-size Echo port
+runs RECHO's unchanged player on different hardware. RECHO is the work of its author, who is not
+involved in this project and has not endorsed it. If you like what the players do, the credit
+belongs to RECHO first: get it from [its site](https://recho.atzkey.workers.dev/).
+
 > [!WARNING]
 > **Use at your own risk.** Flashing custom firmware can leave a player unable to start until it is
 > recovered over USB. Read [docs/10-install-and-recovery.md](docs/10-install-and-recovery.md) before
@@ -26,7 +48,8 @@ own copy of RECHO 0.10.1 and get a new image that a verifier checks byte by byte
 | **Now Playing** redrawn: artist, song, album, file details with queue position (`9/10`) | ✅ | ✅ |
 | Up Next list in play order (shuffle included) | ✅ right half | ✅ side column |
 | Song title doubled when it fits, live lyrics from `.lrc` files | | ✅ |
-| Volume in the top bar next to the output (`3.5 mm · 62 dB`), shown from 0 dB | ✅ | ✅ |
+| Volume in the top bar before the output (`62 dB · 3.5 mm`), shown from 0 dB | ✅ | ✅ |
+| Battery % green while charging, amber / red when low | ✅ top bar | ✅ Up Next |
 | Pixel-art main menu: Files · USB disk · Now Playing · Bluetooth · Settings | ✅ | ✅ |
 | **Hold ▶‖ on Files** in the main menu: play every song | ✅ | ✅ |
 | **↩ leaves USB disk** (the screen stays on) | ✅ | ✅ |
@@ -101,7 +124,7 @@ Details, maskrom recovery and the exact commands: [docs/10-install-and-recovery.
 | 🛟 | [10 Install and recovery](docs/10-install-and-recovery.md) | Flashing, maskrom, rkdeveloptool, Zadig |
 | 🧩 | [11 Tweaking guide](docs/11-tweaking.md) | How to add your own patch safely |
 | 🎧 | [12 Bluetooth](docs/12-bluetooth.md) | Bluetooth work in progress and the hardware facts |
-| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v37, Echo stages 1–40 |
+| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v38, Echo stages 1–41 |
 
 ## Repository layout
 

@@ -110,6 +110,7 @@ static const char *output_name(void)
 
 #ifndef ECHO_PORT
 static char *put_pct(char *p, char *end);
+static u32 pct_colour(void);
 STATE char pct_buf[8] = {0};
 
 /* Mini menu bar: battery as "88%" instead of RECHO's level glyph (patched at 0x3059474) */
@@ -760,7 +761,7 @@ void np_draw(void)
         char pct[8];
         char *q = put_pct(pct, pct + 7);
         *q = 0;
-        top_bar_2(qpos, right_colour, pct, WHITE);
+        top_bar_2(qpos, right_colour, pct, pct_colour());
     }
 #endif
 
@@ -782,7 +783,7 @@ void np_draw(void)
         if (!text2x_line(W / 2, 36, artist, c_art, title, c_title)) {
             if (artist && *artist && title && *title && text_width(1, title) <= 150) {
                 text_centred(1, W / 2, 34, artist, 300, c_art);     /* artist over a 2x title */
-                text2x_line(W / 2, 44, 0, 0, title, c_title);
+                text2x_line(W / 2, 42, 0, 0, title, c_title);
             } else {
                 track_line(52, paused);
             }
@@ -948,6 +949,15 @@ static char *put_pct(char *p, char *end)
     p = put_num(p, pct, end);
     return put_str(p, "%", end);
 }
+
+/* battery % colour, as the Echo's Up Next header: green on the cable, red <= 15 %, amber <= 35 % */
+static u32 pct_colour(void)
+{
+    int pm = BATTERY[1];
+    if (BATTERY[3] != 0)
+        return GREEN;
+    return pm <= 150 ? RED : (pm <= 350 ? AMBER : WHITE);
+}
 #endif
 
 /* ---- HINTS layer -------------------------------------------------------------------- */
@@ -1011,27 +1021,30 @@ static void text2x(int x, int y_top, const char *s, u32 c)
         }
 }
 
-/* right side of the top bars: "BT <headphones>" in green, or the output in use, then the
- * volume as RECHO's dB + 90 ("3.5 mm Â· 62 dB", "muted") */
+/* right side of the top bars: the volume as RECHO's dB + 90, then the output in use
+ * ("62 dB . 3.5 mm", "muted . 4.4 mm"); "BT <headphones>" in green while Bluetooth is connected */
 static const char *output_label(char *buf, int n, u32 *colour)
 {
     char *p = buf, *e = buf + n - 1;
     *colour = SOFT;
-    if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
-        p = put_str(p, "BT ", e);
-        p = put_str(p, bt_conn_name, e);
-        *colour = GREEN;
-    } else if (queue_loaded()) {
-        p = put_str(p, output_name(), e);
-    }
-    if (p != buf)
-        p = put_str(p, SEP, e);
     int db = VOLUME_DB;
     if (db <= -128) {
         p = put_str(p, "muted", e);
     } else {
         p = put_num(p, (u32)(db + 90 > 0 ? db + 90 : 0), e);
         p = put_str(p, " dB", e);
+    }
+    if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
+        p = put_str(p, SEP, e);
+        p = put_str(p, "BT ", e);
+        p = put_str(p, bt_conn_name, e);
+        *colour = GREEN;
+    } else if (queue_loaded()) {
+        const char *o = output_name();
+        if (o && *o) {
+            p = put_str(p, SEP, e);
+            p = put_str(p, o, e);
+        }
     }
     *p = 0;
     return buf;
@@ -1212,7 +1225,7 @@ void menu_draw(void)
         }
         q = put_str(q, r, lead + 63);
         *q = 0;
-        top_bar_2(lead, rc, pct, WHITE);
+        top_bar_2(lead, rc, pct, pct_colour());
     }
 #endif
 

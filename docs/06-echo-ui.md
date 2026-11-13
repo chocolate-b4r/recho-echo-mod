@@ -40,9 +40,10 @@ on RECHO's slow GPIO fallback the top bar says **Safe display: restart** in ambe
 
 ## Top bars (both players)
 
-`21:47 | Fri 13 Nov` on the left; on the right the output and the volume, `3.5 mm · 62 dB`
-(`BT <headphones> · 62 dB` in green while Bluetooth is connected, `muted` at −128). The Mini adds the
-play-mode glyph in front and the battery % in white at the far right; the Echo shows the battery in
+`21:47 | Fri 13 Nov` on the left; on the right the volume, then the output: `62 dB · 3.5 mm`
+(`62 dB · BT <headphones>` in green while Bluetooth is connected, `muted` at −128). The Mini adds the
+play-mode glyph in front and the battery % at the far right, coloured like the Echo's: green on the
+cable, red at 15 % or less, amber at 35 % or less, white otherwise. The Echo shows the battery in
 Up Next instead.
 
 | Piece | Source |
@@ -79,7 +80,7 @@ read) and cached in free RAM (`0x03044000`, 9 × 64 B). It runs only while Now P
 | Element | Rows (picture) | Source / rule |
 |---|---|---|
 | `Artist - Song` at 2x | 36..67 | the large font rendered once, then copied at 2x (fits in 150 px) |
-| or: artist over a 2x song | 34 / 44..75 | when the pair is too wide but the song alone fits |
+| or: artist over a 2x song | 34 / 42..73 | when the pair is too wide but the song alone fits |
 | or: `Artist - Song` at 1x | 52 | |
 | album | 82 | tag record `0x305A8F8`, else the folder name |
 | file details | 102 | `FLAC  44.1 kHz · 24 bit · 1682 kbps · 9/10`: format record, average bitrate from size and length, play-order position |
