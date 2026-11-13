@@ -60,14 +60,19 @@ BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
 SHARED_CONSTS = {0x564F5046,   # not addresses: "VOPF", "SFMD" and the first 16 bytes of m44's folder-tree routine
                  0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
-              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick", "stock_log"}   # + one line per track from the lyrics loader (Log to file on)
+              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick", "step_log"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
            0x40180038, 0x40180084, 0x401800A0, 0x401800C0,
            0x500100C4, 0x50010014, 0x50010054,   # stock's start-up settings applied once before streaming (Podium)
            0x40030000, 0x40030004, 0x40030008, 0x4003000C, 0x40030010, 0x4003001C,  # I2S1, read for the log only
-           0x50010000, 0x40180000, 0x40160000, 0x40170000, 0x50030000}  # GRF / CRU / GPIO bases: read-only dump
+           0x50010000, 0x40180000, 0x40160000, 0x40170000, 0x50030000,  # GRF / CRU / GPIO bases: read-only dump
+           # Bluetooth step test (stage 46): set to Podium's streaming values, restored after
+           0x40180080, 0x40180088, 0x40180090, 0x40180094, 0x40180098,  # CRU clock gates
+           0x401800C4, 0x401800C8, 0x401800CC,                          # CRU soft resets
+           0x40160004, 0x50030004,                                      # GPIO0 / GPIO2 direction
+           0x50010020, 0x50010024, 0x50010044, 0x50010080, 0x50010088, 0x5001008C, 0x500100B4}  # GRF pin functions
 ALLOWED_CALLS |= BT_CALLS
 ALLOWED_DATA |= BT_DATA
 

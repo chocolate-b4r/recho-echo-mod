@@ -225,3 +225,29 @@ if it is silent too, the Echo's routing is not what either project assumes.
 
 The Echo Mini build has no routing at all yet (streaming is hard-wired off), so it cannot play over
 Bluetooth whatever the settings.
+
+## Podium plays on this Echo: register comparison (2026-11-13)
+
+Podium 4.6.1 streams to the same earbuds on the same Echo, so the hardware path works. A Podium
+build with one addition (`dac_path_write_dump`, 5 s into the first stream; decoded by
+`tools/re/re_btdump.py`) recorded its state: [research/bt-dump-podium-streaming.txt](research/bt-dump-podium-streaming.txt).
+RECHO's state while routed (silent) is in [research/bt-dump-recho-routed.txt](research/bt-dump-recho-routed.txt).
+
+Same in both: I2S1 (`TXCR 401f`, `CKR 33f3f`), the six stock settings, GPIO2.1 / GPIO2.14 routing,
+GRF `+0xC4`. Different (Podium / RECHO):
+
+| Group | Registers | Podium | RECHO |
+|---|---|---|---|
+| clock gates | CRU `+0x80`–`+0xA0` | only 0x11, 0x14, 0x17, 0x81 gated | ~30 more gated |
+| soft resets | CRU `+0xC0`–`+0xCC` | `0068 0 0 0` | `026f 3230 00f0 0010` |
+| pins | GPIO0.12 / .15 / .24 / .25, GPIO2.9 | inputs | outputs (RECHO's Mini pin map) |
+| pin functions | GRF `+0x20 +0x24 +0x44 +0x80 +0x88 +0x8C +0xB4 +0xBC` | | differ |
+| clocks | CRU `+0x004` (PLL), `+0x014`, `+0x030` | | differ (not touched: changing the PLL can stop the player) |
+
+The DAC chips' registers were read on Podium only (both chips: `080000` = `10`, PCM volume
+`090001/2` = `1c`, power `020000` = `a6`); RECHO's side still needs its I2C routine found.
+
+**Step test (Echo stage 46):** while streaming, every 15 s the next group is set to Podium's value and
+logged (`bt: step N applied`): 1 clock gates, 2 soft resets, 3 the five pins to inputs, 4 GRF pin
+functions. The end of the stream restores RECHO's values (`bt: step 0 undone`). Pressing pause on
+the earbuds the moment sound starts puts a timestamp in the log (`rx P.`) next to the step that did it.

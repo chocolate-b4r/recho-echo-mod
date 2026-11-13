@@ -634,11 +634,8 @@ extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
 extern volatile u32 echo_mute_level, echo_wired_level, echo_dacb_level;   /* echo_port.c: RECHO's last requests */
 #define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
 
-/* Stock's start-up settings (Podium / EchoPod match_stock_housekeeping): register, write.
- * All six are write-masked registers: the high half says which low bits the write sets. In
- * Podium nothing else touches them; under RECHO something rewrites at least GRF +0xC4 (seen
- * going f040 -> 3040 between routes). Test: apply them on every route, check them once a second
- * while routed, log what changed and apply them again. */
+/* Stock's start-up settings (Podium / EchoPod match_stock_housekeeping), applied on every route.
+ * Test stage 45 showed RECHO already holds them and never changes them back. */
 static const u32 STOCK[6][2] = {
     {0x500100C4u, 0x00010000u},           /* GRF +0xC4 bit 0 cleared */
     {0x40180084u, 0x00920092u},           /* CRU gates 0x11, 0x14, 0x17 off */
@@ -646,28 +643,6 @@ static const u32 STOCK[6][2] = {
     {0x401800C0u, 0x00680068u},           /* I2S0 and SPI0/1 held in reset */
     {0x50010014u, 0x00200020u},           /* GRF pull GPIO0.13 as stock */
     {0x50010054u, 0x00010001u}};          /* GRF pull GPIO2.8 as stock */
-STATE volatile u32 bt_watch_at = 0;
-STATE volatile u32 bt_watch_n = 0;
-STATE volatile u32 bt_fixes = 0;
-
-static u32 stock_wrong(void)              /* bit i set: register i no longer holds stock's bits */
-{
-    u32 bad = 0;
-    for (u32 i = 0; i < 6u; i++) {
-        u32 w = STOCK[i][1], mask = w >> 16;
-        if ((REG(STOCK[i][0]) & mask) != (w & mask))
-            bad |= 1u << i;
-    }
-    return bad;
-}
-
-static void stock_log(const char *why, u32 bad)
-{
-    if (LOG_TO_FILE)
-        log_printf("bt: stock %s: GRF+C4 %08x CRU+84 %08x +A0 %08x +C0 %08x GRF+14 %08x +54 %08x wrong %02x fixes %u",
-                   why, REG(0x500100C4), REG(0x40180084), REG(0x401800A0), REG(0x401800C0),
-                   REG(0x50010014), REG(0x50010054), bad, bt_fixes);
-}
 
 static void stock_write(void)
 {
@@ -675,20 +650,64 @@ static void stock_write(void)
         REG(STOCK[i][0]) = STOCK[i][1];
 }
 
-/* while routed: once a second; logs at 1 s and 5 s, and whenever RECHO changed one back */
-static void stock_watch(u32 now)
+/* Step test (stage 46): Podium streams on this Echo, RECHO is silent. Its register dump 5 s into a
+ * stream (tools/re/re_btdump.py) differs from RECHO's in these registers. While streaming, every
+ * 15 s the next group is set to Podium's value and logged; the stream ending puts RECHO's back.
+ *   step 1  CRU clock gates  +0x80..+0xA0   (RECHO gates ~30 clocks Podium leaves running)
+ *   step 2  CRU soft resets  +0xC0..+0xCC   (RECHO holds ~15 blocks in reset)
+ *   step 3  pins RECHO drives and Podium doesn't: GPIO0.12/.15/.24/.25, GPIO2.9 -> inputs
+ *   step 4  GRF pin functions / pulls +0x20 +0x24 +0x44 +0x80 +0x88 +0x8C +0xB4 +0xBC
+ * Write-masked registers get 0xFFFF0000 | value; GPIO direction registers get bits cleared. */
+#define STEP_MS 15000u
+static const u32 STEPS[21][2] = {         /* address, Podium's value (GPIO: bits to clear) */
+    {0x40180080u, 0x0000u}, {0x40180084u, 0x0092u}, {0x40180088u, 0x0000u}, {0x40180090u, 0x0000u},
+    {0x40180094u, 0x0000u}, {0x40180098u, 0x0000u}, {0x401800A0u, 0x0002u},
+    {0x401800C0u, 0x0068u}, {0x401800C4u, 0x0000u}, {0x401800C8u, 0x0000u}, {0x401800CCu, 0x0000u},
+    {0x40160004u, 0x03009000u}, {0x50030004u, 0x00000200u},
+    {0x50010020u, 0x0055u}, {0x50010024u, 0x0040u}, {0x50010044u, 0x0050u}, {0x50010080u, 0x8518u},
+    {0x50010088u, 0x02A7u}, {0x5001008Cu, 0x0200u}, {0x500100B4u, 0x0000u}, {0x500100BCu, 0x0000u}};
+static const u8 STEP_END[4] = {7, 11, 13, 21};   /* first entry after each step */
+STATE volatile u32 bt_saved[21] = {0};
+STATE volatile u32 bt_step = 0;           /* steps applied so far (0..4) */
+STATE volatile u32 bt_step_at = 0;
+STATE volatile u32 bt_step_live = 0;
+
+static void step_log(const char *what)
 {
-    if (now - bt_watch_at < 1000u)
+    if (LOG_TO_FILE)
+        log_printf("bt: step %u %s: CRU+80 %08x +84 %08x +A0 %08x +C0 %08x +C4 %08x GPIO0 dir %08x GPIO2 dir %08x GRF+20 %08x +BC %08x",
+                   bt_step, what, REG(0x40180080), REG(0x40180084), REG(0x401800A0), REG(0x401800C0),
+                   REG(0x401800C4), REG(0x40160004), REG(0x50030004), REG(0x50010020), REG(0x500100BC));
+}
+
+static void steps_apply(u32 now)          /* while streaming: the next group every 15 s */
+{
+    if (bt_step >= 4u || now - bt_step_at < STEP_MS)
         return;
-    bt_watch_at = now;
-    bt_watch_n++;
-    u32 bad = stock_wrong();
-    if (bad || bt_watch_n == 1u || bt_watch_n == 5u)
-        stock_log(bad ? "changed back" : (bt_watch_n == 1u ? "after 1 s" : "after 5 s"), bad);
-    if (bad) {
-        stock_write();
-        bt_fixes++;
+    u32 from = bt_step ? STEP_END[bt_step - 1u] : 0u;
+    for (u32 i = from; i < STEP_END[bt_step]; i++) {
+        u32 a = STEPS[i][0], v = STEPS[i][1];
+        bt_saved[i] = REG(a);
+        if (a == 0x40160004u || a == 0x50030004u)
+            REG(a) = bt_saved[i] & ~v;
+        else
+            REG(a) = 0xFFFF0000u | v;
     }
+    bt_step++;
+    bt_step_at = now;
+    step_log("applied");
+}
+
+static void steps_undo(void)              /* stream ended: RECHO's values back, newest first */
+{
+    if (!bt_step)
+        return;
+    for (u32 i = STEP_END[bt_step - 1u]; i-- > 0u;) {
+        u32 a = STEPS[i][0];
+        REG(a) = (a == 0x40160004u || a == 0x50030004u) ? bt_saved[i] : (0xFFFF0000u | (bt_saved[i] & 0xFFFFu));
+    }
+    bt_step = 0;
+    step_log("undone");
 }
 
 /* full snapshot while streaming (read only): GRF and CRU 0x000-0x0FC, GPIO data / direction */
@@ -730,10 +749,7 @@ void bt_route(u32 on)
     if ((on != 0u) == (bt_routed != 0u))
         return;
     if (on) {
-        stock_log("before route", stock_wrong());
         stock_write();                            /* every route, not just the first */
-        bt_watch_at = ms_now();
-        bt_watch_n = 0;
         log_audio_state("before");
     }
     bt_routed = on ? 1u : 0u;                     /* Podium: DAC mute GPIO2.1 high, GPIO2.14 low */
@@ -762,6 +778,22 @@ void bt_tick(void)
         close_module();                           /* as the cable chooser opens */
         switch_screen(bt_screen);
     }
+#ifdef ECHO_PORT
+    {                                             /* step test: Podium's state, one group per 15 s */
+        u32 t = ms_now();
+        if (bt_routed && bt_streamed) {
+            if (!bt_step_live) {
+                bt_step_live = 1;
+                bt_step_at = t;
+                step_log("stream on");
+            }
+            steps_apply(t);
+        } else if (bt_step_live) {
+            bt_step_live = 0;
+            steps_undo();
+        }
+    }
+#endif
     if (bt_state == OFF)
         return;
     u32 now = ms_now();
@@ -805,10 +837,7 @@ void bt_tick(void)
     raw_flush(now);
     if (bt_state == CONNECTED)
         follow_player(now);
-#ifdef ECHO_PORT
-    if (bt_routed)
-        stock_watch(now);                         /* test: does RECHO undo stock's settings? */
-#endif
+
     u32 period = bt_state == CONNECTING ? QUERY_FAST_MS : QUERY_MS;
     if (now - bt_last_query >= period && (int)(now - bt_quiet_until) >= 0) {
         bt_last_query = now;

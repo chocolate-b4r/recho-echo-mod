@@ -56,6 +56,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 46 | Bluetooth step test: while streaming, every 15 s one group of registers is set to Podium's streaming state (clock gates, soft resets, five pins to inputs, GRF pin functions), restored when the stream ends; stage 45's watcher removed | built, verified |
 | 45 | Bluetooth test: stock's six start-up settings applied on every route (was once), checked once a second while routed, logged at 1 s / 5 s and whenever RECHO changes one back, then applied again; old routing-variant switch removed (fixed to Podium's routing) | built, verified |
 | 44 | clock fixes as Mini v40 | built, verified |
 | 43 | lyric 3 px lower (wrapped lyrics: first row 3 px, the second already ends on the last row); built with `icons/mod` (same icons, now in the repo) | built, verified |

@@ -128,7 +128,7 @@ Details, maskrom recovery and the exact commands: [docs/10-install-and-recovery.
 | 🎧 | [12 Bluetooth](docs/12-bluetooth.md) | Bluetooth work in progress and the hardware facts |
 | 🔬 | [13 Reverse engineering](docs/13-reverse-engineering.md) | Method, scripts (`tools/re/`), every finding with its evidence, how to replicate a build |
 | 📝 | [Echo port research notes](docs/research/echo-port-notes.md) | Sources, hardware facts Mini vs Echo, FiiO updater, RECHO RAM map |
-| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v40, Echo stages 1–45 |
+| 📜 | [CHANGELOG](docs/CHANGELOG.md) | Build history: Echo Mini v1–v40, Echo stages 1–46 |
 
 ## Repository layout
 
