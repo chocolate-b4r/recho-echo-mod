@@ -1,6 +1,6 @@
 /*
- * Favourites (both players): FAVORITE.M3U at the top of each drive (internal, SD card) holds that
- * drive's favourite songs.
+ * Favourites (both players): FAVORITE.M3U at the top of the internal drive. Songs on an SD card are
+ * listed there too, as "sd:" + their path on the card (RECHO.CFG marks the card the same way).
  *
  * Hold ≡ on Now Playing adds the song playing to the list or takes it off; a heart after the title
  * shows it is in the list. The file is a plain playlist that phones and computers read:
@@ -21,9 +21,9 @@
  *   0x3053BF4(volume, "NAME    EXT", buf, len)    write a whole file (RECHO saves RECHO.CFG with it)
  * The list is kept within one 4 KB cluster: the write routine then overwrites in place, the path
  * RECHO itself uses for its settings. A longer list is refused ("Favourites full") rather than
- * taking the multi-cluster path RECHO never uses this way. An SD card's list is written the same
- * way to the card (4 KB is within one cluster of any FAT32 / exFAT card). Playing the favourites
- * queues the internal list, then the SD card's (RECHO's queue keeps the drive per song).
+ * taking the multi-cluster path RECHO never uses this way. Nothing is ever written to the SD card:
+ * RECHO cannot write exFAT cards ("exFAT (not supported here)"), and most cards over 32 GB are exFAT.
+ * Playing the favourites queues every line on its own drive (RECHO's queue keeps the drive per song).
  */
 typedef unsigned int u32;
 typedef unsigned char u8;
@@ -121,6 +121,11 @@ static u32 song_path(void *v)
     }
     char *out = FAV_PATH;
     u32 n = 0;
+    if (fav_vol) {                             /* SD card: "sd:" + the path on the card */
+        out[n++] = 's';
+        out[n++] = 'd';
+        out[n++] = ':';
+    }
     for (u32 i = start; i < len && n < PATH_MAX; i++) {
         char c = raw[i];
         if (c == '\r' || c == '\n')
@@ -182,7 +187,7 @@ static void redraw(void)
 __attribute__((noinline)) static void toggle(void)   /* the only file write: verifier checks it */
 {
     u32 plen = song_path(volume_of(0));
-    void *v = plen ? volume_of(fav_vol) : 0;
+    void *v = plen ? volume_of(0) : 0;
     if (!v) {
         bar_message("Favourites: no song to add");
         return;
@@ -236,22 +241,19 @@ __attribute__((noinline)) static void toggle(void)   /* the only file write: ver
  * finishes the queue, starts playing and Now Playing opens, as after holding ▶‖ on a folder. */
 __attribute__((noinline)) static void play_list(void)
 {
-    void *q = 0;
-    u32 added = 0, any = 0;
-    for (u32 vol = 0; vol < 2u; vol++) {
-    void *v = volume_of(vol);
-    u32 n = v ? list_load(v) : 0;
+    void *v0 = volume_of(0);
+    u32 n = v0 ? list_load(v0) : 0;
     if (n > FAV_MAX)
         n = FAV_MAX;
-    if (!n)
-        continue;
-    any = 1;
-    if (!q) {
-        M44_SD_FLAG = vol;                     /* the drive, as Files sets it */
-        q = queue_start();
-        if (!q)
-            return;                            /* RECHO showed why */
+    if (!n) {
+        bar_message("No favourites yet: hold \xe2\x89\xa1 on Now Playing");
+        return;
     }
+    M44_SD_FLAG = 0;                           /* internal drive, as Files sets it */
+    void *q = queue_start();
+    if (!q)
+        return;                                /* RECHO showed why */
+    u32 added = 0;
     const char *b = FAV_BUF;
     for (u32 i = 0; i < n;) {
         u32 e = i;
@@ -260,11 +262,17 @@ __attribute__((noinline)) static void play_list(void)
         u32 l = e;
         if (l > i && b[l - 1] == '\r')
             l--;
-        if (l > i && b[i] != '#') {            /* a song: "A/B/Song.flac" */
+        u32 vol = 0, i0 = i;
+        if (l > i + 3u && b[i] == 's' && b[i + 1] == 'd' && b[i + 2] == ':') {
+            vol = 1;                           /* "sd:A/B/Song.flac": on the card */
+            i0 = i + 3u;
+        }
+        void *v = volume_of(vol);
+        if (v && l > i0 && b[i] != '#') {      /* a song: "A/B/Song.flac" */
             char *dir = FAV_DIR;
-            u32 d = 0, folder = 0, s = i, ok = 1;
+            u32 d = 0, folder = 0, s = i0, ok = 1;
             dir[d++] = '/';
-            for (u32 k = i; k <= l && ok; k++) {
+            for (u32 k = i0; k <= l && ok; k++) {
                 if (k < l && b[k] != '/' && b[k] != '\\')
                     continue;
                 u32 len = k - s;
@@ -293,11 +301,6 @@ __attribute__((noinline)) static void play_list(void)
                 added++;
         }
         i = e + 1u;
-    }
-    }
-    if (!any) {
-        bar_message("No favourites yet: hold \xe2\x89\xa1 on Now Playing");
-        return;
     }
     if (!added) {
         queue_abandon();
@@ -332,7 +335,7 @@ void fav_tick(void)
     fav_key = key;
     u32 was = fav_is_current, is = 0;
     u32 plen = song_path(volume_of(0));
-    void *v = plen ? volume_of(fav_vol) : 0;
+    void *v = plen ? volume_of(0) : 0;
     if (v) {
         u32 n = list_load(v);
         if (n > FAV_MAX)

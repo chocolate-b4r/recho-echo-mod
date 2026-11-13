@@ -58,13 +58,16 @@ less.
 ## Favourites
 
 Hold <kbd>≡</kbd> on Now Playing, or with the screen off, to add the song playing to your favourites;
-hold it again to take it off. Songs on the internal storage and on an SD card both work. Each drive
-keeps its own list, a playlist file **`FAVORITE.M3U`** at the top of that drive:
+hold it again to take it off. Songs on the internal storage and on an SD card both work. The list
+is a playlist file, **`FAVORITE.M3U`**, at the top of the internal storage; SD card songs are in it
+as `sd:` + their path on the card (nothing is ever written to the card: RECHO can't write exFAT
+cards, which most cards over 32 GB are):
 
 ```
 #EXTM3U
 Halsey - Ashley.flac
 Music/Album/Song.flac
+sd:Albums/Song.flac
 ```
 
 - **It stays.** Firmware updates only write the firmware area, never your music drive, so the list
@@ -75,10 +78,12 @@ Music/Album/Song.flac
 - **You can edit it** in any text editor: one song per line, as its path from the top of the drive.
   Edit it on the computer, plug the player back in, and the hearts follow.
 - **Play them:** open **Files**; under **Internal** and **SD card** there is a third row,
-  **Favourites**. Press <kbd>▶‖</kbd> (tap or hold) on it: the player queues the internal list, then
-  the SD card's, and opens Now Playing; shuffle, repeat, Up Next and resume work as for any folder.
+  **Favourites**. Press <kbd>▶‖</kbd> (tap or hold) on it: the player queues every song in the list,
+  each from its own drive, and opens Now Playing; shuffle, repeat, Up Next and resume work as for any folder.
   Nothing has to be made on the drive for it.
-- **Limits:** up to 4 KB of list per drive, about 50–60 songs each; past that the player says
+- **Phones:** the `sd:` lines are the player's own mark, so a phone finds the internal songs but not
+  those.
+- **Limits:** up to 4 KB of list, about 50–60 songs; past that the player says
   *Favourites full* instead of risking the drive.
 
 ## Main menu
