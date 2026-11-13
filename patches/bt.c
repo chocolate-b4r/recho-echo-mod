@@ -633,11 +633,10 @@ static void follow_player(u32 now)
 extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
 extern volatile u32 echo_mute_level, echo_wired_level, echo_dacb_level;   /* echo_port.c: RECHO's last requests */
 #define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
-#define dac_read      FN(0x03055D70, int (*)(u32 chip, u32 map, u8 *value))   /* chip 0 = 0x60, 1 = 0x66; 0 = ok */
+#define dac_write     FN(0x03055C00, int (*)(u32 chip, u32 map, u32 value))   /* chip 0 = 0x60, 1 = 0x66 */
+#define VOLUME_DB_NOW (*(volatile int *)lit(0x030041D0u))                       /* RECHO: -90..0 dB, -128 mute */
 
-/* Stock's start-up settings (Podium / EchoPod match_stock_housekeeping), applied on every route.
- * Stage 45 showed RECHO already holds them; stage 46 set clocks, resets, pins and pin functions to
- * Podium's streaming values one group at a time: still silent. */
+/* Stock's start-up settings (Podium / EchoPod match_stock_housekeeping), applied on every route. */
 static const u32 STOCK[6][2] = {
     {0x500100C4u, 0x00010000u},           /* GRF +0xC4 bit 0 cleared */
     {0x40180084u, 0x00920092u},           /* CRU gates 0x11, 0x14, 0x17 off */
@@ -652,40 +651,31 @@ static void stock_write(void)
         REG(STOCK[i][0]) = STOCK[i][1];
 }
 
-/* Dump (stage 47): 5 s into each stream, the registers Podium's dump has and RECHO's did not:
- * both DAC chips (the same 34 maps as tools/re/re_btdump.py), I2S1, the ACODEC clock mux, the
- * clock registers CRU +0x004 / +0x014 / +0x030 and the GPIO levels. Compare with
- * docs/research/bt-dump-podium-streaming.txt. */
-static const u32 DAC_MAPS[34] = {
-    0x010001u, 0x010002u, 0x010003u, 0x010004u, 0x010006u, 0x01000Cu, 0x01000Du, 0x010010u,
-    0x020000u, 0x040010u, 0x040011u, 0x040012u, 0x040013u, 0x040014u, 0x040015u, 0x040016u,
-    0x040017u, 0x040018u, 0x040019u, 0x050000u, 0x050001u, 0x05000Au, 0x05000Bu, 0x080000u,
-    0x090000u, 0x090001u, 0x090002u, 0x090003u, 0x090004u, 0x0D0000u, 0x0D0001u, 0x0F0010u,
-    0x0F0011u, 0x180000u};
-STATE volatile u32 bt_dump_at = 0;
-STATE volatile u32 bt_dump_live = 0;
+/* The fix (stage 48). The Bluetooth module takes the DAC chips' analogue output. With nothing in
+ * either jack RECHO leaves both chips' PCM volume (0x090001 / 0x090002) at 0xFF = muted; Podium,
+ * which plays, had 0x1C (stage 47 dump vs Podium's). While streaming, both chips are kept at the
+ * user's volume: attenuation in 0.5 dB steps = -2 x RECHO's dB (shown +90), plus 13 steps (6.5 dB),
+ * EchoPod's "Standard" Bluetooth level, since nobody knows whether the module's input clips. */
+#define BT_EXTRA_STEPS 13
+STATE volatile u32 bt_vol_at = 0;
+STATE volatile u32 bt_vol_set = 0xFFFFFFFFu;
 
-static void stream_dump(void)
+static void bt_volume(u32 now)            /* while routed and streaming */
 {
-    if (!LOG_TO_FILE)
-        return;
-    log_printf("bt: dump I2S1 %08x %08x %08x %08x %08x %08x %08x %08x", REG(0x40030000), REG(0x40030004),
-               REG(0x40030008), REG(0x4003000C), REG(0x40030010), REG(0x40030014), REG(0x40030018), REG(0x4003001C));
-    volatile u32 *ac = (volatile u32 *)lit(0x40090200u);
-    log_printf("bt: dump ACODEC+200 %08x %08x %08x %08x %08x %08x %08x %08x", ac[0], ac[1], ac[2], ac[3], ac[4],
-               ac[5], ac[6], ac[7]);
-    log_printf("bt: dump CRU+004 %08x +014 %08x +030 %08x GPIO0 %08x GPIO1 %08x GPIO2 %08x", REG(0x40180004),
-               REG(0x40180014), REG(0x40180030), REG(0x40160000), REG(0x40170000), REG(0x50030000));
+    int db = VOLUME_DB_NOW;
+    u32 v = db <= -128 ? 0xFFu : (u32)(-2 * (db > 0 ? 0 : db)) + BT_EXTRA_STEPS;
+    if (v > 0xFFu)
+        v = 0xFFu;
+    if (v == bt_vol_set && now - bt_vol_at < 500u)
+        return;                           /* RECHO may write its mute back: refresh twice a second */
+    bt_vol_at = now;
     for (u32 c = 0; c < 2u; c++) {
-        u8 v[34];
-        for (u32 i = 0; i < 34u; i++)
-            if (dac_read(c, DAC_MAPS[i], &v[i]) != 0)
-                v[i] = 0xEE;                      /* read failed */
-        for (u32 i = 0; i < 34u; i += 17u)
-            log_printf("bt: dump DAC %u from %06x: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-                       c, DAC_MAPS[i], v[i], v[i + 1], v[i + 2], v[i + 3], v[i + 4], v[i + 5], v[i + 6], v[i + 7],
-                       v[i + 8], v[i + 9], v[i + 10], v[i + 11], v[i + 12], v[i + 13], v[i + 14], v[i + 15], v[i + 16]);
+        dac_write(c, 0x090001u, v);
+        dac_write(c, 0x090002u, v);
     }
+    if (v != bt_vol_set && LOG_TO_FILE)
+        log_printf("bt: DAC volume %02x (RECHO %d dB)", v, db);
+    bt_vol_set = v;
 }
 
 /* full snapshot while streaming (read only): GRF and CRU 0x000-0x0FC, GPIO data / direction */
@@ -757,20 +747,10 @@ void bt_tick(void)
         switch_screen(bt_screen);
     }
 #ifdef ECHO_PORT
-    {                                             /* dump 5 s into each stream (stage 47) */
-        u32 t = ms_now();
-        if (bt_routed && bt_streamed) {
-            if (!bt_dump_live) {
-                bt_dump_live = 1;
-                bt_dump_at = t;
-            } else if (bt_dump_live == 1u && t - bt_dump_at >= 5000u) {
-                bt_dump_live = 2;
-                stream_dump();
-            }
-        } else {
-            bt_dump_live = 0;
-        }
-    }
+    if (bt_routed && bt_streamed)                 /* the fix: DACs at the user's volume (stage 48) */
+        bt_volume(ms_now());
+    else
+        bt_vol_set = 0xFFFFFFFFu;
 #endif
     if (bt_state == OFF)
         return;

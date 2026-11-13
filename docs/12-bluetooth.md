@@ -251,3 +251,20 @@ The DAC chips' registers were read on Podium only (both chips: `080000` = `10`, 
 logged (`bt: step N applied`): 1 clock gates, 2 soft resets, 3 the five pins to inputs, 4 GRF pin
 functions. The end of the stream restores RECHO's values (`bt: step 0 undone`). Pressing pause on
 the earbuds the moment sound starts puts a timestamp in the log (`rx P.`) next to the step that did it.
+
+### Found (2026-11-13): RECHO mutes the DACs with nothing in the jacks
+
+Stage 46 set clocks, resets, pins and pin functions to Podium's values one group at a time: still
+silent, so the SoC side was not it. Stage 47 read both DAC chips with RECHO's own routine
+(`0x3055D70(chip, map, &value)`, chip 0 = 0x60, 1 = 0x66) 5 s into a stream. Every register matches
+Podium's except one:
+
+| DAC register | Podium (plays) | RECHO (silent) |
+|---|---|---|
+| `090001` / `090002` PCM volume, both chips | `1c` (−14 dB) | **`ff` (muted)** |
+
+With no headphones in either jack, RECHO leaves the DACs muted, and the module listens to their
+analogue output. **Fix (stage 48):** while streaming, both chips' PCM volume is kept at the user's
+volume through RECHO's own write (`0x3055C00(chip, map, value)`): attenuation in 0.5 dB steps
+= −2 × RECHO's dB, plus 13 steps (6.5 dB, EchoPod's "Standard" Bluetooth level), refreshed twice a
+second and on every volume change (`bt: DAC volume …` in the log).

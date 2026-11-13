@@ -56,6 +56,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 48 | **Bluetooth audio fix:** RECHO leaves both DAC chips muted (PCM volume 0xFF) with nothing in the jacks; while streaming they are now kept at the user's volume, 6.5 dB below wired (found by comparing the stage 47 dump with Podium's); dump code removed | built, verified |
 | 47 | Bluetooth: stage 46's step test (silent with every group set to Podium's values) replaced by a dump 5 s into each stream: both DAC chips (RECHO's own read, 0x3055D70), I2S1, ACODEC clock mux, CRU +0x004 / +0x014 / +0x030, GPIO levels | built, verified |
 | 46 | Bluetooth step test: while streaming, every 15 s one group of registers is set to Podium's streaming state (clock gates, soft resets, five pins to inputs, GRF pin functions), restored when the stream ends; stage 45's watcher removed | built, verified |
 | 45 | Bluetooth test: stock's six start-up settings applied on every route (was once), checked once a second while routed, logged at 1 s / 5 s and whenever RECHO changes one back, then applied again; old routing-variant switch removed (fixed to Podium's routing) | built, verified |
