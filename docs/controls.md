@@ -81,8 +81,10 @@ sd:Albums/Song.flac
   **Favourites**. Press <kbd>▶‖</kbd> (tap or hold) on it: the player queues every song in the list,
   each from its own drive, and opens Now Playing; shuffle, repeat, Up Next and resume work as for any folder.
   Nothing has to be made on the drive for it.
-- **Phones:** the `sd:` lines are the player's own mark, so a phone finds the internal songs but not
-  those.
+- **Phones:** the `sd:` lines are the player's own mark. Next to the list the player keeps
+  **`FAVPHONE.M3U`**, the same list without them: put it at the top of the phone's music folder, with
+  the internal storage's folders and the SD card's folders copied into that folder, and every
+  favourite plays.
 - **Limits:** up to 4 KB of list, about 50–60 songs; past that the player says
   *Favourites full* instead of risking the drive.
 

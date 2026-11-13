@@ -231,6 +231,18 @@ __attribute__((noinline)) static void toggle(void)   /* the only file write: ver
         bar_message("Favourites: not saved");
         return;
     }
+    /* FAVPHONE.M3U: the same list without the "sd:" marks, for a phone that keeps the card's
+     * folders next to the internal ones (written after the list, so FAV_BUF may be changed) */
+    u32 m = 0, bol = 1;
+    for (u32 i = 0; i < n; i++) {
+        if (bol && i + 2u < n && b[i] == 's' && b[i + 1] == 'd' && b[i + 2] == ':')
+            i += 3u;
+        if (i >= n)
+            break;
+        bol = b[i] == '\n';
+        b[m++] = b[i];
+    }
+    file_write(v, "FAVPHONEM3U", b, m);
     fav_is_current = at < 0;
     bar_message(done);
     redraw();
