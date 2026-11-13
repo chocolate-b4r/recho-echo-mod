@@ -141,7 +141,7 @@ static int font_h(int font)
 }
 
 /* text with its vertical centre on y_mid; returns the width drawn */
-static int text_at(int font, int x, int y_mid, const char *s, int maxw, u32 fg)
+int text_at(int font, int x, int y_mid, const char *s, int maxw, u32 fg)   /* also used by bt.c */
 {
     if (!s || !*s || !FONTS[font * 4 + 3])
         return 0;

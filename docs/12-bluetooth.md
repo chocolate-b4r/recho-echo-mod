@@ -28,7 +28,7 @@ opens the Bluetooth screen:
 | one row per device found | `CL06` + address, `CH06` 4 s later if unanswered; 30 s limit, then `CT00` and "failed" |
 | Disconnect | shown in row 2 while connected (`CT00`) |
 
-Vol keys move, ↩ or ≡ go back to Settings, hold ≡ goes to the main menu. The module is off at
+Vol keys move, ↩ goes back to Settings, ≡ opens Files (as on every screen). The module is off at
 every start-up and is switched off before the charging screen. With Log to file on, power-on,
 devices found, connects and every non-status frame are logged as `bt: ...`.
 

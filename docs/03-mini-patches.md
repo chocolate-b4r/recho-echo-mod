@@ -67,7 +67,7 @@ remapped, so each visible row still selects and shows its original setting. Modu
 | m45 `0x307A12C` (6 B) | ↩ tap on Now Playing: play-mode cycle → `bl 0x305BA3C` (main menu) + `b.n 0x307A170` |
 | m45 literal `0x307A1E8` | "MODE" label → `str_back` ("BACK") |
 | m45 literal `0x307A1D8` | "menu" hold label → `str_settings` |
-| `0x305BF18` | global hold-≡ `bl 0x305BA3C` → `bl hold_menu`: Settings on Now Playing, main menu elsewhere |
+| `0x3060B80` | SHELL key filter pointer `0x305BD41` → `shell_key`: ≡ tap opens Files, hold = favourite (Now Playing / screen off) |
 
 | m47 `0x307AAA4` | main menu key handler `0x307A109` → `menu_key`: hold ▶‖ on Files plays the whole internal drive |
 | `0x305062C` | USB-disk loop `bl power_key_down` → `bl usb_key_exit`: ↩ (or power) leaves, after the key is released |

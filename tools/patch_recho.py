@@ -164,7 +164,7 @@ NP_BACK_TAP = 0x0307A12C                           # m45: back-key tap = play-mo
 NP_BACK_RESUME = 0x0307A170                        # m45: common tail after the key cases
 NP_LABEL_MODE = 0x0307A1E8                         # m45 literal -> "MODE"  (back key label)
 NP_LABEL_MENU = 0x0307A1D8                         # m45 literal -> "menu"  (menu key hold label)
-HOLD_MENU_CALL = 0x0305BF18                        # fw1: hold menu -> bl 0x305BA3C (main menu)
+SHELL_KEY_PTR = 0x03060B80                         # fw1: SHELL key filter descriptor +28 (0x305BD41)
 
 
 BATTERY_GLYPH_DRAW = 0x030594A4                    # status bar: bl draw_text (battery glyph)
@@ -280,8 +280,8 @@ def key_remap(d, e):
     for site, old, new in ((NP_LABEL_MODE, 0x0307AC11, e["str_back"]), (NP_LABEL_MENU, 0x0307AC07, e["str_settings"])):
         put(d, M45_IMG + site - MOD_BASE, struct.pack("<I", old), struct.pack("<I", new), f"m45 label literal {site:#x}")
     reseal_module(d, M45_IMG)
-    put(d, HOLD_MENU_CALL - RAM_OF_IMG, thumb_bl(HOLD_MENU_CALL, 0x0305BA3C), thumb_bl(HOLD_MENU_CALL, e["hold_menu"]),
-        "hold menu -> hold_menu (Settings on Now Playing)")
+    put(d, SHELL_KEY_PTR - RAM_OF_IMG, struct.pack("<I", 0x0305BD41), struct.pack("<I", e["shell_key"] | 1),
+        "SHELL key filter -> shell_key (≡: tap Files, hold favourite)")
 
 
 def echo_port(d, e):

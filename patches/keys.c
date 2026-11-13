@@ -5,8 +5,8 @@
  *           `bl 0x305BA3C` (RECHO's own "go to the main menu") + `b.n 0x307A170` (its common tail).
  *           Play mode stays in Settings -> Play mode.
  *   ↩ hold  previous track (unchanged).
- *   ≡ hold  Settings while Now Playing is open, the main menu everywhere else: RECHO's global
- *           hold-menu call at 0x305BF18 (`bl 0x305BA3C`) becomes `bl hold_menu`.
+ *   ≡       does two things only, everywhere: tap opens Files; hold adds / removes the song
+ *           playing (on Now Playing, or with the screen off), else opens Files too. See shell_key.
  *   labels  m45's soft-key literals for "MODE" (0x307A1E8) and "menu" (0x307A1D8) point at
  *           str_back / str_settings, so the bar (where shown) reads BACK and hold settings.
  */
@@ -30,13 +30,30 @@ static inline u32 lit(u32 v)
 const char str_back[] = "BACK";
 const char str_settings[] = "settings";
 
-void hold_menu(void)
+/*
+ * ≡ never selects. RECHO gives ≡ a different job on each screen (main menu: back to the last screen;
+ * Settings: toggles; Files: Now Playing; hold: main menu). Keys go through RECHO's filter list
+ * (0x303E744: HINT, SHELL, PLAY, POWER, DBG) before the screen; SHELL's key handler (descriptor
+ * 0x3060B64 +28 = 0x305BD41) is now shell_key, which takes every ≡ event and passes the rest on.
+ *   tap               open Files (nothing if Files is open, or with the screen off)
+ *   hold              screen off or Now Playing: add / remove the song playing; else open Files
+ *   press / repeat    nothing
+ */
+#define shell_key_orig FN(0x0305BD40, int (*)(const unsigned char *ev))
+#define screen_on      FN(0x0305CAB8, int (*)(void))
+#define MOD_FILES      44u
+
+int shell_key(const unsigned char *ev)
 {
     extern volatile u32 fav_request;      /* favs.c: add / remove the song playing */
-    if (CURRENT_MODULE == MOD_NOW_PLAYING)
+    if (ev[0] != 5)
+        return shell_key_orig(ev);
+    int on = screen_on();
+    if (ev[1] == 3u && (!on || CURRENT_MODULE == MOD_NOW_PLAYING))
         fav_request = 1;
-    else
-        go_main_menu();
+    else if ((ev[1] == 2u || ev[1] == 3u) && on && CURRENT_MODULE != MOD_FILES)
+        set_module((int)MOD_FILES);
+    return 1;
 }
 
 /*

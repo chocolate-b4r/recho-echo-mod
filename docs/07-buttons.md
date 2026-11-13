@@ -9,7 +9,8 @@
 | Where | Key | RECHO 0.10.1 | With the mod | Wired at |
 |---|---|---|---|---|
 | Now Playing | <kbd>↩</kbd> tap | next play mode + toast | back to the main menu | m45 `0x307A12C` |
-| Now Playing | <kbd>≡</kbd> hold | main menu | add to / remove from favourites (`FAVORITE.M3U`) | fw1 `0x305BF18` → `hold_menu` → `favs.c` |
+| Now Playing, screen off | <kbd>≡</kbd> hold | main menu / nothing | add to / remove from favourites (`FAVORITE.M3U`) | SHELL filter `0x3060B80` → `shell_key` → `favs.c` |
+| every other screen | <kbd>≡</kbd> tap / hold | depends on the screen (main menu: last screen; Settings: toggles; hold: main menu) | open Files | `shell_key` |
 | Main menu, Files tab | <kbd>▶‖</kbd> hold | next track | play every song on the internal storage | m47 key pointer `0x307AAA4` → `menu_key` |
 | USB disk | <kbd>↩</kbd> tap | nothing | leave USB disk | fw1 `0x305062C` → `usb_key_exit` |
 | USB disk | <kbd>⏻</kbd> tap | leave, and the press also turns the screen off | nothing (Back leaves; the screen says "or press back") | same; text at `0x305E877` |
@@ -27,7 +28,9 @@ while it has a message.
 A key event is `{key id, event}` (ids 1 Power, 2 Vol+, 3 Vol−, 4 ▶‖, 5 ≡, 6 ↩; events 1 press,
 2 tap, 3 hold, 4 repeat). The current screen's handler (descriptor +28) gets it first. RECHO's
 global filter (`0x305BE7A`…) handles power, volume, play/pause and the holds; `0x305BF18` is
-"hold ≡ → main menu".
+"hold ≡ → main menu". The filters are a list RECHO fills at boot (`0x303E744`, count `0x303E740`:
+HINT, SHELL, PLAY, POWER, DBG); each one's descriptor +28 is tried in turn, then the screen's.
+SHELL's (`0x3060B64` +28, `0x305BD41`) is now `shell_key`, which takes every ≡ event first.
 
 Now Playing's handler (m45 `0x307A0C0`):
 
@@ -45,16 +48,20 @@ Now Playing's handler (m45 `0x307A0C0`):
 m45 0x307A12C   174d e879 0130   ->  bl 0x305BA3C ; b.n 0x307A170
 m45 0x307A1E8   0x0307AC11 "MODE" ->  str_back     "BACK"
 m45 0x307A1D8   0x0307AC07 "menu" ->  str_settings "settings"
-fw1 0x305BF18   bl 0x305BA3C      ->  bl hold_menu
+fw1 0x3060B80   0x0305BD41 (SHELL key filter) -> shell_key
 ```
 
 ```c
-void hold_menu(void)
+int shell_key(const unsigned char *ev)
 {
-    if (CURRENT_MODULE == 45)      /* 0x030399C8: Now Playing loaded */
-        set_module(48);            /* 0x305B234: Settings */
-    else
-        go_main_menu();            /* 0x305BA3C */
+    if (ev[0] != 5)                                   /* not ≡: RECHO's SHELL filter */
+        return shell_key_orig(ev);
+    int on = screen_on();                             /* 0x305CAB8 */
+    if (ev[1] == 3 && (!on || CURRENT_MODULE == 45))  /* hold on Now Playing / screen off */
+        fav_request = 1;
+    else if ((ev[1] == 2 || ev[1] == 3) && on && CURRENT_MODULE != 44)
+        set_module(44);                               /* tap (or hold elsewhere): Files */
+    return 1;                                         /* press / repeat: nothing */
 }
 ```
 

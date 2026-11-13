@@ -286,15 +286,14 @@ void fav_tick(void)
         play_list();
         return;
     }
-    if (CURRENT_MODULE != 45u) {
-        fav_request = 0;
-        fav_key = 0xFFFFFFFFu;                 /* look again when Now Playing opens */
-        return;
-    }
-    if (fav_request) {
+    if (fav_request) {                         /* hold ≡: Now Playing, or the screen off (any screen) */
         fav_request = 0;
         toggle();
-        fav_key = Q_ACTIVE ? Q_CURRENT : 0xFFFFFFFEu;
+        fav_key = CURRENT_MODULE == 45u ? (Q_ACTIVE ? Q_CURRENT : 0xFFFFFFFEu) : 0xFFFFFFFFu;
+        return;
+    }
+    if (CURRENT_MODULE != 45u) {
+        fav_key = 0xFFFFFFFFu;                 /* look again when Now Playing opens */
         return;
     }
     u32 key = Q_ACTIVE ? Q_CURRENT : 0xFFFFFFFEu;

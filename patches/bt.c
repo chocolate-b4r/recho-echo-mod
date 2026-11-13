@@ -786,22 +786,7 @@ const char str_bluetooth[] = "Bluetooth";
 
 /* ---- screen ---------------------------------------------------------------------- */
 
-static int font_h(int font)
-{
-    int h = FONTS[font * 4 + 2];
-    return (h > 0 && h < 40) ? h : 12;
-}
-
-static int text_at(int font, int x, int y_mid, const char *s, int maxw, u32 fg)
-{
-    if (!s || !*s || !FONTS[font * 4 + 3])
-        return 0;
-    int w = text_width(font, s);
-    if (w > maxw)
-        w = maxw;
-    draw_text(font, x, y_mid - font_h(font) / 2, s, maxw, fg, -1);
-    return w;
-}
+int text_at(int font, int x, int y_mid, const char *s, int maxw, u32 fg);   /* ui_np.c (shared) */
 
 static void text_right(int font, int x_end, int y_mid, const char *s, int maxw, u32 fg)
 {

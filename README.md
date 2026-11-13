@@ -53,12 +53,12 @@ belongs to RECHO first: get it from [its site](https://recho.atzkey.workers.dev/
 | Pixel-art main menu: Files · USB disk · Now Playing · Bluetooth · Settings | ✅ | ✅ |
 | **Hold ▶‖ on Files** in the main menu: play every song | ✅ | ✅ |
 | **↩ leaves USB disk** (the screen stays on), back to the main menu | ✅ | ✅ |
-| **Favourites:** hold ≡ on Now Playing, a heart after the title, play them from the *Favourites* row in Files; saved as `FAVORITE.M3U` (phones read it) | ✅ | ✅ |
+| **Favourites:** hold ≡ on Now Playing or with the screen off, a heart after the title, play them from the *Favourites* row in Files; saved as `FAVORITE.M3U` (phones read it) | ✅ | ✅ |
 | Terminal-style boot screen in RECHO's own font | ✅ | ✅ |
 | Off-state charging screen and charging animation | ✅ | ✅ |
 | Cable chooser *Charge only / USB disk*, idle 5 s = power off into the charging screen | ✅ | ✅ |
 | Shorter menu and Settings; unused screens, modules and icons removed | ✅ | ✅ |
-| Button remap (↩ = back, hold ≡ = Settings) | ✅ | ✅ |
+| Button remap (↩ = back; ≡ = Files on a tap, favourite on a hold, never select) | ✅ | ✅ |
 | ST7796S panel, Echo pin map, RECHO's updater under Echo-only names, maskrom hatch | | ✅ |
 | Bluetooth headphones: pair, play, earbud buttons ([docs/12](docs/12-bluetooth.md)) | ✅ | ✅ |
 

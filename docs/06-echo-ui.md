@@ -161,7 +161,7 @@ the Echo its battery glyph is skipped: `bl draw_text` at `0x30594A4` becomes two
 
 ## Favourites (`patches/favs.c`, both players)
 
-Hold ≡ on Now Playing (`hold_menu` in `keys.c`, which used to open Settings there) sets a request;
+Hold ≡ on Now Playing or with the screen off (`shell_key` in `keys.c`) sets a request;
 `fav_tick` (POWER tick) does the work in the main loop:
 
 1. **The song's path.** `RQUEUE.IDX` has a 36-byte header, then one 36-byte entry per song: +16 is the

@@ -190,7 +190,7 @@ SECTIONS = [
     ("Main menu", [
         (["vol+", "vol-"], "tap", "move between tabs"), (["play"], "tap", "open the tab"),
         (["play"], "hold on Files", "play every song on the player"),
-        (["menu"], "hold", "main menu from any other screen")]),
+        (["menu"], "tap / hold", "Files, from any screen (never selects)")]),
     ("Lists (Files, Settings)", [
         (["vol+", "vol-"], "tap", "move"), (["play"], "tap", "select / play the folder"),
         (["play"], "hold on a folder", "play the folder and all folders in it"),

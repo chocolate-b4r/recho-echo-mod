@@ -45,7 +45,7 @@ use or depend on is listed.
 | `0x030399C8` / `0x030399CC` | id of the loaded module / module requested next |
 | `0x0305B234` | `set_module(id)`: 44 Files, 45 Now Playing, 47 menu, 48 Settings |
 | `0x0305BA3C` | go to the main menu (no-op if already there) |
-| `0x0305BE7A`… | global key filter: power, volume, play, holds. `0x305BF18` is hold ≡ → main menu |
+| `0x0305BE7A`… | global key filter: power, volume, play, holds. `0x305BF18` is hold ≡ → main menu. The filter list is `0x303E744` (count `0x303E740`): HINT, SHELL (this one, descriptor `0x3060B64`), PLAY, POWER, DBG |
 | `0x0305C3AC` | register a service; services are ticked from the main loop via `0x0305C7A4` |
 | `0x0306AC48` | POWER service descriptor; its tick pointer is at `0x0306AC68` (original `0x0306A7C5`) |
 | `0x03060B98` | HINTS service: rect 0,144..319,169, draw pointer at `0x03060BBC` (`0x0305AEED`) |

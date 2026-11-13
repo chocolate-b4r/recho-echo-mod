@@ -23,7 +23,7 @@ flowchart LR
     BT(["🎧 Bluetooth"])
 
     NP -- "↩ tap" --> MENU
-    NP -- "≡ tap" --> FILES
+    NP & MENU & SET & BT -- "≡ tap" --> FILES
     MENU -- "▶‖ on Settings" --> SET
     MENU -- "▶‖ on a tab" --> FILES & SET & USB & BT & NP
     MENU -- "▶‖ hold on Files" --> NP
@@ -32,7 +32,9 @@ flowchart LR
     USB -- "↩ tap" --> MENU
 ```
 
-Holding <kbd>≡</kbd> on any screen other than Now Playing goes straight to the main menu.
+<kbd>≡</kbd> does only two things, on every screen: a **tap opens Files**, and a **hold adds the song
+playing to favourites (or takes it off)** on Now Playing or with the screen off. Held anywhere else
+it opens Files too. It never selects anything: only <kbd>▶‖</kbd> does.
 
 ---
 
@@ -55,8 +57,8 @@ less.
 
 ## Favourites
 
-Hold <kbd>≡</kbd> on Now Playing to add the song playing to your favourites; hold it again to take it
-off. The list is a playlist file, **`FAVORITE.M3U`**, at the top of the player's drive:
+Hold <kbd>≡</kbd> on Now Playing, or with the screen off, to add the song playing to your favourites;
+hold it again to take it off. The list is a playlist file, **`FAVORITE.M3U`**, at the top of the player's drive:
 
 ```
 #EXTM3U

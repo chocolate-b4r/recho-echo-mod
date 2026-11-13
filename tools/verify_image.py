@@ -42,6 +42,7 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x030531F0, 0x03053934, 0x03053BF4,                           # favourites: find 8.3 file, read, write whole file (checked below)
             0x0305A874,                                                   # bar message for 2 s (favourites)
             0x030638FC, 0x0305B3AC, 0x03063F74, 0x0305B3F0, 0x0305B2FC,   # find name in folder; queue start / add / finish / abandon (play favourites)
+            0x0305BD40, 0x0305CAB8,                                       # SHELL key filter, screen on (shell_key)
             0x0307AE10, 0x0307A898, 0x0307A910,                           # m44 Files key handler, open, draw (files_key / files_enter / files_draw)
             0x03059F74, 0x0305C428, 0x03059CFE}                           # key list step, list panel rect, right-aligned text (Favourites row)
 UI_DATA = {0x03034B48,                                                    # font table
@@ -254,7 +255,7 @@ def main(orig_path, new_path):
     allowed.append((0x2A494, 0x2A494 + u32(a, 0x2A494 + 12), "module m45 (Now Playing)"))
     allowed.append((0x28ED4, 0x28ED4 + u32(a, 0x28ED4 + 12), "module m44 (Files)"))
     allowed.append((0x0305E877 - RAM_OF_IMG, 0x0305E877 - RAM_OF_IMG + 38, "USB disk text"))
-    allowed.append((0x0305BF18 - RAM_OF_IMG, 0x0305BF18 - RAM_OF_IMG + 4, "hold-menu call"))
+    allowed.append((0x03060B80 - RAM_OF_IMG, 0x03060B80 - RAM_OF_IMG + 4, "SHELL key filter pointer"))
     for addr, n, what in ((0x0305C4B8, 2, "content area bottom (1)"), (0x0305C4EE, 2, "content area bottom (2)"),
                           (0x03060BBC, 4, "HINTS layer draw pointer"), (0x03060AD4, 4, "cable chooser draw pointer"),
                           (0x03059504, 4, "menu bar headphone glyph"),
@@ -605,9 +606,9 @@ def main(orig_path, new_path):
         new = u32(b, o)
         check(u32(a, o) == old and new == entk[sym] and b[new - RAM_OF_IMG:new - RAM_OF_IMG + len(text) + 1] == text + b"\0",
               f"label literal {site:#x} -> {text.decode()!r}")
-    hm = 0x0305BF18 - RAM_OF_IMG
-    check(bl_target(a, hm, 0x0305BF18) == 0x0305BA3C and bl_target(b, hm, 0x0305BF18) == entk["hold_menu"],
-          "hold menu (0x305bf18) -> hold_menu: Settings on Now Playing, main menu elsewhere")
+    sk = 0x03060B80 - RAM_OF_IMG
+    check(a[0x03060B64 - RAM_OF_IMG:][:4] == b"SHEL" and u32(a, sk) == 0x0305BD41 and u32(b, sk) == (entk["shell_key"] | 1),
+          "SHELL key filter (0x3060b80) -> shell_key: menu key tap opens Files, hold = favourite")
     body_a, body_b = a[M45k:M45k + u32(a, M45k + 12)], b[M45k:M45k + u32(b, M45k + 12)]
     diff = {k for k in range(len(body_a)) if body_a[k] != body_b[k]}
     ok_sites = set(range(24, 28)) | set(range(0x12C, 0x132)) | set(range(0x1D8, 0x1DC)) | set(range(0x1E8, 0x1EC))
