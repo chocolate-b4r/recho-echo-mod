@@ -531,11 +531,29 @@ static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char
     if (wb)
         draw_text(1, x, sy, b, wb + 1, cb, -1);
     int dw = w * num / 2, dh = h * num / 2, x0 = cx - dw / 2;
-    for (int r = 0; r < dh; r++) {
-        const volatile u16 *src = FB_PX + (sy + r * 2 / num) * W;
-        volatile u16 *dst = FB_PX + (y_top + r) * W + x0;
-        for (int c = 0; c < dw; c++)
-            dst[c] = src[c * 2 / num];
+    if (num == 3) {
+        /* 1.5x: each lit source pixel becomes a 2 x 2 block at its 1.5x place, so every stroke is
+         * 2 px wide (copying by nearest pixel made one side of a letter 1 px and the other 2 px) */
+        for (int r = 0; r < h; r++) {
+            const volatile u16 *src = FB_PX + (sy + r) * W;
+            for (int c = 0; c < w; c++) {
+                u16 px = src[c];
+                if (!px)
+                    continue;
+                volatile u16 *dst = FB_PX + (y_top + r * 3 / 2) * W + x0 + c * 3 / 2;
+                dst[0] = px;
+                dst[1] = px;
+                dst[W] = px;
+                dst[W + 1] = px;
+            }
+        }
+    } else {
+        for (int r = 0; r < dh; r++) {
+            const volatile u16 *src = FB_PX + (sy + r * 2 / num) * W;
+            volatile u16 *dst = FB_PX + (y_top + r) * W + x0;
+            for (int c = 0; c < dw; c++)
+                dst[c] = src[c * 2 / num];
+        }
     }
     fill_rect(0, sy, w + 1, sy + h, BLACK);
     return 1;

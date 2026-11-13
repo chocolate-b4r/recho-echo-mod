@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v41 | **Bluetooth audio on the Mini:** routing ported from the Echo (DAC mute GPIO2.0 high, GPIO2.14 low, held by a GPIO-set hook as on the Echo; RECHO's muted DACs kept at the user's volume while streaming) | built, verified |
 | v40 | clock: re-read right after Settings closes and every minute (was 5 min), so a newly set time shows at once; weekday worked out from the date (the chip's weekday can disagree) | built, verified |
 | v39 | leaving USB disk opens the main menu instead of Files (one byte at 0x305BC8A: module 44 -> 47) | built, verified |
 | v38 | top bars: volume first, then the output ("62 dB · 3.5 mm"); battery % green on the cable, amber / red when low (as the Echo's Up Next) | built, verified |
@@ -56,6 +57,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 49 | lyric letters at 1.5x drawn as 2 x 2 blocks, so every stroke is 2 px (was 1 or 2 px); Bluetooth code shared with the Mini | built, verified |
 | 48 | **Bluetooth audio fix:** RECHO leaves both DAC chips muted (PCM volume 0xFF) with nothing in the jacks; while streaming they are now kept at the user's volume, 6.5 dB below wired (found by comparing the stage 47 dump with Podium's); dump code removed | built, verified |
 | 47 | Bluetooth: stage 46's step test (silent with every group set to Podium's values) replaced by a dump 5 s into each stream: both DAC chips (RECHO's own read, 0x3055D70), I2S1, ACODEC clock mux, CRU +0x004 / +0x014 / +0x030, GPIO levels | built, verified |
 | 46 | Bluetooth step test: while streaming, every 15 s one group of registers is set to Podium's streaming state (clock gates, soft resets, five pins to inputs, GRF pin functions), restored when the stream ends; stage 45's watcher removed | built, verified |

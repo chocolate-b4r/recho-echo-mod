@@ -306,6 +306,9 @@ def add_hooks(d, animation=True, echo=False):
     usb_back_key(d, e)
     after_usb_main_menu(d)
     ui_layout(d, e)
+    if not echo:                                   # Bluetooth routing holds GPIO2.0 / GPIO2.14
+        put(d, GPIO_SET - RAM_OF_IMG, bytes.fromhex("70b50d46"), thumb_bw(GPIO_SET, e["gpio_set_mini"]),
+            "GPIO set entry (Mini)")
     if echo:
         if not animation:
             raise SystemExit("the Echo escape hatch rides on the POWER tick wrapper; keep the animation on")

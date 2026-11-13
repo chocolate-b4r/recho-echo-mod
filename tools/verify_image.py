@@ -254,7 +254,8 @@ def main(orig_path, new_path):
                           (0x0305062C, 4, "USB disk key call"),
                           (0x0305BC8A, 2, "after USB disk screen"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
-                           "menu header play time" if ECHO else "menu bar battery glyph")):
+                           "menu header play time" if ECHO else "menu bar battery glyph"),
+                          *(() if ECHO else ((0x03051590, 4, "GPIO set entry (Bluetooth pins)"),))):
         allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
     if ECHO:
         for addr, n, what in ((0x0306B9F4, 4, "echo: panel init (boot)"), (0x0306C206, 4, "echo: panel init (wake)"),
@@ -320,9 +321,9 @@ def main(orig_path, new_path):
     calls = {v & ~1 for v in fw_ptrs if v & 1}
     data = {v for v in fw_ptrs if not v & 1}
     allowed_calls, allowed_data = set(ALLOWED_CALLS), set(ALLOWED_DATA)
+    check(ECHO_TRAMPOLINE in calls, "GPIO trampoline re-enters GPIO set after its 4-byte prologue")
+    calls.discard(ECHO_TRAMPOLINE)
     if ECHO:
-        check(ECHO_TRAMPOLINE in calls, "echo: GPIO trampoline re-enters GPIO set after its 4-byte prologue")
-        calls.discard(ECHO_TRAMPOLINE)
         allowed_calls |= ECHO_CALLS
         allowed_data |= ECHO_DATA
     check(calls <= allowed_calls, f"hook only calls known RECHO routines ({len(calls)} distinct)"
@@ -558,6 +559,14 @@ def main(orig_path, new_path):
     uk = 0x0305062C - RAM_OF_IMG
     check(bl_target(a, uk, 0x0305062C) == 0x03051C70 and bl_target(b, uk, 0x0305062C) == entl["usb_key_exit"],
           "USB disk 0x305062c: bl power_key_down -> bl usb_key_exit (Back leaves)")
+    if not ECHO:
+        ent_m = {k: int(v, 16) for k, v in (l.split() for l in open(os.path.join(root, "build", HOOKS + ".entries")))}
+        gs = 0x03051590 - RAM_OF_IMG
+        check(a[gs:gs + 4] == bytes.fromhex("70b50d46") and bw_target(b, gs, 0x03051590) == ent_m["gpio_set_mini"],
+              "Mini: GPIO set entry -> b.w gpio_set_mini (Bluetooth pins)")
+        tr = ent_m["gpio_set_orig"] - RAM_OF_IMG
+        check(b[tr:tr + 4] == bytes.fromhex("70b50d46") and u32(b, tr + 8) == 0x03051595,
+              "Mini: trampoline replays the original 4 bytes and returns to 0x3051594")
     print("[13] buttons (both players)")
     M45k = 0x2A494
     entk = {k: int(v, 16) for k, v in entries.items()}

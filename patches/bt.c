@@ -201,8 +201,44 @@ static void address_command(char letter, u32 dev)  /* "C" letter "06" + address 
     send_bytes(f, 10);
 }
 
-#ifdef ECHO_PORT
 void bt_route(u32 on);
+
+/* DAC mute pin: Echo GPIO2.1 (Podium), Echo Mini GPIO2.0 (EchoPod); both route with GPIO2.14 low */
+#ifdef ECHO_PORT
+#define BT_MUTE_PIN 1u
+#else
+#define BT_MUTE_PIN 0u
+/* Echo Mini: RECHO's GPIO set (0x3051590) enters gpio_set_mini by b.w, as the Echo port's does, so
+ * the two routing pins hold while the music goes to Bluetooth. */
+__attribute__((naked)) void gpio_set_orig(u32 bank, u32 pin, u32 level)
+{
+    (void)bank; (void)pin; (void)level;
+    __asm__ volatile(
+        "push   {r4, r5, r6, lr}\n"
+        "mov    r5, r1\n"
+        "ldr.w  pc, 1f\n"
+        ".align 2\n"
+        "1: .word 0x03051595\n");
+}
+
+STATE volatile u32 echo_mute_level = 0;   /* RECHO's last DAC mute (GPIO2.0) request */
+STATE volatile u32 echo_wired_level = 1;  /* RECHO's last GPIO2.14 request */
+extern volatile u32 bt_routed;
+
+void gpio_set_mini(u32 bank, u32 pin, u32 level)
+{
+    if (bank == 2 && pin == 0) {
+        echo_mute_level = level;
+        gpio_set_orig(2, 0, bt_routed ? 1u : level);
+        return;
+    }
+    if (bank == 2 && pin == 14) {
+        echo_wired_level = level;
+        gpio_set_orig(2, 14, bt_routed ? 0u : level);
+        return;
+    }
+    gpio_set_orig(bank, pin, level);
+}
 #endif
 
 static void set_state(u32 s, u32 now)
@@ -214,9 +250,7 @@ static void set_state(u32 s, u32 now)
         bt_pending = 0;
         bt_play_state = 0;
         bt_hello = 0;
-#ifdef ECHO_PORT
         bt_route(0);
-#endif
     }
     bt_state = s;
     bt_since = now;
@@ -487,13 +521,11 @@ extern volatile u32 bt_routed;
 
 void bt_shutdown(void)
 {
-#ifdef ECHO_PORT
     if (bt_routed) {                              /* jacks get their pins back, quietly */
         bt_routed = 0;
-        gpio_set_orig(2, 1, echo_mute_level);
+        gpio_set_orig(2, BT_MUTE_PIN, echo_mute_level);
         gpio_set_orig(2, 14, echo_wired_level);
     }
-#endif
     if (bt_state != OFF) {
         pins_off();
         bt_state = OFF;
@@ -587,7 +619,6 @@ static void follow_player(u32 now)
         stream_frame(bt_pending_on);
     }
     int playing = player_state() == 1;
-#ifdef ECHO_PORT
     /* As FiiO 2.0.0 does (0x3067726): the music is routed to the module for the whole
      * connection, from the moment it connects, unless headphones are plugged in; the stream
      * (CY0 1E / 00) then follows play / pause. Jack readings are not trusted while routed and
@@ -599,9 +630,6 @@ static void follow_player(u32 now)
         bt_changed_at = now;
     }
     u32 stream = playing && bt_routed;
-#else
-    u32 stream = 0;                               /* Mini: no routing yet */
-#endif
     if (stream != bt_streamed) {
         bt_streamed = stream;
         bt_changed_at = now;
@@ -627,11 +655,12 @@ static void follow_player(u32 now)
         bt_buds_paused = 0;
 }
 
-#ifdef ECHO_PORT
 /* Route the music to the module (on) or back to the jacks. Podium's route_to_module() and
  * match_stock_housekeeping() (board/bluetooth.c), Echo pins from Podium's board_pins.c. */
+#ifdef ECHO_PORT
 extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
 extern volatile u32 echo_mute_level, echo_wired_level, echo_dacb_level;   /* echo_port.c: RECHO's last requests */
+#endif
 #define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
 #define dac_write     FN(0x03055C00, int (*)(u32 chip, u32 map, u32 value))   /* chip 0 = 0x60, 1 = 0x66 */
 #define VOLUME_DB_NOW (*(volatile int *)lit(0x030041D0u))                       /* RECHO: -90..0 dB, -128 mute */
@@ -720,9 +749,9 @@ void bt_route(u32 on)
         stock_write();                            /* every route, not just the first */
         log_audio_state("before");
     }
-    bt_routed = on ? 1u : 0u;                     /* Podium: DAC mute GPIO2.1 high, GPIO2.14 low */
+    bt_routed = on ? 1u : 0u;                     /* DAC mute high, GPIO2.14 low (Podium / EchoPod) */
     bt_changed_at = ms_now();
-    gpio_set_orig(2, 1, on ? 1u : echo_mute_level);
+    gpio_set_orig(2, BT_MUTE_PIN, on ? 1u : echo_mute_level);
     gpio_set_orig(2, 14, on ? 0u : echo_wired_level);
     if (LOG_TO_FILE)
         log_printf("bt: route %s", on ? "to the headphones" : "to the jacks");
@@ -731,7 +760,6 @@ void bt_route(u32 on)
         dump_regs();
     }
 }
-#endif
 
 /* ---- tick (POWER service, every main-loop pass) --------------------------------- */
 
@@ -746,12 +774,10 @@ void bt_tick(void)
         close_module();                           /* as the cable chooser opens */
         switch_screen(bt_screen);
     }
-#ifdef ECHO_PORT
     if (bt_routed && bt_streamed)                 /* the fix: DACs at the user's volume (stage 48) */
         bt_volume(ms_now());
     else
         bt_vol_set = 0xFFFFFFFFu;
-#endif
     if (bt_state == OFF)
         return;
     u32 now = ms_now();
