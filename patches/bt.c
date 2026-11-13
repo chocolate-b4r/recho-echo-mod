@@ -633,9 +633,11 @@ static void follow_player(u32 now)
 extern void gpio_set_orig(u32 bank, u32 pin, u32 level);
 extern volatile u32 echo_mute_level, echo_wired_level, echo_dacb_level;   /* echo_port.c: RECHO's last requests */
 #define gpio_read_pin FN(0x03051610, u32 (*)(u32 bank, u32 pin))
+#define dac_read      FN(0x03055D70, int (*)(u32 chip, u32 map, u8 *value))   /* chip 0 = 0x60, 1 = 0x66; 0 = ok */
 
 /* Stock's start-up settings (Podium / EchoPod match_stock_housekeeping), applied on every route.
- * Test stage 45 showed RECHO already holds them and never changes them back. */
+ * Stage 45 showed RECHO already holds them; stage 46 set clocks, resets, pins and pin functions to
+ * Podium's streaming values one group at a time: still silent. */
 static const u32 STOCK[6][2] = {
     {0x500100C4u, 0x00010000u},           /* GRF +0xC4 bit 0 cleared */
     {0x40180084u, 0x00920092u},           /* CRU gates 0x11, 0x14, 0x17 off */
@@ -650,64 +652,40 @@ static void stock_write(void)
         REG(STOCK[i][0]) = STOCK[i][1];
 }
 
-/* Step test (stage 46): Podium streams on this Echo, RECHO is silent. Its register dump 5 s into a
- * stream (tools/re/re_btdump.py) differs from RECHO's in these registers. While streaming, every
- * 15 s the next group is set to Podium's value and logged; the stream ending puts RECHO's back.
- *   step 1  CRU clock gates  +0x80..+0xA0   (RECHO gates ~30 clocks Podium leaves running)
- *   step 2  CRU soft resets  +0xC0..+0xCC   (RECHO holds ~15 blocks in reset)
- *   step 3  pins RECHO drives and Podium doesn't: GPIO0.12/.15/.24/.25, GPIO2.9 -> inputs
- *   step 4  GRF pin functions / pulls +0x20 +0x24 +0x44 +0x80 +0x88 +0x8C +0xB4 +0xBC
- * Write-masked registers get 0xFFFF0000 | value; GPIO direction registers get bits cleared. */
-#define STEP_MS 15000u
-static const u32 STEPS[21][2] = {         /* address, Podium's value (GPIO: bits to clear) */
-    {0x40180080u, 0x0000u}, {0x40180084u, 0x0092u}, {0x40180088u, 0x0000u}, {0x40180090u, 0x0000u},
-    {0x40180094u, 0x0000u}, {0x40180098u, 0x0000u}, {0x401800A0u, 0x0002u},
-    {0x401800C0u, 0x0068u}, {0x401800C4u, 0x0000u}, {0x401800C8u, 0x0000u}, {0x401800CCu, 0x0000u},
-    {0x40160004u, 0x03009000u}, {0x50030004u, 0x00000200u},
-    {0x50010020u, 0x0055u}, {0x50010024u, 0x0040u}, {0x50010044u, 0x0050u}, {0x50010080u, 0x8518u},
-    {0x50010088u, 0x02A7u}, {0x5001008Cu, 0x0200u}, {0x500100B4u, 0x0000u}, {0x500100BCu, 0x0000u}};
-static const u8 STEP_END[4] = {7, 11, 13, 21};   /* first entry after each step */
-STATE volatile u32 bt_saved[21] = {0};
-STATE volatile u32 bt_step = 0;           /* steps applied so far (0..4) */
-STATE volatile u32 bt_step_at = 0;
-STATE volatile u32 bt_step_live = 0;
+/* Dump (stage 47): 5 s into each stream, the registers Podium's dump has and RECHO's did not:
+ * both DAC chips (the same 34 maps as tools/re/re_btdump.py), I2S1, the ACODEC clock mux, the
+ * clock registers CRU +0x004 / +0x014 / +0x030 and the GPIO levels. Compare with
+ * docs/research/bt-dump-podium-streaming.txt. */
+static const u32 DAC_MAPS[34] = {
+    0x010001u, 0x010002u, 0x010003u, 0x010004u, 0x010006u, 0x01000Cu, 0x01000Du, 0x010010u,
+    0x020000u, 0x040010u, 0x040011u, 0x040012u, 0x040013u, 0x040014u, 0x040015u, 0x040016u,
+    0x040017u, 0x040018u, 0x040019u, 0x050000u, 0x050001u, 0x05000Au, 0x05000Bu, 0x080000u,
+    0x090000u, 0x090001u, 0x090002u, 0x090003u, 0x090004u, 0x0D0000u, 0x0D0001u, 0x0F0010u,
+    0x0F0011u, 0x180000u};
+STATE volatile u32 bt_dump_at = 0;
+STATE volatile u32 bt_dump_live = 0;
 
-static void step_log(const char *what)
+static void stream_dump(void)
 {
-    if (LOG_TO_FILE)
-        log_printf("bt: step %u %s: CRU+80 %08x +84 %08x +A0 %08x +C0 %08x +C4 %08x GPIO0 dir %08x GPIO2 dir %08x GRF+20 %08x +BC %08x",
-                   bt_step, what, REG(0x40180080), REG(0x40180084), REG(0x401800A0), REG(0x401800C0),
-                   REG(0x401800C4), REG(0x40160004), REG(0x50030004), REG(0x50010020), REG(0x500100BC));
-}
-
-static void steps_apply(u32 now)          /* while streaming: the next group every 15 s */
-{
-    if (bt_step >= 4u || now - bt_step_at < STEP_MS)
+    if (!LOG_TO_FILE)
         return;
-    u32 from = bt_step ? STEP_END[bt_step - 1u] : 0u;
-    for (u32 i = from; i < STEP_END[bt_step]; i++) {
-        u32 a = STEPS[i][0], v = STEPS[i][1];
-        bt_saved[i] = REG(a);
-        if (a == 0x40160004u || a == 0x50030004u)
-            REG(a) = bt_saved[i] & ~v;
-        else
-            REG(a) = 0xFFFF0000u | v;
+    log_printf("bt: dump I2S1 %08x %08x %08x %08x %08x %08x %08x %08x", REG(0x40030000), REG(0x40030004),
+               REG(0x40030008), REG(0x4003000C), REG(0x40030010), REG(0x40030014), REG(0x40030018), REG(0x4003001C));
+    volatile u32 *ac = (volatile u32 *)lit(0x40090200u);
+    log_printf("bt: dump ACODEC+200 %08x %08x %08x %08x %08x %08x %08x %08x", ac[0], ac[1], ac[2], ac[3], ac[4],
+               ac[5], ac[6], ac[7]);
+    log_printf("bt: dump CRU+004 %08x +014 %08x +030 %08x GPIO0 %08x GPIO1 %08x GPIO2 %08x", REG(0x40180004),
+               REG(0x40180014), REG(0x40180030), REG(0x40160000), REG(0x40170000), REG(0x50030000));
+    for (u32 c = 0; c < 2u; c++) {
+        u8 v[34];
+        for (u32 i = 0; i < 34u; i++)
+            if (dac_read(c, DAC_MAPS[i], &v[i]) != 0)
+                v[i] = 0xEE;                      /* read failed */
+        for (u32 i = 0; i < 34u; i += 17u)
+            log_printf("bt: dump DAC %u from %06x: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+                       c, DAC_MAPS[i], v[i], v[i + 1], v[i + 2], v[i + 3], v[i + 4], v[i + 5], v[i + 6], v[i + 7],
+                       v[i + 8], v[i + 9], v[i + 10], v[i + 11], v[i + 12], v[i + 13], v[i + 14], v[i + 15], v[i + 16]);
     }
-    bt_step++;
-    bt_step_at = now;
-    step_log("applied");
-}
-
-static void steps_undo(void)              /* stream ended: RECHO's values back, newest first */
-{
-    if (!bt_step)
-        return;
-    for (u32 i = STEP_END[bt_step - 1u]; i-- > 0u;) {
-        u32 a = STEPS[i][0];
-        REG(a) = (a == 0x40160004u || a == 0x50030004u) ? bt_saved[i] : (0xFFFF0000u | (bt_saved[i] & 0xFFFFu));
-    }
-    bt_step = 0;
-    step_log("undone");
 }
 
 /* full snapshot while streaming (read only): GRF and CRU 0x000-0x0FC, GPIO data / direction */
@@ -779,18 +757,18 @@ void bt_tick(void)
         switch_screen(bt_screen);
     }
 #ifdef ECHO_PORT
-    {                                             /* step test: Podium's state, one group per 15 s */
+    {                                             /* dump 5 s into each stream (stage 47) */
         u32 t = ms_now();
         if (bt_routed && bt_streamed) {
-            if (!bt_step_live) {
-                bt_step_live = 1;
-                bt_step_at = t;
-                step_log("stream on");
+            if (!bt_dump_live) {
+                bt_dump_live = 1;
+                bt_dump_at = t;
+            } else if (bt_dump_live == 1u && t - bt_dump_at >= 5000u) {
+                bt_dump_live = 2;
+                stream_dump();
             }
-            steps_apply(t);
-        } else if (bt_step_live) {
-            bt_step_live = 0;
-            steps_undo();
+        } else {
+            bt_dump_live = 0;
         }
     }
 #endif

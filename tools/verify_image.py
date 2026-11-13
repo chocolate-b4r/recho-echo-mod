@@ -56,11 +56,12 @@ ALLOWED_DATA |= UI_DATA
 # cable chooser uses (close the loaded module, switch screen, list keys).
 BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
             0x0305BA54, 0x0305C3E4, 0x03059FE8,   # close module, switch screen, list keys
-            0x03057C94, 0x0305AB80}               # pause / play and skip (headphone buttons)
+            0x03057C94, 0x0305AB80,               # pause / play and skip (headphone buttons)
+            0x03055D70}                           # DAC register read (chip 0/1, map, &value): Bluetooth dump
 SHARED_CONSTS = {0x564F5046,   # not addresses: "VOPF", "SFMD" and the first 16 bytes of m44's folder-tree routine
                  0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
-              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick", "step_log"}   # + one line per track from the lyrics loader (Log to file on)
+              "lyrics_tick", "set_stream", "bt_route", "follow_player", "log_audio_state", "raw_flush", "dump_regs", "about_tick", "stream_dump"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
 BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007C, 0x400B0088,
            0x400B0098, 0x400B009C, 0x400B00A0, 0x400B00A8, 0x500100BC,
@@ -72,7 +73,9 @@ BT_REGS = {0x400B0000, 0x400B0004, 0x400B000C, 0x400B0010, 0x400B0014, 0x400B007
            0x40180080, 0x40180088, 0x40180090, 0x40180094, 0x40180098,  # CRU clock gates
            0x401800C4, 0x401800C8, 0x401800CC,                          # CRU soft resets
            0x40160004, 0x50030004,                                      # GPIO0 / GPIO2 direction
-           0x50010020, 0x50010024, 0x50010044, 0x50010080, 0x50010088, 0x5001008C, 0x500100B4}  # GRF pin functions
+           0x50010020, 0x50010024, 0x50010044, 0x50010080, 0x50010088, 0x5001008C, 0x500100B4,  # GRF pin functions
+           # Bluetooth dump (stage 47), read only
+           0x40030014, 0x40030018, 0x40090200, 0x40180004, 0x40180014, 0x40180030}
 ALLOWED_CALLS |= BT_CALLS
 ALLOWED_DATA |= BT_DATA
 
