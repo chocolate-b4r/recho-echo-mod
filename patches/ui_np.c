@@ -130,6 +130,22 @@ __attribute__((naked)) void battery_pct_shim(void)
         "mov    r5, r0\n"
         "pop    {r0, r1, r2, r3, ip, pc}\n");
 }
+
+/* RECHO's menu bar draws that text in white (`movw r2,#0xF79E` at 0x3059490); this bl gives it the
+ * Now Playing colours instead: green on the cable, amber <= 35 %, red <= 15 %. r2 = colour. */
+u32 status_pct_colour(void)
+{
+    return pct_colour();
+}
+
+__attribute__((naked)) void battery_colour_shim(void)
+{
+    __asm__ volatile(
+        "push   {r0, r1, r3, ip, lr}\n"
+        "bl     status_pct_colour\n"
+        "mov    r2, r0\n"
+        "pop    {r0, r1, r3, ip, pc}\n");
+}
 #endif
 
 /* ---- helpers ------------------------------------------------------------------ */

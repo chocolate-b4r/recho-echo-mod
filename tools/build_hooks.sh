@@ -9,7 +9,7 @@ CFLAGS=(-mcpu=cortex-m3 -mthumb -Os -ffreestanding -fno-builtin -nostdlib -fno-p
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror -Ibuild)
 OUT=hooks
 OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/favs.o build/clock.o build/ui_np.o build/bt.o)
-ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|shell_key|battery_pct_shim|vol_text|boot_screen|usb_key_exit|files_key|files_enter|files_draw|gpio_set_mini|gpio_set_orig|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
+ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|shell_key|battery_pct_shim|battery_colour_shim|vol_text|boot_screen|usb_key_exit|files_key|files_enter|files_draw|gpio_set_mini|gpio_set_orig|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
 UNDEF=(-u status_level_shim -u power_tick_wrap -u shell_key -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw -u battery_pct_shim -u vol_text -u boot_screen -u usb_key_exit -u files_key -u files_enter -u files_draw -u menu_key -u bt_request_open -u bt_value_r1 -u str_bluetooth -u menu_draw -u about_request_open -u str_about)
 if [ "${1:-}" = "echo" ]; then
     OUT=hooks-echo
@@ -18,7 +18,7 @@ if [ "${1:-}" = "echo" ]; then
     ENTRIES="$ENTRIES|echo_panel_init|gpio_set_echo|gpio_set_orig|echo_gpio_read|echo_hatch_tick|hatch_since|echo_sidebar_tick|echo_blank_outside|echo_panel_fill|sb_dirty|echo_band_tick|ui_borrow|ui_return|echo_push_rows"
     UNDEF+=(-u echo_panel_init -u gpio_set_echo -u echo_gpio_read)
 fi
-[ "${1:-}" = "echo" ] || UNDEF+=(-u gpio_set_mini)
+[ "${1:-}" = "echo" ] || UNDEF+=(-u gpio_set_mini -u battery_colour_shim)
 mkdir -p build
 # The boot screen's glyphs come from your RECHO image (RECHO draws the boot screen before it loads
 # its fonts). They are generated, not shipped: RECHO_IMG=/path/to/RECHO-0.10.1.IMG creates them.

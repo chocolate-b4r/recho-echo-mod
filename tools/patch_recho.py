@@ -196,6 +196,7 @@ def echo_status_bar(d):
 HEADPHONE_GLYPH = 0x03059504   # menu bar: `cmp r5,#1; bls 0x30595a2` -> headphone / no-headphone glyph
 TIMECODE_BRANCH = 0x03059B3A   # menu header: `bhi.n 0x3059b8a` skips "▶ m:ss" unless playing / paused
 BATTERY_GLYPH_LOAD = 0x03059474  # menu bar: `ldr.w r5,[r3,r2,lsl #2]` = battery glyph string by level
+BATTERY_TEXT_COLOUR = 0x03059490  # menu bar: `movw r2,#0xF79E` = battery text colour (white)
 
 
 VOL_TEXT_BAR = 0x030594D4    # menu bar: bl 0x305C09E (snprintf "%d dB", volume)
@@ -268,6 +269,8 @@ def menu_bar(d, e, echo):
     else:
         put(d, BATTERY_GLYPH_LOAD - RAM_OF_IMG, bytes.fromhex("53f82250"),
             thumb_bl(BATTERY_GLYPH_LOAD, e["battery_pct_shim"]), "menu bar: battery glyph -> percentage text")
+        put(d, BATTERY_TEXT_COLOUR - RAM_OF_IMG, bytes.fromhex("4ff29e72"),
+            thumb_bl(BATTERY_TEXT_COLOUR, e["battery_colour_shim"]), "menu bar: battery % colour (green on the cable)")
 
 
 def key_remap(d, e):

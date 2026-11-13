@@ -265,7 +265,8 @@ def main(orig_path, new_path):
                           (0x0305BC8A, 2, "after USB disk screen"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
                            "menu header play time" if ECHO else "menu bar battery glyph"),
-                          *(() if ECHO else ((0x03051590, 4, "GPIO set entry (Bluetooth pins)"),))):
+                          *(() if ECHO else ((0x03051590, 4, "GPIO set entry (Bluetooth pins)"),
+                                             (0x03059490, 4, "menu bar battery % colour")))):
         allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
     if ECHO:
         for addr, n, what in ((0x0306B9F4, 4, "echo: panel init (boot)"), (0x0306C206, 4, "echo: panel init (wake)"),
@@ -556,6 +557,9 @@ def main(orig_path, new_path):
         bg = 0x03059474 - RAM_OF_IMG
         check(a[bg:bg + 4] == bytes.fromhex("53f82250") and bl_target(b, bg, 0x03059474) == entl["battery_pct_shim"],
               "menu bar: battery glyph load -> bl battery_pct_shim (percentage text)")
+        bc = 0x03059490 - RAM_OF_IMG
+        check(a[bc:bc + 4] == bytes.fromhex("4ff29e72") and bl_target(b, bc, 0x03059490) == entl["battery_colour_shim"],
+              "menu bar: battery % colour movw r2,#0xf79e -> bl battery_colour_shim (green on the cable)")
     for site, kind in ((0x030594D4, "bl"), (0x0305A4B0, "b.w")):
         o = site - RAM_OF_IMG
         t0 = bl_target(a, o, site) if kind == "bl" else bw_target(a, o, site)
