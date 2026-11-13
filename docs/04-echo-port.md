@@ -63,8 +63,17 @@ build uses its own names.
 
 ## Installing on an Echo for the first time
 
-The Echo's stock firmware updater only accepts `ECHOVnnn.IMG`. From FiiO's firmware (or Podium),
-copy the patched image as `ECHOV4nn.IMG`; FiiO writes both slots. Afterwards, use `RECHOECH.IMG`.
+The Echo's stock firmware updater only accepts `ECHOVnnn.IMG`. From FiiO's firmware, copy the
+patched image as `ECHOV4nn.IMG`; FiiO writes both slots. Afterwards, use `RECHOECH.IMG`.
+
+Podium's updater accepts only Podium images and FiiO's own `ECHOV200.IMG`, so from Podium the way
+back is two copies: `ECHOV200.IMG` (Podium installs FiiO), then the patched image as `ECHOV4nn.IMG`
+(FiiO installs it).
+
+RECHO's own updater does not check whose firmware a file is. It refuses an image that is not
+RKnanoFW, whose backup header differs, whose size or layout does not fit the firmware area, whose CRC
+is wrong, or whose slot 2 would overwrite the music drive (result table at `0x305F320`). Any valid
+Echo image named `RECHOECH.IMG` therefore installs, Podium's `ECHOV461.IMG` included.
 
 ## Display fallback (VOP / GPIO)
 
