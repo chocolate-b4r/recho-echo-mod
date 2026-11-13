@@ -138,7 +138,9 @@ every `CY0` (the parser used to keep only `CY`), to see whether it answers with 
 ### Stage 26 findings (2026-11-13)
 
 - The module answers every `CY0` with `CKKK` `CYOK`: the stream command is accepted.
-- No sound at any volume, so the module does not take the analog DAC output.
+- No sound at any volume. (An earlier version of this page concluded from that that the module
+  does not take the DAC's analogue output. That was wrong: EchoPod's research notes say it does,
+  and samples and encodes that signal itself; see "What Podium and EchoPod do" below.)
 - The headphones (Nothing Ear (2)) streamed fine with FiiO's own firmware, so the hardware path works.
 - GRF / CRU / GPIO snapshot while routed: `logs/echo-bt-dump.txt` (I2S1 pins on function 1, UART1 on
   GPIO2.16/17, audio clock `CRU+0x20` = `0x8004` as Podium, GPIO2 data `0x80C7` / dir `0x3C2D7`).
@@ -164,3 +166,27 @@ every `CY0` (the parser used to keep only `CY`), to see whether it answers with 
 - Stage 29 (last attempt): routes for the whole connection from the moment it connects, as FiiO's
   connect step does, and only streams (`CY0 1E` / `00`) with play / pause.
 - Stage 29 on the player: still silent with the route held for the whole connection.
+
+## What Podium and EchoPod do (checked 2026-11-13)
+
+Sources: Podium 4.6.0 and 4.6.1 (`board/bluetooth.c`, identical in both), EchoPod 0.12.0
+(github.com/BasilSkyWalk/echopod: `board/bluetooth.c`, `docs/hardware.md`, `docs/research.md`,
+`docs/architecture.md`). Both stream to OnePlus Buds 3 since 2026-10-29.
+
+| Step | Podium (Echo) / EchoPod (Mini) | This mod |
+|---|---|---|
+| Module power, UART1 group A 115,200 8N1 | GPIO2.7, pins 2.16 / 2.17 | same |
+| Commands | `CY0 00` on connect, `CY0 1E` / `CY0 00` to start / stop the stream, `C 86` / `C 87` | same |
+| Routing | DAC mute high (Echo GPIO2.1, Mini GPIO2.0), GPIO2.14 low; back 1 s after the stream stops | same pins; back at once |
+| Pins held while routed | every DAC pin write goes through `board_bluetooth_pin`, so the DAC code can't undo them | `gpio_set_echo` holds them (Echo) |
+| Stock start-up writes | GRF `+0xC4`, CRU `+0x84` / `+0xA0` / `+0xC0`, GRF `+0x14` / `+0x54`, **once**, and nothing else in their firmware touches those registers | the same six writes, **once**; RECHO keeps running its own audio code afterwards |
+| Audio | the module takes the **DAC's analogue output**; a separate DAC volume table for Bluetooth (6.5 dB below the 3.5 mm one, or equal on "Louder") | RECHO's volume table |
+
+The difference that matters: in Podium nothing undoes the start-up writes, in RECHO something
+might. The dump above shows GRF `+0xC4` reading `f040` on the first route and `3040` on later
+ones, so RECHO does rewrite at least that register between routes. Their notes also say it is not
+known which of the six writes is needed.
+
+**Next experiment:** apply the six writes on every route (not once), log them again 1 s and 5 s
+into the stream to see what RECHO changes back, and keep re-applying them while routed. If that
+plays, narrow down which register matters.
