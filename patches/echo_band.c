@@ -85,7 +85,7 @@ static void draw_strip(const char *msg, int on_np)
 {
     for (int row = 0; row < 2; row++) {
         ui_borrow(320, STRIP_ROW_H);
-        if (row == (on_np ? 1 : 0))         /* Now Playing: the line right above the progress bar */
+        if (on_np && row == 1)              /* Now Playing only: the line right above the progress bar */
             fill_rect(8, 0, 311, 0, RULE);
         if (row == 0 && msg && *msg) {
             int w = text_width(1, msg);

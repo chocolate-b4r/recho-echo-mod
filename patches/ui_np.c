@@ -464,14 +464,13 @@ static const char *output_label(char *buf, int n, u32 *colour);
 #ifdef ECHO_PORT
 extern const char *lyrics_line(void);
 #define FB_PX PTR(volatile u16 *, 0x03008A00)
-/* draw "a" then "b" (either may be 0) in the large font at 2x, centred on cx, top at y_top.
- * Rendered first into scratch rows 152..(152 + h) of the frame buffer, cleared afterwards.
- * Returns 0 (drawing nothing) when it would not fit in 300 px. */
+/* draw "a" then "b" (either may be 0) in the large font scaled, centred on cx, top at y_top */
 static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char *b, u32 cb, int num)
 {
-    /* num / 2 = scale: 4 -> 2x, 3 -> 1.5x. Rendered at 1x into scratch rows 152.. of the frame
-     * buffer (below everything that is scaled), copied up, then cleared. 0 = does not fit 300 px. */
-    const int sy = 152;
+    /* num / 2 = scale: 4 -> 2x, 3 -> 1.5x. Rendered at 1x into scratch rows 0..h of the frame
+     * buffer (the top bar's rows: np_draw draws the bar after the picture), copied down, then
+     * cleared. 0 = does not fit 300 px. */
+    const int sy = 0;
     int h = font_h(1);
     int wa = (a && *a) ? text_width(1, a) : 0, ws = wa ? text_width(1, " - ") : 0;
     int wb = (b && *b) ? text_width(1, b) : 0, w = wa + ws + wb;
@@ -498,6 +497,54 @@ static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char
     return 1;
 }
 #define text2x_line(cx, y, a, ca, b, cb) text_scaled_line(cx, y, a, ca, b, cb, 4)
+
+/* The lyric being sung, always at 1.5x (rows 118..169). A line too wide for one row is split at
+ * the space that balances the two halves best; only lines too long even for two rows of 1.5x
+ * fall back to two rows of the large font (then the small one). */
+static void lyric_block(const char *ly, u32 c)
+{
+    char a[128], b[128];
+    int n = 0;
+    while (ly[n] && n < 127)
+        n++;
+    if (text_width(1, ly) <= 200) {
+        text_scaled_line(W / 2, 132, 0, 0, ly, c, 3);
+        return;
+    }
+    int best = -1, best_w = 1 << 30;
+    for (int i = 1; i < n - 1; i++) {
+        if (ly[i] != ' ')
+            continue;
+        for (int k = 0; k < i; k++)
+            a[k] = ly[k];
+        a[i] = 0;
+        int wa = text_width(1, a), wb = text_width(1, ly + i + 1);
+        int m = wa > wb ? wa : wb;
+        if (m < best_w) {
+            best_w = m;
+            best = i;
+        }
+    }
+    if (best < 0) {                       /* one long word: the large font, clipped */
+        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 143, ly, 304, c);
+        return;
+    }
+    for (int k = 0; k < best; k++)
+        a[k] = ly[k];
+    a[best] = 0;
+    int j = 0;
+    for (const char *q = ly + best + 1; *q && j < 127; q++)
+        b[j++] = *q;
+    b[j] = 0;
+    if (best_w <= 200) {
+        text_scaled_line(W / 2, 120, 0, 0, a, c, 3);
+        text_scaled_line(W / 2, 145, 0, 0, b, c, 3);
+    } else {
+        int f = best_w <= 304 ? 1 : 0;
+        text_centred(f, W / 2, 133, a, 304, c);
+        text_centred(f, W / 2, 153, b, 304, c);
+    }
+}
 #endif
 
 #ifndef ECHO_PORT
@@ -577,7 +624,8 @@ void np_draw(void)
 #endif
     *p = 0;
 #ifdef ECHO_PORT
-    top_bar_c(qpos, right_colour);
+    if (!loaded)
+        top_bar_c(qpos, right_colour);    /* with a track: after the picture (scratch rows) */
 #else
     {
         char pct[8];
@@ -630,13 +678,11 @@ void np_draw(void)
             text_centred(1, W / 2, 136, v, 300, WHITE);
         } else {
             const char *ly = lyrics_line();
-            if (ly && !text2x_line(W / 2, 120, 0, 0, ly, lc)          /* rows 120..151, scratch at 152 */
-                && !text_scaled_line(W / 2, 124, 0, 0, ly, lc, 3)) {   /* 1.5x: rows 124..147 */
-                int f = text_width(1, ly) <= 304 ? 1 : 0;
-                text_centred(f, W / 2, 136, ly, 304, lc);
-            }
+            if (ly)
+                lyric_block(ly, lc);
         }
     }
+    top_bar_c(qpos, right_colour);
     (void)playing;
     return;
 #else
@@ -692,19 +738,9 @@ void footer_row(int row, int on_now_playing)
         return;
     }
     if (row == 0) {
-        int x0 = 10;
-        if (paused) {
-            fill_rect(x0, 6, x0 + 3, 19, RED);
-            fill_rect(x0 + 7, 6, x0 + 10, 19, RED);
-        } else {
-            for (int i = 0; i < 14; i++) {
-                int w = i < 7 ? i * 2 + 1 : (13 - i) * 2 + 1;
-                fill_rect(x0, 6 + i, x0 + w * 6 / 14, 6 + i, WHITE);
-            }
-        }
-        char info[64];                    /* file details: format, rate, bits, kbps, "3/500" */
+        char info[64];                    /* file details, centred: format, rate, bits, kbps, "3/500" */
         format_line_ex(info, sizeof info, 1);
-        text_at(text_width(1, info) <= 284 ? 1 : 0, x0 + 20, 13, info, 284, paused ? DIM : GREY);
+        text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 13, info, 300, paused ? DIM : GREY);
     } else {
         progress_at(13, paused);
     }
@@ -1196,11 +1232,11 @@ int vol_text(char *buf, u32 size, const char *fmt, int v)
  * Drawn with RECHO's own boot text routine 0x306C290 (6 x 11 font, works before the fonts load)
  * into the frame buffer; *rect gets the whole screen so RECHO pushes all of it to the panel. */
 #define boot_text FN(0x0306C290, void (*)(int x, int y, const char *s, u32 colour, int bg, int scale))
-static int boot_put(int big, int x, int y, const char *t, u32 colour)
+static int boot_put(int thin, int x, int y, const char *t, u32 colour)
 {
-    if (big) {
-        draw_text(1, x, y, t, 316 - x, colour, -1);
-        return text_width(1, t);
+    if (thin) {
+        draw_text(0, x, y, t, 316 - x, colour, -1);
+        return text_width(0, t);
     }
     boot_text(x, y, t, colour, 0, 1);
     int n = 0;
@@ -1212,22 +1248,19 @@ static int boot_put(int big, int x, int y, const char *t, u32 colour)
 int boot_screen(const char *s, int a, int b, u32 colour, int z, int *rect)
 {
     (void)s; (void)a; (void)b; (void)z;
-    static const char *const LINES[9] = {"> init", "> boot", "> loading kernel...", "> compiling data...",
-                                         "> applying interface...", "> system ready", 0,
-                                         "> mounting /dev/cho4e...", "login: 0.10.1"};
+    static const char *const LINES[6] = {"> init", "> boot", "> loading kernel...", "> compiling data...",
+                                         "> applying interface...", "> system ready"};
     fill_rect(0, 0, W - 1, 169, BLACK);
-    /* the large font, as on the power-off screen; RECHO's 6 x 11 boot font if it is not loaded */
-    int big = FONTS[1 * 4 + 3] != 0;
-    int h = big ? font_h(1) : 11, step = (170 - 4) / 9;      /* 9 lines of 18 px */
-    for (int i = 0, y = 2; i < 9; i++, y += step) {
-        if (LINES[i]) {
-            boot_put(big, 4, y, LINES[i], colour);
-            continue;
-        }
-        int xb = 4 + boot_put(big, 4, y, "[", colour);         /* [####################] 100% */
-        fill_rect(xb + 2, y + 3, xb + 141, y + h - 4, colour);
-        boot_put(big, xb + 144, y, "] 100%", colour);
-    }
+    /* RECHO's small font: thin, 1 px strokes (the large one looks bold at this size). Fonts are
+     * loaded before the splash ("font: bitmap fonts" at ~0.2 s); the 6 x 11 boot font otherwise */
+    int thin = FONTS[0 * 4 + 3] != 0;
+    int h = thin ? font_h(0) : 11, y = 6;
+    for (int i = 0; i < 6; i++, y += 20)
+        boot_put(thin, 4, y, LINES[i], colour);
+    int xb = 4 + boot_put(thin, 4, y, "[", colour);           /* [####################] 100%> ... */
+    fill_rect(xb + 2, y + 2, xb + 141, y + h - 3, colour);
+    boot_put(thin, xb + 144, y, "] 100%> mounting /dev/cho4e...", colour);
+    boot_put(thin, 4, y + 20, "login: 0.10.1", colour);
     rect[0] = 0;
     rect[1] = 0;
     rect[2] = W - 1;
