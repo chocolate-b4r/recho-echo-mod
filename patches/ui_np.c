@@ -793,31 +793,16 @@ void np_draw(void)
         text_centred(text_width(1, info) <= 300 ? 1 : 0, W / 2, 102, info, 300, paused ? DIM : GREY);
         fill_rect(60, 118, W - 61, 118, RULE);  /* 8 px of room under the file info */
 
-        u32 lc = paused ? GREY : WHITE;
-        if (ms_now() - VOLUME_AT < 2000u) {
-            char v[24], *q = put_str(v, "Volume ", v + 23);
-            int db = VOLUME_DB;
-            if (db <= -128)
-                q = put_str(q, "muted", v + 23);
-            else {
-                q = put_num(q, (u32)(db + 90 > 0 ? db + 90 : 0), v + 23);
-                q = put_str(q, " dB", v + 23);
-            }
-            *q = 0;
-            text_centred(1, W / 2, 138, v, 300, WHITE);
-        } else {
-            const char *ly = lyrics_line();
-            if (ly)
-                lyric_block(ly, lc);
-        }
+        const char *ly = lyrics_line();       /* the volume is in the top bar: no overlay here */
+        if (ly)
+            lyric_block(ly, paused ? GREY : WHITE);
     }
     top_bar_c(qpos, right_colour);
     (void)playing;
     return;
 #else
-    int fmt_y = 132;
     /* Mini (alternate layout): left half artist, song (two lines when long), album, then the
-     * format line and queue position (or the volume for 2 s); right half Up Next in the small font
+     * format line and queue position; right half Up Next in the small font
      * down to the progress bar (9 songs); progress bar across the bottom */
     {
         const char *artist;
@@ -826,7 +811,6 @@ void np_draw(void)
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
         int y = 36;
-        (void)fmt_y;
         if (artist && *artist) {
             text_at(1, LX, y, artist, LW, c_art);
             y += 20;
@@ -846,22 +830,7 @@ void np_draw(void)
         }
         fill_rect(160, 28, 160, 143, RULE);
         upnext_draw(168, 33, 144, paused);    /* rows 33, 46, ... 137 */
-        if (ms_now() - VOLUME_AT >= 2000u)
-            format_left(LX, y, LW, 140, paused);
-        else
-            fmt_y = y;
-    }
-    if (ms_now() - VOLUME_AT < 2000u) {
-        char v[24], *q = put_str(v, "Volume ", v + 23);
-        int db = VOLUME_DB;
-        if (db <= -128)
-            q = put_str(q, "muted", v + 23);
-        else {
-            q = put_num(q, (u32)(db + 90 > 0 ? db + 90 : 0), v + 23);
-            q = put_str(q, " dB", v + 23);
-        }
-        *q = 0;
-        text_at(1, 8, fmt_y, v, 146, WHITE);   /* where the file details are */
+        format_left(LX, y, LW, 140, paused);  /* the volume is in the top bar: no overlay */
     }
     progress_at(Y_PROGRESS, paused);
     (void)playing;
@@ -1332,6 +1301,7 @@ void about_request_open(void)
 }
 
 STATE volatile u32 menu_last_module = 0;
+STATE volatile int vol_shown = -1000;
 
 /* RECHO's display safety (0x306C018): a boot that ends within 5 s of trying the fast VOP bus
  * leaves "VOP1" at 0x0309FFB0; the next boot then writes "VOPF" and uses the slow GPIO path, and
@@ -1350,6 +1320,14 @@ void about_tick(void)
             log_printf("display: VOPF fallback cleared after %u ms", ms_now());
     }
     u32 m = CURRENT_MODULE_ID;
+    if (VOLUME_DB != vol_shown) {             /* top bars show the volume: follow it */
+        vol_shown = VOLUME_DB;
+        if (m == 45u || m == 47u) {
+            const volatile u32 *sv = current_screen();
+            if (sv)
+                request_redraw((const void *)sv);
+        }
+    }
     if (m == 47u && menu_last_module != 47u && about_state == 0u) {
         MENU_STATE[1] = 2u;                 /* the menu opens on Now playing */
         const volatile u32 *scr0 = current_screen();
