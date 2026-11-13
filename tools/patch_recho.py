@@ -211,6 +211,15 @@ def boot_splash(d, e):
         thumb_bl(BOOT_SPLASH_CALL, e["boot_screen"]), "boot splash -> boot_screen")
 
 
+USB_KEY_CALL = 0x0305062C   # USB-disk loop callback: `bl power_key_down` (armed) -> leave USB disk
+
+
+def usb_back_key(d, e):
+    """Both players: Back (or power) leaves USB disk, after the key is released (patches/keys.c)."""
+    put(d, USB_KEY_CALL - RAM_OF_IMG, thumb_bl(USB_KEY_CALL, 0x03051C70),
+        thumb_bl(USB_KEY_CALL, e["usb_key_exit"]), "USB disk key -> usb_key_exit")
+
+
 def volume_text(d, e):
     """Both players: volume shown from 0 dB (RECHO's -90 dB) upward."""
     put(d, VOL_TEXT_BAR - RAM_OF_IMG, thumb_bl(VOL_TEXT_BAR, 0x0305C09E), thumb_bl(VOL_TEXT_BAR, e["vol_text"]),
@@ -285,6 +294,7 @@ def add_hooks(d, animation=True, echo=False):
     menu_bar(d, e, echo)
     volume_text(d, e)
     boot_splash(d, e)
+    usb_back_key(d, e)
     ui_layout(d, e)
     if echo:
         if not animation:
@@ -329,8 +339,6 @@ def usb_chooser_charge_first(d):
 # ---- Settings (module m48): hide Show tags, On USB connect, Debug strip ----
 M48_IMG = 0x2BDD8
 SETTINGS_ROWS = 17
-SETTINGS_ORDER = [0, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13, 14, 15, 16, 1, 10, 12]   # new -> original
-SETTINGS_SHOWN = 14
 
 
 def m48(addr):
@@ -422,7 +430,7 @@ def thumb_bn(src, dst):
     return struct.pack("<H", 0xE000 | ((off >> 1) & 0x7FF))
 
 
-def settings_hide_rows(d, P=SETTINGS_ORDER, n=SETTINGS_SHOWN):
+def settings_hide_rows(d, P, n):
     new_of = {orig: i for i, orig in enumerate(P)}
     lab = struct.unpack_from("<17I", d, m48(0x0307AF08))
     if lab[1] != 0x0307AE10 or lab[10] != 0x0307AE78 or lab[12] != 0x0307AE94:
@@ -470,7 +478,6 @@ UNUSED_ICONS = (0xE002,                    # stop: only RECHO's Now Playing (rep
                 0xE01B,                    # menu lines: soft-key labels (no button bar any more)
                 0xE01C,                    # heart: Supporters row (removed)
                 0xE022, 0xE023, 0xE024, 0xE025, 0xE026, 0xE027, 0xE028, 0xE029)  # Now Playing badges
-ECHO_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B)   # battery cells: Echo top bars show no glyph
 # Both players now: the menu bar shows no headphone glyph (Now Playing names the output) and the
 # Mini's menu bar shows the battery as a percentage, so these glyphs are drawn nowhere.
 BAR_UNUSED_ICONS = (0xE007, 0xE008, 0xE009, 0xE00A, 0xE00B, 0xE00E, 0xE00F, 0xE010)

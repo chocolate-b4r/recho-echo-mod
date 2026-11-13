@@ -36,3 +36,73 @@ void hold_menu(void)
     else
         go_main_menu();
 }
+
+/*
+ * USB disk: ↩ (Back) leaves, as in the stock firmware.
+ * RECHO's USB-disk loop polls one callback (fw1 0x30505EC); once armed it leaves on
+ * `power_key_down()` at 0x305062C, which this replaces. RECHO's key poll does not run in
+ * that loop, so ↩ is read straight from the key ladder (SAR ADC channel 1, same register
+ * sequence as RECHO's poll at 0x3058400). A conversion is started on one call and read on
+ * a later one (>= 20 ms apart), so the loop never waits for the ADC. Whatever key leaves,
+ * the hook waits for it to be released first: the UI then sees no press afterwards (before,
+ * the power press that left also reached the UI and switched the screen off).
+ */
+#define ms_now         FN(0x03051638, u32 (*)(void))
+#define delay_ms       FN(0x03051C48, void (*)(u32))          /* also feeds the watchdog */
+#define power_key_down FN(0x03051C70, u32 (*)(void))
+#define ADC            ((volatile u32 *)lit(0x400D0000u))      /* [0] data, [2] control */
+#define BACK_LO 450u                                           /* RECHO's own ↩ band (0x305850E): 450..549 */
+#define BACK_HI 549u
+
+#define STATE __attribute__((section(".text.usb_state,\"ax\",%progbits@"), used))
+STATE static volatile u32 usb_adc_at = 0, usb_adc_chan = 0xFFFFFFFFu, usb_back_hits = 0;
+
+static void adc_start(u32 chan)
+{
+    u32 c = ADC[2];
+    c &= ~0x40u;
+    ADC[2] = c;
+    c &= ~0x10u;
+    ADC[2] = c;
+    ADC[2] = (c & ~0x47u) | (chan & 7u) | 0x18u;
+}
+
+static int back_now(void)                                     /* blocking read, for the release wait */
+{
+    adc_start(1);
+    delay_ms(2);
+    u32 v = ADC[0] & 0x3FFu;
+    return v >= BACK_LO && v <= BACK_HI;
+}
+
+u32 usb_key_exit(void)
+{
+    int power = power_key_down() != 0, back = 0;
+    if (!power) {
+        u32 now = ms_now();
+        if (usb_adc_chan == 0xFFFFFFFFu) {                    /* first call: remember RECHO's channel */
+            usb_adc_chan = ADC[2] & 7u;
+            usb_back_hits = 0;
+            adc_start(1);
+            usb_adc_at = now;
+            return 0;
+        }
+        if (now - usb_adc_at < 20u)
+            return 0;
+        u32 v = ADC[0] & 0x3FFu;                              /* the conversion started last time */
+        usb_back_hits = (v >= BACK_LO && v <= BACK_HI) ? usb_back_hits + 1u : 0u;
+        adc_start(1);
+        usb_adc_at = now;
+        back = usb_back_hits >= 2u;                           /* two readings in a row, 20 ms apart */
+        if (!back)
+            return 0;
+    }
+    for (u32 t = 0; t < 3000u; t += 10u) {                    /* wait for the release (3 s at most) */
+        if (power ? !power_key_down() : !back_now())
+            break;
+        delay_ms(10);
+    }
+    adc_start(usb_adc_chan == 0xFFFFFFFFu ? 0u : usb_adc_chan);   /* RECHO's poll continues where it was */
+    usb_adc_chan = 0xFFFFFFFFu;
+    return 1;
+}

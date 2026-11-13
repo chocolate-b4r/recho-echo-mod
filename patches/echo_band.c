@@ -119,7 +119,7 @@ void echo_band_tick(void)
     }
     int state = player_state();
     u32 key = message_hash(msg) ^ ((u32)on_np << 31) ^ ((u32)state << 28) ^ ((u32)queue_index() << 16)
-              ^ (state == 1 ? elapsed_ms() / 1000u : 0u) ^ ((u32)(lyrics_index() + 1) << 20);
+              ^ (state == 1 ? elapsed_ms() / 1000u : 0u);
     if (key == strip_key && !hints_dirty)
         return;
     hints_dirty = 0;

@@ -61,3 +61,13 @@ of Files queues every song on that drive, so playback runs on from one folder to
 tap of ▶‖ on a song still queues just its folder. Play mode (shuffle, repeat) applies to either
 queue. In m44 this is the hold-▶‖ branch at `0x307AF2C` → `0x307A278` (folder tree, `0` = the
 whole drive).
+
+## USB disk: Back leaves
+
+RECHO's USB-disk loop only polls one callback (`0x30505EC`), and its key poll does not run there.
+Once armed, it leaves on `power_key_down()` at `0x305062C`; that call is now `bl usb_key_exit`
+(`patches/keys.c`). The hook also reads the key ladder itself (SAR ADC channel 1, RECHO's own ↩ band
+450–549, two readings 20 ms apart; the conversion is started on one call and read on the next, so
+transfers never wait for the ADC). Whichever key leaves, the hook waits for its release first, so
+the player sees no press afterwards. Before, the power press that ended USB mode also reached the UI,
+which switched the screen off.

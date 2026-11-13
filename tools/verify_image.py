@@ -237,6 +237,7 @@ def main(orig_path, new_path):
                           (0x03059504, 4, "menu bar headphone glyph"),
                           (0x030594D4, 4, "menu bar volume text"), (0x0305A4B0, 4, "volume message text"),
                           (0x03050D7C, 4, "boot splash call"),
+                          (0x0305062C, 4, "USB disk key call"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
                            "menu header play time" if ECHO else "menu bar battery glyph")):
         allowed.append((addr - RAM_OF_IMG, addr - RAM_OF_IMG + n, what))
@@ -529,6 +530,9 @@ def main(orig_path, new_path):
     bs = 0x03050D7C - RAM_OF_IMG
     check(bl_target(a, bs, 0x03050D7C) == 0x0306C3E4 and bl_target(b, bs, 0x03050D7C) == entl["boot_screen"],
           "boot splash 0x3050d7c: bl 0x306c3e4 -> bl boot_screen")
+    uk = 0x0305062C - RAM_OF_IMG
+    check(bl_target(a, uk, 0x0305062C) == 0x03051C70 and bl_target(b, uk, 0x0305062C) == entl["usb_key_exit"],
+          "USB disk 0x305062c: bl power_key_down -> bl usb_key_exit (Back leaves)")
     print("[13] buttons (both players)")
     M45k = 0x2A494
     entk = {k: int(v, 16) for k, v in entries.items()}

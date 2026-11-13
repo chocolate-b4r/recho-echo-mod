@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v31 | USB disk: Back (or power) leaves, after the key is released, so the screen stays on; Now Playing without ReplayGain; boot screen in the power-off screen's large font, 9 lines; dead code and patcher constants removed | built, verified |
 | v30 | safety: the patcher refuses a hooks build older than patches/ (a failed build can no longer slip in old code); verifier checks the VOPF clear is present; the clear is logged (Log to file on) | built, verified |
 | v29 | display fallback no longer sticks: after 5 s on the slow GPIO panel path the "VOPF" token at 0x0309FFB0 is cleared, so the next start tries VOP again | built, verified |
 | v28 | boot text in RECHO's regular small font (boot font only as a fallback); tab arrows centred, "sys" 2 px lower | built, verified |
@@ -46,6 +47,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | 5 | own Now Playing screen (red paused state, volume on change), full-width bar, two-halves cable chooser, centred charging screen, battery and mode in Up Next | built |
 | 6 | button remap | built |
 | 7 | no button bar; screen and Up Next centred vertically; RECHO's bar messages on one line | built |
+| 34 | strip off Now Playing shows the file details (format, rate, bits, kbps, "3/500") instead of the lyric; Now Playing lyric at 2x, else 1.5x, else the large font; USB disk Back key and boot screen as Mini v31 | built, verified |
 | 33 | Now Playing strip: progress bar back in the bottom row, the line moved down to sit right above it; title at 2x on one line, or artist over a 2x title when the pair is too wide; top bar says "Safe display: restart" in amber while on the slow GPIO fallback; safety as Mini v30 | built, verified |
 | 32 | as Mini v29 (Up Next and the strip need VOP; they vanished while RECHO stuck to the GPIO fallback after quick power-offs) | built, verified |
 | 31 | Now Playing strip: the progress bar right under the picture (no empty row); boot text and tab row as Mini v28 | built, verified |
