@@ -68,6 +68,13 @@ void gpio_set_echo(u32 bank, u32 pin, u32 level)
     }
     if (bank == 2 && pin == 1)            /* Mini DAC reset: the Echo has none */
         return;
+    if (bank == 2 && pin == 6 && !level) {
+        /* Power off (RECHO 0x3051E28 releases the hold pin GPIO2.6). On the Echo the power pair
+         * GPIO0.14 + GPIO2.0 also holds the power on: it must go low first, as stock and Podium
+         * do (board_power_cut). Without this the Echo only looked off and drained its battery. */
+        gpio_set_orig(0, 14, 0);
+        gpio_set_orig(2, 0, 0);
+    }
     if (bank == 2 && pin == 2)            /* DAC B enable: remembered for the Bluetooth test */
         echo_dacb_level = level;
     gpio_set_orig(bank, pin, level);
