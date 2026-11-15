@@ -101,8 +101,7 @@ byte-identical to the released builds; [docs/13](docs/13-reverse-engineering.md#
 | Player | File name on the player | How |
 |---|---|---|
 | Echo Mini | `HIFIEC90.IMG` | copy to the top level of the internal drive, eject, unplug, restart |
-| Echo (from RECHO) | `RECHOECH.IMG` | same; RECHO's updater installs it and deletes the file |
-| Echo (from FiiO firmware) | `ECHOVnnn.IMG` | first install only, see [docs/10](docs/10-install-and-recovery.md) |
+| Echo | `ECHOV472.IMG` | same, from FiiO's firmware or from RECHO (both updaters take FiiO's `ECHOV4nn` name); from Podium see [docs/10](docs/10-install-and-recovery.md) |
 
 > [!CAUTION]
 > Never put the Mini's image on the Echo or the other way round. The file names differ on purpose.

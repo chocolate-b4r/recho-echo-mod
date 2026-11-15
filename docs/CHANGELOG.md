@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| Echo stage 61 | update file name: FiiO's own `ECHOV4nn.IMG` (prefix `RECHOE` → `ECHOV4`), so `ECHOV472.IMG` installs from FiiO's firmware and from RECHO; `RECHOECH.IMG` still works | built, verified |
 | Echo stage 60 | **power off really powers off:** RECHO only releases the Mini's hold pin GPIO2.6; the Echo's power pair GPIO0.14 + GPIO2.0 (driven high at start-up) kept the chip on, so a switched-off Echo drained its battery (99 % to 35 %). `gpio_set_echo` now drives the pair low first, as stock and Podium do | built, verified |
 | v52 / Echo stage 59 | charging screen: 50 mV off the reading while charging (the cell reads high on the cable, so the % ran ahead; EchoPod does the same, per echo-mini-newfw's ROADMAP); not once the charger reports full | built, verified |
 | v51 / Echo stage 58 | favourites: `FAVPHONE.M3U` next to `FAVORITE.M3U`, the same list without the `sd:` marks (phone-ready) | built, verified |

@@ -150,7 +150,8 @@ UPDATE_FIND_CALL = 0x0305090C                      # bl 0x3054094 (update image 
 UPDATE_NAME_FIXED = 0x0305F3BF                     # 11-char FAT name "ECHOMINIIMG"
 UPDATE_NAME_PREFIX = 0x0305F3CB                    # 6-char prefix "HIFIEC" (+ 2 digits + IMG)
 ECHO_UPDATE_FIXED = b"RECHOECHIMG"                 # -> RECHOECH.IMG
-ECHO_UPDATE_PREFIX = b"RECHOE"                     # -> RECHOEnn.IMG
+ECHO_UPDATE_PREFIX = b"ECHOV4"                     # -> ECHOV4nn.IMG: FiiO's own update name, so one file installs from
+                                                   #    FiiO's firmware and from RECHO (FiiO images are ECHOV1nn / ECHOV2nn)
 
 
 # Layout (stage 4): RECHO's button bar ("HINTS" layer) moves to the bottom of the panel,
@@ -566,7 +567,7 @@ def main():
         print("patched: off-state charging screen hooked at 0x305a678")
         if a.echo:
             print("patched: ECHO stage 1 - ST7796S panel init, rows +49 (UI at top, player strip below), GPIO remap, 4.4 mm polarity, "
-                  "slot repair off, updater on as RECHOECH.IMG / RECHOEnn.IMG, Menu-10s maskrom hatch")
+                  "slot repair off, updater on as RECHOECH.IMG / ECHOV4nn.IMG, Menu-10s maskrom hatch")
         if not a.keep_bolt:
             print("patched: status-bar charging animation (0x305945e shim, POWER tick wrapper)")
     usb_chooser_charge_first(d)

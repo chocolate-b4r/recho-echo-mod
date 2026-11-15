@@ -16,11 +16,11 @@ copy your original RECHO image the same way.
 
 ## Echo (full size)
 
-- **First time (from FiiO stock or Podium):** copy the patched image as `ECHOV4nn.IMG`. FiiO's
-  updater only accepts `ECHOECHO.IMG` / `ECHOV100`–`ECHOV498`, and the highest number wins. Remove
-  any other `ECHOV*.IMG` first.
-- **Later updates:** copy the image as **`RECHOECH.IMG`** (or `RECHOEnn.IMG`). RECHO's updater
-  installs it at the next restart and deletes the file. Never rename a Mini image to an Echo name or
+- **Install and update the same way:** copy the image as **`ECHOV472.IMG`** (any `ECHOV4nn.IMG`).
+  FiiO's updater accepts `ECHOECHO.IMG` / `ECHOV100`–`ECHOV498` (the highest number wins), and the
+  Echo build's own updater accepts `ECHOV4nn.IMG` (and `RECHOECH.IMG`), so one file works whether the
+  Echo runs FiiO's firmware or this mod. Remove any other `ECHOV*.IMG` first. From Podium: FiiO's
+  `ECHOV200.IMG` first (Podium installs FiiO), then `ECHOV472.IMG`. Never rename a Mini image to an Echo name or
   the other way round.
 
 ## Recovery through maskrom (last resort)

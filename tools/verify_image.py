@@ -648,8 +648,8 @@ def main(orig_path, new_path):
               "FW1 repair call at 0x3050fbe -> movs r0,#1 (repair stays off)")
         check(bl_target(b, at(0x0305090C), 0x0305090C) == 0x03054094, "updater search call intact (updates by file copy)")
         check(a[at(0x0305F3BF):at(0x0305F3BF) + 12] == b"ECHOMINIIMG\0" and b[at(0x0305F3BF):at(0x0305F3BF) + 12] == b"RECHOECHIMG\0"
-              and a[at(0x0305F3CB):at(0x0305F3CB) + 7] == b"HIFIEC\0" and b[at(0x0305F3CB):at(0x0305F3CB) + 7] == b"RECHOE\0",
-              "update names ECHOMINI.IMG / HIFIECnn.IMG -> RECHOECH.IMG / RECHOEnn.IMG (Echo only)")
+              and a[at(0x0305F3CB):at(0x0305F3CB) + 7] == b"HIFIEC\0" and b[at(0x0305F3CB):at(0x0305F3CB) + 7] == b"ECHOV4\0",
+              "update names ECHOMINI.IMG / HIFIECnn.IMG -> RECHOECH.IMG / ECHOV4nn.IMG (Echo only)")
         refs = [v for v in pc_literals(b[0xD68:0x273D4], 0x03050000) if v in (0x0305F3BF, 0x0305F3CB)]
         check(len(refs) == 2, "only the updater's name matcher uses those two strings")
         nm = subprocess.run([objdump.replace("objdump", "nm"), os.path.join(root, "build", HOOKS + ".elf")],

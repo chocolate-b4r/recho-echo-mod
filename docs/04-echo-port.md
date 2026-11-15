@@ -28,7 +28,7 @@ GPIO2.4, battery on ADC ch0, CS43131-compatible DAC setup.
 | `0x3051590` (4 B) | GPIO set entry → `b.w gpio_set_echo`: (2,0) → (2,1), (2,1) dropped. `gpio_set_orig` replays the 4 original bytes and returns to `0x3051594` |
 | `0x3055EE8`, `0x3055F6A` | GPIO2.8 / GPIO2.0 reads → `echo_gpio_read` (4.4 mm inverted; mute read from 2.1) |
 | `0x3050FBE` | FW1 repair call → `movs r0,#1; nop` (repair stays off) |
-| `0x305F3BF`, `0x305F3CB` | update file names `ECHOMINI.IMG` / `HIFIECnn.IMG` → `RECHOECH.IMG` / `RECHOEnn.IMG` |
+| `0x305F3BF`, `0x305F3CB` | update file names `ECHOMINI.IMG` / `HIFIECnn.IMG` → `RECHOECH.IMG` / `ECHOV4nn.IMG` (FiiO's own name, since stage 61) |
 | `0x306AC68` wrapper | runs the Echo ticks each main-loop pass: escape hatch, Up Next, clock / message line |
 
 Plus the screen changes in [06-echo-ui.md](06-echo-ui.md).
@@ -64,7 +64,10 @@ build uses its own names.
 ## Installing on an Echo for the first time
 
 The Echo's stock firmware updater only accepts `ECHOVnnn.IMG`. From FiiO's firmware, copy the
-patched image as `ECHOV4nn.IMG`; FiiO writes both slots. Afterwards, use `RECHOECH.IMG`.
+patched image as `ECHOV4nn.IMG`; FiiO writes both slots. Since stage 61 the Echo build's updater
+takes the same name (prefix `ECHOV4` + two digits, the highest number wins; RECHO's matcher at
+`0x3053E6C`), so later updates use it too. FiiO's own images are `ECHOV1nn` / `ECHOV2nn` (39 MB) and
+don't match.
 
 Podium's updater accepts only Podium images and FiiO's own `ECHOV200.IMG`, so from Podium the way
 back is two copies: `ECHOV200.IMG` (Podium installs FiiO), then the patched image as `ECHOV4nn.IMG`
@@ -73,7 +76,8 @@ back is two copies: `ECHOV200.IMG` (Podium installs FiiO), then the patched imag
 RECHO's own updater does not check whose firmware a file is. It refuses an image that is not
 RKnanoFW, whose backup header differs, whose size or layout does not fit the firmware area, whose CRC
 is wrong, or whose slot 2 would overwrite the music drive (result table at `0x305F320`). Any valid
-Echo image named `RECHOECH.IMG` therefore installs, Podium's `ECHOV461.IMG` included.
+Echo image named `RECHOECH.IMG` or `ECHOV4nn.IMG` therefore installs, Podium's `ECHOV461.IMG`
+included.
 
 ## Display fallback (VOP / GPIO)
 
