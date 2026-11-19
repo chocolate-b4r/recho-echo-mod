@@ -218,6 +218,24 @@ def clock_back_saves(d):
     reseal_module(d, M48_IMG)
 
 
+LIST_ATTR_LOAD = 0x03062FF0     # folder lister: `ldrb.w r1,[r5,#256]` (entry attributes)
+HEADER_ICON = 0x03059B8C        # screen header: `mov r0,r7; bl 0x3059338; movs r1,#40`
+
+
+def files_only_playable(d, e):
+    """Both players: Files lists folders and files RECHO plays only (patches/keys.c)."""
+    put(d, LIST_ATTR_LOAD - RAM_OF_IMG, bytes.fromhex("95f80011"),
+        thumb_bl(LIST_ATTR_LOAD, e["list_attr_shim"]), "folder lister: attributes -> list_attr_shim")
+
+
+def header_clock(d, e):
+    """Both players: screen headers show time | date where the icon was (patches/ui_np.c)."""
+    o = HEADER_ICON - RAM_OF_IMG
+    put(d, o, bytes.fromhex("3846") + thumb_bl(HEADER_ICON + 2, 0x03059338) + bytes.fromhex("2821"),
+        bytes.fromhex("2846") + thumb_bl(HEADER_ICON + 2, e["hdr_clock"]) + bytes.fromhex("0146"),
+        "screen header: icon -> hdr_clock (time | date)")
+
+
 def boot_splash(d, e):
     """Both players: terminal-style boot screen (patches/ui_np.c boot_screen)."""
     put(d, BOOT_SPLASH_CALL - RAM_OF_IMG, thumb_bl(BOOT_SPLASH_CALL, 0x0306C3E4),
@@ -345,6 +363,8 @@ def add_hooks(d, animation=True, echo=False):
     boot_splash(d, e)
     usb_back_key(d, e)
     files_favourites(d, e)
+    files_only_playable(d, e)
+    header_clock(d, e)
     clock_back_saves(d)
     after_usb_main_menu(d)
     ui_layout(d, e)

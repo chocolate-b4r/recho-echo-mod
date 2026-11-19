@@ -191,7 +191,8 @@ void play_all_tick(void)
 
 /*
  * Files: the drive list has a third row, Favourites, under Internal and SD card; ▶‖ on it plays
- * FAVORITE.M3U (favs.c builds the queue). RECHO's drive list knows two rows only: its draw loop
+ * FAVORITE.M3U (favs.c builds the queue). On the Mini a fourth row, Artists (artists.c). Up and
+ * down wrap round at both ends, as in RECHO's other lists. RECHO's drive list knows two rows only: its draw loop
  * draws drives 0 and 1, and up / down set the cursor straight to 0 or 1. So, while the drive list
  * shows, files_key moves the cursor over the three rows itself and takes ▶‖ on row 2; files_draw
  * runs RECHO's draw, then adds the row in RECHO's own style (20 px rows from the panel top + 22,
@@ -210,21 +211,40 @@ void play_all_tick(void)
 #define FILES_CURSOR    REG(0x030399D0)
 #define DRIVE_LIST      REG(0x0303AB30)
 #define BROWSE_DESC     ((const void *)lit(0x0307B58Cu))
+#ifdef ECHO_PORT
+#define DRIVE_ROWS 3u
+#else
+#define DRIVE_ROWS 4u                         /* + Artists */
+extern volatile u32 art_mode;
+extern int art_key(const unsigned char *ev, int dir);
+extern void art_open(void);
+extern void art_draw(void);
+#endif
 
 int files_key(const unsigned char *ev)
 {
     extern volatile u32 fav_play_request;
     if (DRIVE_LIST) {
+#ifndef ECHO_PORT
+        if (art_mode)
+            return art_key(ev, key_dir(ev[0]));
+#endif
         u32 cur = FILES_CURSOR;
-        if (ev[0] == 4 && cur == 2u) {
-            if (ev[1] == 2u || ev[1] == 3u)                   /* tap or hold: play the list */
-                fav_play_request = 1;
+        if (ev[0] == 4 && cur >= 2u) {
+            if (ev[1] == 2u || ev[1] == 3u) {                 /* tap or hold */
+#ifndef ECHO_PORT
+                if (cur == 3u)
+                    art_open();
+                else
+#endif
+                    fav_play_request = 1;                     /* play the list */
+            }
             return 1;                                         /* press / repeat: nothing */
         }
-        if (ev[1] == 1u || ev[1] == 4u) {                     /* press / repeat: move */
+        if (ev[1] == 1u || ev[1] == 4u) {                     /* press / repeat: move, round */
             int d = key_dir(ev[0]);
             if (d) {
-                FILES_CURSOR = d > 0 ? (cur < 2u ? cur + 1u : 2u) : (cur ? cur - 1u : 0u);
+                FILES_CURSOR = d > 0 ? (cur + 1u < DRIVE_ROWS ? cur + 1u : 0u) : (cur ? cur - 1u : DRIVE_ROWS - 1u);
                 screen_redraw(BROWSE_DESC);
                 return 1;
             }
@@ -233,19 +253,53 @@ int files_key(const unsigned char *ev)
     return files_key_orig(ev);
 }
 
+static void drive_row(u32 row, const char *label)
+{
+    int y = panel_rect()[1] + 22 + (int)row * 20;
+    u32 fg = 0xF79E;
+    if (FILES_CURSOR == row) {
+        fill_rect(8, y, 311, y + 19, 0x24DF);
+        fg = 0;
+    }
+    draw_text(1, 12, y + 2, label, 280, fg, -1);
+    draw_right(y, "\xee\x80\x9a", fg);
+}
+
 void files_draw(void)
 {
     files_draw_orig();
     if (!DRIVE_LIST)
         return;
-    int y = panel_rect()[1] + 22 + 2 * 20;
-    u32 fg = 0xF79E;
-    if (FILES_CURSOR == 2u) {
-        fill_rect(8, y, 311, y + 19, 0x24DF);
-        fg = 0;
-    }
-    draw_text(1, 12, y + 2, "Favourites", 280, fg, -1);
-    draw_right(y, "\xee\x80\x9a", fg);
+    drive_row(2, "Favourites");
+#ifndef ECHO_PORT
+    drive_row(3, "Artists");
+    if (art_mode)
+        art_draw();
+#endif
+}
+
+/* Files lists only what the player plays: RECHO's folder lister (0x3062F68) skips an entry whose
+ * attributes have bit 1 or 2 set (`ldrb.w r1,[r5,#256]` at 0x3062FF0, then `ands r3,r1,#6`);
+ * the load is now list_attr_shim, which also sets bit 1 on a file RECHO cannot play
+ * (0x3062D14: .flac, .wav, .mp3), so .lrc, .m3u, .txt and the like stay out. Folders stay. */
+#define plays FN(0x03062D14, int (*)(const char *name))
+
+u32 list_attr(const unsigned char *rec)
+{
+    u32 a = rec[256];
+    if (!(a & 0x10u) && !plays((const char *)rec))
+        a |= 2u;
+    return a;
+}
+
+__attribute__((naked)) void list_attr_shim(void)
+{
+    __asm__ volatile(
+        "push   {r0, r2, r3, r4, ip, lr}\n"
+        "mov    r0, r5\n"
+        "bl     list_attr\n"
+        "mov    r1, r0\n"
+        "pop    {r0, r2, r3, r4, ip, pc}\n");
 }
 
 /* Files always opens on the drive list (Internal / SD card), cursor on Internal, not where it was
@@ -255,6 +309,9 @@ void files_draw(void)
 
 void files_enter(void)
 {
+#ifndef ECHO_PORT
+    art_mode = 0;
+#endif
     REG(0x0303AB30) = 1;                  /* drive list, as Back at a drive's top folder sets it */
     REG(0x030399D0) = 0;                  /* cursor: Internal */
     REG(0x030399D4) = 0;

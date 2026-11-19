@@ -1,5 +1,6 @@
 /*
- * Lyrics (full-size Echo): synced .lrc lyrics in the player strip under RECHO's picture.
+ * Lyrics (both players): synced .lrc lyrics, on the Echo in the player strip under RECHO's
+ * picture, on the Mini across Now Playing above the progress bar (driven by mini_upnext_tick).
  *
  * For "Song.flac" the file is "Song.lrc" in the same folder (any case). It is read once per
  * track, while the screen is on, into free RAM (0x03048400, 7,680 bytes; longer files are cut).

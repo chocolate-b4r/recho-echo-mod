@@ -82,7 +82,9 @@ u32 power_tick_wrap(void)
 #ifndef ECHO_PORT
     {
         extern void mini_upnext_tick(void);   /* ui_np.c: Up Next names for Now Playing */
+        extern void art_tick(void);           /* artists.c: read the artists, play one */
         mini_upnext_tick();
+        art_tick();
     }
 #endif
 #ifdef ECHO_PORT

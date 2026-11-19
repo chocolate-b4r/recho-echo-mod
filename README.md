@@ -47,7 +47,10 @@ belongs to RECHO first: get it from [its site](https://recho.atzkey.workers.dev/
 |---|:---:|:---:|
 | **Now Playing** redrawn: artist, song, album, file details with queue position (`9/10`) | ✅ | ✅ |
 | Up Next list in play order (shuffle included) | ✅ right half | ✅ side column |
-| Song title doubled when it fits, live lyrics from `.lrc` files | | ✅ |
+| Song title doubled when it fits | | ✅ |
+| Live lyrics from `.lrc` files | ✅ | ✅ |
+| **Artists** in Files: every artist from `Artist - Title` file names, ▶‖ plays them | ✅ | |
+| Files hides what the player can't play (`.lrc`, `.m3u`, `.txt`, ...); time · date on Files and Settings | ✅ | ✅ |
 | Volume in the top bar before the output (`62 dB · 3.5 mm`), shown from 0 dB | ✅ | ✅ |
 | Battery % green while charging, amber / red when low | ✅ top bar | ✅ Up Next |
 | Pixel-art main menu: Files · USB disk · Now Playing · Bluetooth · Settings | ✅ | ✅ |

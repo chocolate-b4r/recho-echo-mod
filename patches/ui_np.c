@@ -256,6 +256,22 @@ static char *put_qpos(char *p, char *end)
 }
 
 
+/* ---- RECHO's screen header (0x3059B10: Files, Settings, ...) ---------------------------
+ * The header's icon (`mov r0,r7; bl 0x3059338` at 0x3059B8C) is replaced by time | date,
+ * drawn here at the header's row (r5); the title then starts where the date ends
+ * (`movs r1,#40` at 0x3059B92 -> `mov r1,r0`). */
+int hdr_clock(int y_top)
+{
+    char t[8], d[16];
+    clock_strings(t, d);
+    int ym = y_top + font_h(1) / 2;
+    int x = 8 + text_at(1, 8, ym, t, 60, WHITE);
+    fill_rect(x + 5, y_top + 3, x + 5, y_top + 15, GREY);
+    x += 11;
+    x += text_at(1, x, ym, d, 120, SOFT);
+    return x + 10;
+}
+
 /* ---- top bar shared by Now Playing and the chooser --------------------------- */
 
 static void top_bar_c(const char *right, u32 right_colour);
@@ -268,7 +284,15 @@ static void top_bar(const char *right)
 #ifdef ECHO_PORT
 #define VOP_ON REG(0x030089EC)              /* RECHO: panel on the VOP bus (sidebar and strip need it) */
 #endif
+static void top_bar_3(const char *pre, const char *right, u32 right_colour, const char *last, u32 last_colour);
 static void top_bar_2(const char *right, u32 right_colour, const char *last, u32 last_colour)
+{
+    top_bar_3(0, right, right_colour, last, last_colour);
+}
+
+/* time | date on the left; on the right "pre" (grey, dropped when it would reach the date),
+ * "right", then "last" at the edge */
+static void top_bar_3(const char *pre, const char *right, u32 right_colour, const char *last, u32 last_colour)
 {
 #ifdef ECHO_PORT
     if (!VOP_ON) {                          /* slow display fallback: sidebar / strip cannot draw */
@@ -281,7 +305,7 @@ static void top_bar_2(const char *right, u32 right_colour, const char *last, u32
     clock_strings(t, d);
     int x = 8 + text_at(1, 8, 10, t, 60, WHITE);
     fill_rect(x + 5, 4, x + 5, 16, GREY);                 /* "21:47 | Fri 13 Nov" */
-    text_at(1, x + 11, 10, d, 120, SOFT);
+    int xd = x + 11 + text_at(1, x + 11, 10, d, 120, SOFT);
     int xr = W - 8;
     if (last && *last) {
         int w = text_width(1, last);
@@ -294,6 +318,12 @@ static void top_bar_2(const char *right, u32 right_colour, const char *last, u32
         if (w > 140)
             w = 140;
         text_at(1, xr - w, 10, right, 140, right_colour);
+        xr -= w + 10;
+    }
+    if (pre && *pre) {
+        int w = text_width(1, pre);
+        if (xr - w >= xd + 10)
+            text_at(1, xr - w, 10, pre, w + 1, GREY);
     }
     fill_rect(0, 21, W - 1, 21, RULE);
 }
@@ -407,6 +437,7 @@ static const char *track_title(const char **artist)
     return without_ext(file_name(), title_buf, sizeof title_buf);
 }
 
+#ifdef ECHO_PORT                          /* the Mini's Now Playing has no album line */
 static const char *track_album(void)
 {
     const char *tags = tag_record(queue_index());
@@ -414,6 +445,7 @@ static const char *track_album(void)
         return tags[256] ? tags + 256 : 0;
     return without_ext(folder_name(), album_buf, sizeof album_buf);
 }
+#endif
 
 #ifdef ECHO_PORT
 /* "Artist - Song" from x (or centred when x < 0), artist light grey, song white */
@@ -473,7 +505,7 @@ static void progress_at(int y, int paused)
 static int format_left(int x, int y, int w, int y_max, int paused)
 {
     char line[96], cur[96];
-    format_line_ex(line, sizeof line, 1);
+    format_line_ex(line, sizeof line, 0);
     u32 c = paused ? DIM : GREY;
     const int sl = sizeof SEP - 1;
     int n = 0;                                   /* chars in cur */
@@ -533,7 +565,6 @@ static void heart(int x, int y_top)
             if (ROWS[r][c] == '#')
                 fill_rect(x + c, y_top + r, x + c, y_top + r, RED);
 }
-#ifdef ECHO_PORT
 extern const char *lyrics_line(void);
 #define FB_PX PTR(volatile u16 *, 0x03008A00)
 /* draw "a" then "b" (either may be 0) in the large font scaled, centred on cx, top at y_top */
@@ -591,14 +622,14 @@ static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char
 /* The lyric being sung, always at 1.5x (rows 118..169). A line too wide for one row is split at
  * the space that balances the two halves best; only lines too long even for two rows of 1.5x
  * fall back to two rows of the large font (then the small one). */
-static void lyric_block(const char *ly, u32 c)
+static void lyric_block(const char *ly, u32 c, int dy)
 {
     char a[128], b[128];
     int n = 0;
     while (ly[n] && n < 127)
         n++;
     if (text_width(1, ly) <= 200) {
-        text_scaled_line(W / 2, 137, 0, 0, ly, c, 3);
+        text_scaled_line(W / 2, 137 + dy, 0, 0, ly, c, 3);
         return;
     }
     int best = -1, best_w = 1 << 30;
@@ -616,7 +647,7 @@ static void lyric_block(const char *ly, u32 c)
         }
     }
     if (best < 0) {                       /* one long word: the large font, clipped */
-        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 148, ly, 304, c);
+        text_centred(text_width(1, ly) <= 304 ? 1 : 0, W / 2, 148 + dy, ly, 304, c);
         return;
     }
     for (int k = 0; k < best; k++)
@@ -627,15 +658,14 @@ static void lyric_block(const char *ly, u32 c)
         b[j++] = *q;
     b[j] = 0;
     if (best_w <= 200) {
-        text_scaled_line(W / 2, 124, 0, 0, a, c, 3);  /* 3 px lower; the second row already ends */
-        text_scaled_line(W / 2, 146, 0, 0, b, c, 3);  /* at the picture's last row (169) */
+        text_scaled_line(W / 2, 124 + dy, 0, 0, a, c, 3);  /* Echo: the second row ends at */
+        text_scaled_line(W / 2, 146 + dy, 0, 0, b, c, 3);  /* the picture's last row (169) */
     } else {
         int f = best_w <= 304 ? 1 : 0;
-        text_centred(f, W / 2, 138, a, 304, c);
-        text_centred(f, W / 2, 158, b, 304, c);
+        text_centred(f, W / 2, 138 + dy, a, 304, c);
+        text_centred(f, W / 2, 158 + dy, b, 304, c);
     }
 }
-#endif
 
 #ifndef ECHO_PORT
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
@@ -660,10 +690,22 @@ static void upn_redraw(void)
         request_redraw((const void *)scr);
 }
 
+STATE volatile int lyr_shown = -2;
+
 void mini_upnext_tick(void)
 {
     if (REG(0x030399C8) != 45u)              /* Now Playing only */
         return;
+    if (REG(0x03006174)) {                   /* screen on: the .lrc and the line being sung */
+        extern void lyrics_tick(void);
+        extern int lyrics_index(void);
+        lyrics_tick();
+        int li = lyrics_index();
+        if (li != lyr_shown) {
+            lyr_shown = li;
+            upn_redraw();
+        }
+    }
     const volatile int *qi = queue_info();
     u32 n = (qi && qi[1] > 0) ? (u32)qi[1] : 0u;
     u32 key[6] = {QUEUE_ACTIVE, QUEUE_CURRENT, PLAY_MODE, QUEUE_SEED, QUEUE_PASS, n};
@@ -719,7 +761,7 @@ void mini_upnext_tick(void)
         upn_redraw();
 }
 
-static void upnext_draw(int x, int y0, int w, int paused)
+static void upnext_draw(int x, int y0, int w, int paused, u32 rows)
 {
     if (!upn_have) {
         const char *t = upn_end ? "End of queue" : (QUEUE_ACTIVE ? "..." : 0);
@@ -727,7 +769,7 @@ static void upnext_draw(int x, int y0, int w, int paused)
             text_at(0, x, y0, t, w, DIM);
         return;
     }
-    for (u32 i = 0; i < upn_have && i < UPN_N; i++) {
+    for (u32 i = 0; i < upn_have && i < rows; i++) {
         u32 c = i == 0 ? (paused ? GREY : 0xE71Cu) : (paused ? 0x52AAu : 0x6B4Du);
         text_at(0, x, y0 + (int)i * 13, UPN_CACHE + i * UPN_LEN, w, c);
     }
@@ -780,34 +822,28 @@ void np_draw(void)
     u32 right_colour = SOFT;
     p = put_str(qpos, output_label(qpos + 32, 32, &right_colour), qpos + 31);
 #else
-    /* Mini: play-mode glyph and the output ("3.5 mm", "BT <headphones>" in green), then the
-     * battery in white; the queue position moved to the format line */
+    /* Mini: the queue position in grey, the output ("3.5 mm", the headphones' name in green),
+     * then the battery; drawn last (the lyric uses the top rows as scratch) */
     u32 right_colour = SOFT;
-    {
-        static const char MODE[5][4] = {"\xee\x80\x83", "\xee\x80\x84", "\xee\x80\x85",
-                                        "\xee\x80\x86", "\xee\x80\xab"};
-        char out[48];
-        const char *o = output_label(out, sizeof out, &right_colour);
-        u32 m = PLAY_MODE;
-        p = qpos;
-        if (loaded && m < 5u) {
-            p = put_str(p, MODE[m], qpos + 63);
-            if (o)
-                p = put_str(p, " ", qpos + 63);
-        }
-        p = put_str(p, o, qpos + 63);
-    }
+    char out[48];
+    output_label(out, sizeof out, &right_colour);
+    if (loaded)
+        p = put_qpos(qpos, qpos + 31);
 #endif
     *p = 0;
 #ifdef ECHO_PORT
     if (!loaded)
         top_bar_c(qpos, right_colour);    /* with a track: after the picture (scratch rows) */
 #else
+    char pct[8];
     {
-        char pct[8];
         char *q = put_pct(pct, pct + 7);
         *q = 0;
-        top_bar_2(qpos, right_colour, pct, pct_colour());
+    }
+    if (!loaded) {
+        top_bar_3(0, out, right_colour, pct, pct_colour());
+        text_centred(1, W / 2, 85, "Nothing playing", 300, SOFT);
+        return;
     }
 #endif
 
@@ -848,19 +884,20 @@ void np_draw(void)
 
         const char *ly = lyrics_line();       /* the volume is in the top bar: no overlay here */
         if (ly)
-            lyric_block(ly, paused ? GREY : WHITE);
+            lyric_block(ly, paused ? GREY : WHITE, 0);
     }
     top_bar_c(qpos, right_colour);
     (void)playing;
     return;
 #else
-    /* Mini (alternate layout): left half artist, song (two lines when long), album, then the
-     * format line and queue position; right half Up Next in the small font
-     * down to the progress bar (9 songs); progress bar across the bottom */
+    /* Mini: left half artist, song (two lines when long), the format line; right half Up Next in
+     * the small font. With lyrics, the line being sung across the screen above the progress bar
+     * and 6 Up Next rows; without, 9. Queue position in the top bar. */
     {
+        extern volatile u32 lrc_count;        /* lyrics.c: timed lines of this song's .lrc */
+        int lyr = lrc_count != 0;
         const char *artist;
         const char *title = track_title(&artist);
-        const char *album = track_album();
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
         int y = 36;
@@ -882,15 +919,15 @@ void np_draw(void)
         }
         if (fav_is_current)
             heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, ty - 4);
-        if (album && *album) {
-            text_at(text_width(1, album) <= LW ? 1 : 0, LX, y, album, LW, paused ? DIM : GREY);
-            y += 20;
-        }
-        fill_rect(160, 28, 160, 143, RULE);
-        upnext_draw(168, 33, 144, paused);    /* rows 33, 46, ... 137 */
-        format_left(LX, y, LW, 140, paused);  /* the volume is in the top bar: no overlay */
+        fill_rect(160, 28, 160, lyr ? 102 : 143, RULE);
+        upnext_draw(168, 33, 144, paused, lyr ? 6u : (u32)UPN_N);   /* rows 33, 46, ... */
+        format_left(LX, y, LW, lyr ? 96 : 140, paused);
+        const char *ly = lyr ? lyrics_line() : 0;
+        if (ly)
+            lyric_block(ly, paused ? GREY : WHITE, -21);   /* rows 103..149 */
     }
     progress_at(Y_PROGRESS, paused);
+    top_bar_3(qpos, out, right_colour, pct, pct_colour());
     (void)playing;
     return;
 #endif
@@ -1090,7 +1127,9 @@ static const char *output_label(char *buf, int n, u32 *colour)
     }
     if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
         p = put_str(p, SEP, e);
+#ifdef ECHO_PORT
         p = put_str(p, "BT ", e);
+#endif
         p = put_str(p, bt_conn_name, e);
         *colour = GREEN;
     } else if (queue_loaded()) {

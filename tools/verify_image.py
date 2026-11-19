@@ -44,6 +44,8 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x030638FC, 0x0305B3AC, 0x03063F74, 0x0305B3F0, 0x0305B2FC,   # find name in folder; queue start / add / finish / abandon (play favourites)
             0x0305BD40, 0x0305CAB8,                                       # SHELL key filter, screen on (shell_key)
             0x0305DB60,                                                   # RECHO's clock-chip write (TIMESET.TXT, clock.c)
+            0x030535E0, 0x03053640, 0x03062D14,                           # open folder, next entry, "plays this" (Artists, Files filter)
+            0x03053900,                                                   # record -> file object (lyrics loader, both players)
             0x0307AE10, 0x0307A898, 0x0307A910,                           # m44 Files key handler, open, draw (files_key / files_enter / files_draw)
             0x03059F74, 0x0305C428, 0x03059CFE}                           # key list step, list panel rect, right-aligned text (Favourites row)
 UI_DATA = {0x03034B48,                                                    # font table
@@ -57,7 +59,9 @@ UI_DATA = {0x03034B48,                                                    # font
            0x03006174, 0x0303AB2C, 0x0303BCC4, 0x0307A000,               # backlight duty, m44 SD flag, menu cursor, module overlay
            0x0307A278,                                                    # m44 code, read only (signature check before calling it)
            0x03045000, 0x03046100, 0x03046200, 0x03046400, 0x03046520,    # favourites: list, path, queue line, record, folder (free RAM)
-           0x030399D0, 0x0303AB30, 0x030399D4, 0x0307B58C}                # Files: state (cursor), drive-list flag, BROWSE descriptor
+           0x030399D0, 0x0303AB30, 0x030399D4, 0x0307B58C,                # Files: state (cursor), drive-list flag, BROWSE descriptor
+           0x03043010, 0x03046640, 0x03046A90, 0x03046BB0,                # Artists: folders, dirstate, record, names (free RAM)
+           0x03048400}                                                    # lyrics buffer (free RAM, both players)
 ALLOWED_CALLS |= UI_CALLS
 ALLOWED_DATA |= UI_DATA
 # Bluetooth (patches/bt.c): RECHO's GPIO function / log, the module's UART1, the UART1 pin
@@ -68,7 +72,8 @@ BT_CALLS = {0x03051570, 0x03051590, 0x0306C9EC,   # gpio function, gpio set, log
             0x03057C94, 0x0305AB80,               # pause / play and skip (headphone buttons)
             0x03055C00}                           # DAC register write (chip 0/1, map, value): Bluetooth volume
 SHARED_CONSTS = {0x564F5046,   # not addresses: "VOPF", "SFMD" and the first 16 bytes of m44's folder-tree routine
-                 0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9}   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
+                 0x444D4653, 0x4FF0E92D, 0x9103B08D, 0xF7D74605, 0x9007F9D9,   # not an address: RECHO's "VOPF" display-fallback token (cleared after 5 s)
+                 0x811C9DC5}   # not an address: FNV-1a start value (the lyrics loader's track identity, both players)
 BT_LOG_FNS = {"bt_tick", "bt_power", "bt_key", "handle_frame", "add_device", "connect", "receive",
               "lyrics_tick", "set_stream", "bt_route", "follow_player", "about_tick", "bt_volume"}   # + one line per track from the lyrics loader (Log to file on)
 BT_DATA = {0x0303EDD0}                           # settings block (byte 5 = log to file)
@@ -265,6 +270,8 @@ def main(orig_path, new_path):
                           (0x03059504, 4, "menu bar headphone glyph"),
                           (0x030594D4, 4, "menu bar volume text"), (0x0305A4B0, 4, "volume message text"),
                           (0x03050D7C, 4, "boot splash call"),
+                          (0x03062FF0, 4, "folder lister attributes (Files filter)"),
+                          (0x03059B8C, 8, "screen header icon (time | date)"),
                           (0x0305062C, 4, "USB disk key call"),
                           (0x0305BC8A, 2, "after USB disk screen"),
                           (0x03059B3A if ECHO else 0x03059474, 2 if ECHO else 4,
@@ -377,7 +384,8 @@ def main(orig_path, new_path):
         if ECHO:
             check(qread and qread <= STORAGE_FNS, f"queue reads only from the sidebar and the lyrics loader ({sorted(qread)})")
         else:
-            check(qread and qread <= {"mini_upnext_tick"}, f"Mini: queue reads only from the Up Next tick ({sorted(qread)})")
+            check(qread and qread <= {"mini_upnext_tick", "load", "lyrics_tick"},
+                  f"Mini: queue reads only from the Up Next tick and the lyrics loader ({sorted(qread)})")
     sbw = struct.unpack_from("<HH", b, 0x0305945A - RAM_OF_IMG)
     check(struct.unpack_from("<HH", a, 0x0305945A - RAM_OF_IMG) == (0xF040, 0x8084) and sbw == (0xBF00, 0xBF00),
           "status bar: on-cable branch to the bolt glyph replaced by two NOPs")
@@ -619,6 +627,14 @@ def main(orig_path, new_path):
         new = u32(b, o)
         check(u32(a, o) == old and new == entk[sym] and b[new - RAM_OF_IMG:new - RAM_OF_IMG + len(text) + 1] == text + b"\0",
               f"label literal {site:#x} -> {text.decode()!r}")
+    la = 0x03062FF0 - RAM_OF_IMG
+    check(a[la:la + 4] == bytes.fromhex("95f80011") and bl_target(b, la, 0x03062FF0) == entk["list_attr_shim"],
+          "folder lister 0x3062ff0: ldrb.w r1,[r5,#256] -> bl list_attr_shim (Files lists playable files only)")
+    hi = 0x03059B8C - RAM_OF_IMG
+    check(a[hi:hi + 2] == bytes.fromhex("3846") and bl_target(a, hi + 2, 0x03059B8E) == 0x03059338
+          and a[hi + 6:hi + 8] == bytes.fromhex("2821") and b[hi:hi + 2] == bytes.fromhex("2846")
+          and bl_target(b, hi + 2, 0x03059B8E) == entk["hdr_clock"] and b[hi + 6:hi + 8] == bytes.fromhex("0146"),
+          "screen header 0x3059b8c: icon -> hdr_clock(y) (time | date), title at its x")
     sk = 0x03060B80 - RAM_OF_IMG
     check(a[0x03060B64 - RAM_OF_IMG:][:4] == b"SHEL" and u32(a, sk) == 0x0305BD41 and u32(b, sk) == (entk["shell_key"] | 1),
           "SHELL key filter (0x3060b80) -> shell_key: menu key tap opens Files, hold = favourite")

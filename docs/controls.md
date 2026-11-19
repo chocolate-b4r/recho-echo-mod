@@ -115,6 +115,15 @@ Now Playing.
 
 Holding <kbd>▶‖</kbd> on **Music** or **SD card** at the top level of Files plays the whole drive.
 
+Files opens on **Internal · SD card · Favourites**, plus **Artists** on the Echo Mini. Up and down
+wrap round at both ends. Files lists folders and the songs the player plays (FLAC, WAV, MP3) only:
+`.lrc`, `.m3u`, `.txt` and the like stay hidden. Files and Settings show time · date at the top.
+
+**Artists (Echo Mini):** ▶‖ on Artists lists every artist on the internal storage and the SD card,
+A to Z, taken from file names written `Artist - Title.flac` (others are not listed). +/− move,
+▶‖ plays all of that artist's songs, ↩ goes back. It reads the drives each time it opens (a second
+or two for 1,000 songs).
+
 **Settings → Clock:** <kbd>+</kbd> <kbd>−</kbd> change the number, <kbd>▶‖</kbd> moves to the next
 field, <kbd>↩</kbd> **saves the clock** and leaves. To set it from a computer, put `TIMESET.TXT` at
 the top of the internal drive with one line, `YYYY-MM-DD HH:MM:SS`, then leave USB disk with
@@ -181,9 +190,10 @@ The cold entry described there (paperclip reset + keys) is the more reliable one
 
 | Area | Shows |
 |---|---|
-| Top bar | time · date, play mode, output and volume, battery % |
-| Left | artist, song (wraps onto two lines), album, then the file details: format, sample rate, bits, queue position (wrapped at the dots) |
-| Right | **Up Next**: the next 9 songs in play order, the next one brighter |
+| Top bar | time · date, queue position (grey, "9/1000"), volume and output (over Bluetooth: the headphones' name in green), battery % |
+| Left | artist, song (wraps onto two lines), then the file details: format, sample rate, bits |
+| Right | **Up Next**: the next songs in play order, the next one brighter (9, or 6 when the song has lyrics) |
+| Lyrics | the line being sung, large, across the screen above the progress bar (from a `.lrc` next to the song) |
 | Bottom | elapsed time, progress bar, length (red while paused) |
 
 ### Echo: Now Playing

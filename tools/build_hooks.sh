@@ -8,17 +8,18 @@ ARM="${ARM:-/c/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/12.2 mpacbti-
 CFLAGS=(-mcpu=cortex-m3 -mthumb -Os -ffreestanding -fno-builtin -nostdlib -fno-pic
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror -Ibuild)
 OUT=hooks
-OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/favs.o build/clock.o build/ui_np.o build/bt.o)
-ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|shell_key|battery_pct_shim|battery_colour_shim|vol_text|boot_screen|usb_key_exit|files_key|files_enter|files_draw|gpio_set_mini|gpio_set_orig|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
-UNDEF=(-u status_level_shim -u power_tick_wrap -u shell_key -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw -u battery_pct_shim -u vol_text -u boot_screen -u usb_key_exit -u files_key -u files_enter -u files_draw -u menu_key -u bt_request_open -u bt_value_r1 -u str_bluetooth -u menu_draw -u about_request_open -u str_about)
+OBJS=(build/charge_screen.o build/charge_anim.o build/keys.o build/favs.o build/clock.o build/ui_np.o build/bt.o build/lyrics.o)
+ENTRIES='charge_screen|status_level_shim|power_tick_wrap|anim_last_frame|shell_key|battery_pct_shim|battery_colour_shim|vol_text|boot_screen|usb_key_exit|files_key|files_enter|files_draw|list_attr_shim|hdr_clock|gpio_set_mini|gpio_set_orig|menu_key|play_all_tick|str_back|str_settings|hints_stub|np_draw|usb_draw|clock_strings|clock_tick|bt_tick|bt_shutdown|bt_request_open|bt_value_r1|str_bluetooth|bt_screen|menu_draw|about_request_open|str_about|about_tick'
+UNDEF=(-u status_level_shim -u power_tick_wrap -u shell_key -u str_back -u str_settings -u hints_stub -u np_draw -u usb_draw -u battery_pct_shim -u vol_text -u boot_screen -u usb_key_exit -u files_key -u files_enter -u files_draw -u list_attr_shim -u hdr_clock -u menu_key -u bt_request_open -u bt_value_r1 -u str_bluetooth -u menu_draw -u about_request_open -u str_about)
 if [ "${1:-}" = "echo" ]; then
     OUT=hooks-echo
     CFLAGS+=(-DECHO_PORT)
-    OBJS+=(build/echo_port.o build/echo_sidebar.o build/echo_band.o build/lyrics.o build/headset.o)
+    OBJS+=(build/echo_port.o build/echo_sidebar.o build/echo_band.o build/headset.o)
     ENTRIES="$ENTRIES|echo_panel_init|gpio_set_echo|gpio_set_orig|echo_gpio_read|echo_hatch_tick|hatch_since|echo_sidebar_tick|echo_blank_outside|echo_panel_fill|sb_dirty|echo_band_tick|ui_borrow|ui_return|echo_push_rows"
     UNDEF+=(-u echo_panel_init -u gpio_set_echo -u echo_gpio_read)
 fi
 [ "${1:-}" = "echo" ] || UNDEF+=(-u gpio_set_mini -u battery_colour_shim)
+[ "${1:-}" = "echo" ] || OBJS+=(build/artists.o)
 mkdir -p build
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/charge_screen.c -o build/charge_screen.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/charge_anim.c -o build/charge_anim.o
@@ -27,11 +28,12 @@ mkdir -p build
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/clock.c -o build/clock.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/ui_np.c -o build/ui_np.o
 "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/bt.c -o build/bt.o
+"$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/lyrics.c -o build/lyrics.o
+[ "$OUT" = "hooks-echo" ] || "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/artists.c -o build/artists.o
 if [ "$OUT" = "hooks-echo" ]; then
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_port.c -o build/echo_port.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_sidebar.c -o build/echo_sidebar.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/echo_band.c -o build/echo_band.o
-    "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/lyrics.c -o build/lyrics.o
     "$ARM/arm-none-eabi-gcc.exe" "${CFLAGS[@]}" -c patches/headset.c -o build/headset.o
 fi
 "$ARM/arm-none-eabi-ld.exe" -e charge_screen "${UNDEF[@]}" \
