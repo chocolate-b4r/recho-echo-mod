@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v65 | Mini: the artist joins the title's last line only when the title wrapped; a one-line title has the artist on its own line under it | built, verified |
 | v64 / Echo stage 65 | Mini: the Favourites row opens a list of the favourites; ▶‖ on one plays them all starting from it (`0x305B3F0` start position); Up Next moves up by one on a skip and fetches only the new last name. Echo: unchanged behaviour (no room for the list) | built, verified |
 | v63 | Mini: the heart sits in the free space left of the title's first line and takes no room, so favouriting no longer shifts the title or pushes the artist to its own line | built, verified |
 | v62 | Mini: the heart goes before the title; the whole left column (title lines, artist, file details, lyric) is centred | built, verified |

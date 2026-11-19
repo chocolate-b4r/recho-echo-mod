@@ -989,7 +989,7 @@ void np_draw(void)
         int inl = 0, y = 28;
         if (n) {
             int lw = text_width(1, tl[n - 1]) * 3 / 2;
-            inl = aw && lw + 10 + aw <= LW;
+            inl = n > 1 && aw && lw + 10 + aw <= LW;   /* only after a wrapped title */
         }
         for (int i = 0; i < n; i++) {
             int wl = text_width(1, tl[i]) * 3 / 2;
