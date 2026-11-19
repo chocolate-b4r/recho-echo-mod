@@ -780,6 +780,7 @@ static int title_split(const char *s, int w0, int w, char out[3][128])
 #define UPN_SETTLE  300u
 STATE volatile u32 upn_key[6] = {0xFFFFFFFFu, 0, 0, 0, 0, 0};
 STATE volatile u32 upn_have = 0, upn_cursor = 0, upn_walk = 0, upn_at = 0, upn_end = 0;
+STATE volatile u32 upn_ent[UPN_N] = {0};      /* queue entry of each cached name */
 
 static void upn_redraw(void)
 {
@@ -812,6 +813,21 @@ void mini_upnext_tick(void)
     for (int i = 0; i < 6; i++)
         if (key[i] != upn_key[i])
             changed = 1;
+    if (changed && upn_have && key[1] == upn_ent[0] && key[0] == upn_key[0] && key[2] == upn_key[2]
+        && key[3] == upn_key[3] && key[4] == upn_key[4] && key[5] == upn_key[5]) {
+        /* the next song started: move the names up by one, fetch only the new last one */
+        for (u32 i = 1; i < upn_have; i++) {
+            for (u32 k = 0; k < UPN_LEN; k++)
+                UPN_CACHE[(i - 1u) * UPN_LEN + k] = UPN_CACHE[i * UPN_LEN + k];
+            upn_ent[i - 1u] = upn_ent[i];
+        }
+        upn_have--;
+        upn_key[1] = key[1];
+        upn_walk = !upn_end;
+        upn_at = now - UPN_SETTLE;
+        upn_redraw();
+        return;
+    }
     if (changed) {
         for (int i = 0; i < 6; i++)
             upn_key[i] = key[i];
@@ -853,6 +869,7 @@ void mini_upnext_tick(void)
         k++;
     }
     dst[k] = 0;
+    upn_ent[upn_have] = (u32)nx;
     upn_have++;
     upn_cursor = (u32)nx;
     if (upn_have == 1u || upn_have >= UPN_N)  /* first name at once, the rest in one redraw */

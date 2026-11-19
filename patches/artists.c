@@ -57,6 +57,10 @@ static inline u32 lit(u32 v)
 STATE volatile u32 art_mode = 0;              /* 1 while the artist list shows */
 STATE volatile u32 art_request = 0;           /* 1 read the artists, 2 play the one under the cursor */
 STATE volatile u32 art_count = 0, art_cursor = 0, art_top = 0;
+STATE volatile u32 art_kind = 0;              /* 0 Artists, 1 Favourites (pick the song to start with) */
+extern u32 fav_names(char *dst, u32 max, u32 len);
+extern volatile int fav_play_from;
+extern volatile u32 fav_play_request;
 STATE static void *art_q = 0;
 STATE static u32 art_added = 0;
 
@@ -183,13 +187,23 @@ void art_tick(void)
     art_request = 0;
     if (r == 1u) {
         art_count = art_cursor = art_top = 0;
-        walk(0, add_artist);
-        walk(1, add_artist);
+        if (art_kind) {
+            art_count = fav_names(IDX, ART_MAX, ART_LEN);
+        } else {
+            walk(0, add_artist);
+            walk(1, add_artist);
+        }
         screen_redraw(BROWSE_DESC);
         return;
     }
     if (art_cursor >= art_count)
         return;
+    if (art_kind) {                           /* favs.c plays the list from this song */
+        fav_play_from = (int)art_cursor;
+        fav_play_request = 1;
+        art_mode = 0;
+        return;
+    }
     M44_SD_FLAG = 0;
     art_q = queue_start();
     if (!art_q)
@@ -217,11 +231,11 @@ void art_draw(void)
         rows = 1;
     fill_rect(0, y0, 319, rc[3], 0);
     if (art_request == 1u || (!art_count && art_request)) {
-        draw_text(1, 12, y0 + 2, "Reading artists...", 280, 0x8410u, -1);
+        draw_text(1, 12, y0 + 2, "Reading...", 280, 0x8410u, -1);
         return;
     }
     if (!art_count) {
-        draw_text(1, 12, y0 + 2, "No \"Artist - Title\" songs", 280, 0x8410u, -1);
+        draw_text(1, 12, y0 + 2, art_kind ? "No favourites yet" : "No \"Artist - Title\" songs", 280, 0x8410u, -1);
         return;
     }
     if (art_cursor < art_top)
@@ -274,8 +288,9 @@ int art_key(const unsigned char *ev, int dir)
     return 1;
 }
 
-void art_open(void)
+void art_open(u32 kind)
 {
+    art_kind = kind;
     art_mode = 1;
     art_request = 1;
     screen_redraw(BROWSE_DESC);

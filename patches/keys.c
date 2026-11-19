@@ -217,13 +217,15 @@ void play_all_tick(void)
 #define DRIVE_ROWS 4u                         /* + Artists */
 extern volatile u32 art_mode;
 extern int art_key(const unsigned char *ev, int dir);
-extern void art_open(void);
+extern void art_open(u32 kind);
 extern void art_draw(void);
 #endif
 
 int files_key(const unsigned char *ev)
 {
+#ifdef ECHO_PORT
     extern volatile u32 fav_play_request;
+#endif
     if (DRIVE_LIST) {
 #ifndef ECHO_PORT
         if (art_mode)
@@ -233,11 +235,10 @@ int files_key(const unsigned char *ev)
         if (ev[0] == 4 && cur >= 2u) {
             if (ev[1] == 2u || ev[1] == 3u) {                 /* tap or hold */
 #ifndef ECHO_PORT
-                if (cur == 3u)
-                    art_open();
-                else
+                art_open(cur == 2u ? 1u : 0u);                /* pick a favourite / an artist */
+#else
+                fav_play_request = 1;                         /* play the list */
 #endif
-                    fav_play_request = 1;                     /* play the list */
             }
             return 1;                                         /* press / repeat: nothing */
         }

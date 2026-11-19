@@ -69,6 +69,7 @@ STATE volatile u32 fav_is_current = 0;         /* np_draw: heart after the title
 STATE volatile u32 fav_request = 0;            /* keys.c: hold ≡ on Now Playing */
 STATE volatile u32 fav_key = 0xFFFFFFFFu;      /* track + screen the flag belongs to */
 STATE volatile u32 fav_play_request = 0;       /* keys.c: ▶‖ on the Favourites row in Files */
+STATE volatile int fav_play_from = -1;         /* artists.c: the song to start with (list order), -1 = first */
 STATE volatile u32 fav_vol = 0;                /* drive of the last song_path: 0 internal, 1 SD card */
 
 static const char PREFIX[] = "file:///internal/";
@@ -266,6 +267,10 @@ __attribute__((noinline)) static void play_list(void)
     if (!q)
         return;                                /* RECHO showed why */
     u32 added = 0;
+    int start = -1;
+#ifndef ECHO_PORT
+    u32 li = 0;
+#endif
     const char *b = FAV_BUF;
     for (u32 i = 0; i < n;) {
         u32 e = i;
@@ -280,7 +285,12 @@ __attribute__((noinline)) static void play_list(void)
             i0 = i + 3u;
         }
         void *v = volume_of(vol);
-        if (v && l > i0 && b[i] != '#') {      /* a song: "A/B/Song.flac" */
+        int song = l > i0 && b[i] != '#';
+#ifndef ECHO_PORT
+        if (song && (int)li++ == fav_play_from)
+            start = (int)added;                /* the queue starts here (if it is found) */
+#endif
+        if (v && song) {                       /* a song: "A/B/Song.flac" */
             char *dir = FAV_DIR;
             u32 d = 0, folder = 0, s = i0, ok = 1;
             dir[d++] = '/';
@@ -319,8 +329,53 @@ __attribute__((noinline)) static void play_list(void)
         bar_message("Favourites: no songs found");
         return;
     }
-    if (queue_finish(-1, "Favourites") >= 0)
+#ifndef ECHO_PORT
+    fav_play_from = -1;
+    if (start >= (int)added)
+        start = -1;
+#endif
+    if (queue_finish(start, "Favourites") >= 0)
         set_module(45);
+}
+
+/* The favourites as "Artist - Title" (file name without its folder and extension), in list order,
+ * into dst (max names of len bytes); returns how many (artists.c shows them to pick from). */
+u32 fav_names(char *dst, u32 max, u32 len)
+{
+    void *v0 = volume_of(0);
+    u32 n = v0 ? list_load(v0) : 0, c = 0;
+    if (n > FAV_MAX)
+        n = FAV_MAX;
+    const char *b = FAV_BUF;
+    for (u32 i = 0; i < n && c < max;) {
+        u32 e = i;
+        while (e < n && b[e] != '\n')
+            e++;
+        u32 l = e;
+        if (l > i && b[l - 1] == '\r')
+            l--;
+        if (l > i && b[i] != '#') {
+            u32 s = i, x = l;
+            for (u32 k = i; k < l; k++) {
+                if (b[k] == '/' || b[k] == '\\' || (k == i + 2u && b[k] == ':'))
+                    s = k + 1u;
+                if (b[k] == '.')
+                    x = k;
+            }
+            if (x <= s || l - x > 5u)
+                x = l;
+            char *d = dst + c * len;
+            u32 m = 0;
+            for (u32 k = s; k < x && m < len - 1u; k++)
+                d[m++] = b[k];
+            while (m && ((unsigned char)d[m] & 0xC0u) == 0x80u && m == len - 1u)
+                m--;                           /* never end inside a letter */
+            d[m] = 0;
+            c++;
+        }
+        i = e + 1u;
+    }
+    return c;
 }
 
 /* POWER tick: hold ≡ requests, and the heart for the song on Now Playing */
