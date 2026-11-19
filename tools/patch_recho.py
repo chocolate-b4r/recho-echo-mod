@@ -207,6 +207,17 @@ VOL_TEXT_MSG = 0x0305A4B0    # volume message: b.w 0x305C09E ("%d dB")
 BOOT_SPLASH_CALL = 0x03050D7C   # bl 0x306C3E4("RECHO 0.10.1", ...): the boot splash
 
 
+CLOCK_BACK_SITE = 0x0307A70E   # m48 clock editor, Back tap: `str r7,[r5,#0]` (leave without saving)
+CLOCK_SAVE = 0x0307A6A2        # m48 clock editor, Menu tap: weekday, write the chip, "clock set"
+
+
+def clock_back_saves(d):
+    """Both players: Back in Settings -> Clock saves, as Menu did (Menu now always opens Files)."""
+    put(d, m48(CLOCK_BACK_SITE), bytes.fromhex("2f60"), thumb_bn(CLOCK_BACK_SITE, CLOCK_SAVE),
+        "clock editor: Back -> save")
+    reseal_module(d, M48_IMG)
+
+
 def boot_splash(d, e):
     """Both players: terminal-style boot screen (patches/ui_np.c boot_screen)."""
     put(d, BOOT_SPLASH_CALL - RAM_OF_IMG, thumb_bl(BOOT_SPLASH_CALL, 0x0306C3E4),
@@ -334,6 +345,7 @@ def add_hooks(d, animation=True, echo=False):
     boot_splash(d, e)
     usb_back_key(d, e)
     files_favourites(d, e)
+    clock_back_saves(d)
     after_usb_main_menu(d)
     ui_layout(d, e)
     if not echo:                                   # Bluetooth routing holds GPIO2.0 / GPIO2.14

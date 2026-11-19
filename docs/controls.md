@@ -115,6 +115,11 @@ Now Playing.
 
 Holding <kbd>▶‖</kbd> on **Music** or **SD card** at the top level of Files plays the whole drive.
 
+**Settings → Clock:** <kbd>+</kbd> <kbd>−</kbd> change the number, <kbd>▶‖</kbd> moves to the next
+field, <kbd>↩</kbd> **saves the clock** and leaves. To set it from a computer, put `TIMESET.TXT` at
+the top of the internal drive with one line, `YYYY-MM-DD HH:MM:SS`, then leave USB disk with
+<kbd>↩</kbd> (or restart): the player sets its clock to that second and marks the file used.
+
 ## With the screen off
 
 | Key | Tap | Hold |

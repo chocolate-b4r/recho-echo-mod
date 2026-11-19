@@ -120,6 +120,10 @@ u32 usb_key_exit(void)
     }
     adc_start(usb_adc_chan == 0xFFFFFFFFu ? 0u : usb_adc_chan);   /* RECHO's poll continues where it was */
     usb_adc_chan = 0xFFFFFFFFu;
+    {
+        extern volatile u32 timeset_pending;  /* clock.c: a computer may have left TIMESET.TXT */
+        timeset_pending = 1;
+    }
     return 1;
 }
 

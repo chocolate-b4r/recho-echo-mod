@@ -10,6 +10,11 @@
  * loop) asks the current screen to redraw when the minute changes, so a paused Now Playing still
  * shows the right time. The weekday is worked out from the date: the chip's weekday register
  * can disagree with its date (seen on an Echo Mini).
+ *
+ * Setting the clock from a computer: TIMESET.TXT at the top of the internal drive, one line
+ * "YYYY-MM-DD HH:MM:SS". It is read at start-up and when USB disk is left with Back
+ * (usb_key_exit), written to the chip with RECHO's own routine (0x305DB60, the one Settings ->
+ * Clock uses), and its first character then becomes '#' so it is used once.
  */
 typedef unsigned int u32;
 typedef unsigned short u16;
@@ -27,6 +32,11 @@ static inline u32 lit(u32 v)
 #define rtc_decode     FN(0x0305DAC4, int (*)(const u8 *regs, void *t))
 #define current_screen FN(0x0305C41C, const volatile u32 *(*)(void))
 #define request_redraw FN(0x0305C51C, void (*)(const void *screen))
+#define rtc_write      FN(0x0305DB60, int (*)(const void *t))
+#define volume_of      FN(0x0305A02C, void *(*)(u32 vol))
+#define find83         FN(0x030531F0, int (*)(void *volume, const char *name83, void *file))
+#define file_read      FN(0x03053934, int (*)(void *volume, void *file, u32 offset, void *buf, u32 len))
+#define file_write     FN(0x03053BF4, int (*)(void *volume, const char *name83, const void *buf, u32 len))
 
 #define RESYNC_MS   60000u
 #define CURRENT_MODULE (*(volatile u32 *)lit(0x030399C8u))   /* 48 = Settings (Clock lives there) */
@@ -42,6 +52,7 @@ STATE volatile u32 band_wday = 0;
 STATE volatile u32 band_need_sync = 1;
 STATE volatile u32 band_shown_min = 0xFFFFFFFFu;
 STATE volatile u32 band_last_module = 0;
+STATE volatile u32 timeset_pending = 1;       /* start-up; keys.c sets it again after USB disk */
 
 /* 0 = Sunday (Sakamoto's method; the Gregorian calendar, any year the chip can hold) */
 static u32 weekday(u32 y, u32 m, u32 d)
@@ -134,9 +145,47 @@ void clock_strings(char *time, char *date)
     *p = 0;
 }
 
+static u32 digits(const char *s, u32 n)
+{
+    u32 v = 0;
+    for (u32 i = 0; i < n; i++) {
+        if (s[i] < '0' || s[i] > '9')
+            return 0xFFFFFFFFu;
+        v = v * 10u + (u32)(s[i] - '0');
+    }
+    return v;
+}
+
+/* TIMESET.TXT -> the clock chip (see the top of this file) */
+__attribute__((noinline)) static void timeset(void)
+{
+    void *v = volume_of(0);
+    if (!v)
+        return;                               /* drive not mounted yet: try again */
+    timeset_pending = 0;
+    u32 file[12];
+    char b[20];
+    if (find83(v, "TIMESET TXT", file) != 0 || file_read(v, file, 0, b, 19u) != 19 || b[0] == '#')
+        return;
+    if (b[4] != '-' || b[7] != '-' || b[10] != ' ' || b[13] != ':' || b[16] != ':')
+        return;
+    u32 y = digits(b, 4), mo = digits(b + 5, 2), d = digits(b + 8, 2);
+    u32 h = digits(b + 11, 2), mi = digits(b + 14, 2), s = digits(b + 17, 2);
+    if (y < 2000u || y > 2099u || mo < 1u || mo > 12u || d < 1u || d > 31u || h > 23u || mi > 59u || s > 59u)
+        return;
+    struct rtc_time t = {(u16)y, (u8)mo, (u8)d, (u8)h, (u8)mi, (u8)s, (u8)weekday(y, mo, d)};
+    if (rtc_write(&t) != 0)
+        return;
+    b[0] = '#';                               /* used: not again at the next start */
+    file_write(v, "TIMESET TXT", b, 19u);
+    band_need_sync = 1;
+}
+
 void clock_tick(void)
 {
     u32 now = ms_now();
+    if (timeset_pending)
+        timeset();
     u32 m = CURRENT_MODULE;
     if (band_last_module == 48u && m != 48u)
         band_need_sync = 1;                   /* left Settings: the clock may have been set */

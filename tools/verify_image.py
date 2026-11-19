@@ -43,6 +43,7 @@ UI_CALLS = {0x03058D84, 0x03058D20, 0x0305AEEC,                 # draw text, tex
             0x0305A874,                                                   # bar message for 2 s (favourites)
             0x030638FC, 0x0305B3AC, 0x03063F74, 0x0305B3F0, 0x0305B2FC,   # find name in folder; queue start / add / finish / abandon (play favourites)
             0x0305BD40, 0x0305CAB8,                                       # SHELL key filter, screen on (shell_key)
+            0x0305DB60,                                                   # RECHO's clock-chip write (TIMESET.TXT, clock.c)
             0x0307AE10, 0x0307A898, 0x0307A910,                           # m44 Files key handler, open, draw (files_key / files_enter / files_draw)
             0x03059F74, 0x0305C428, 0x03059CFE}                           # key list step, list panel rect, right-aligned text (Favourites row)
 UI_DATA = {0x03034B48,                                                    # font table
@@ -368,7 +369,8 @@ def main(orig_path, new_path):
         check(text_ok, "charging screen and power paths draw no text; only the two text routines are used"
               + f" ({ {hex(k): sorted(v) for k, v in used.items()} })")
         writes = where.get(0x03053BF4, set())
-        check(writes == {"toggle"}, f"files are written only by the favourites toggle ({sorted(writes)})")
+        check(writes == {"toggle", "timeset"},
+              f"files are written only by the favourites toggle and TIMESET.TXT ({sorted(writes)})")
         tags = where.get(0x0305A8F8, set())
         check(tags and tags <= TAG_FNS, f"tag record read only by Now Playing and the player strip ({sorted(tags)})")
         qread = where.get(0x03064B64, set())
@@ -533,6 +535,9 @@ def main(orig_path, new_path):
           "Equalizer row checks follow the Equalizer row")
     check(row_of(b, 0x0307A0BA) == l1.index("Restore defaults"), "Restore-defaults hint follows its row")
     check(b[A0 + 0x0307A736 - B0] == n1 - 1, "select bound = row count - 1")
+    cb = A0 + 0x0307A70E - B0
+    check(a[cb:cb + 2] == bytes.fromhex("2f60") and b[cb:cb + 2] == bytes.fromhex("c8e7"),
+          "clock editor: Back (str r7,[r5]) -> b.n 0x307a6a2, the save Menu runs")
 
     print("[12] layout (both players): no button bar, Now Playing and cable chooser screens")
     entl = {k: int(v, 16) for k, v in entries.items()}
