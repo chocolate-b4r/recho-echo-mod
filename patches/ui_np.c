@@ -966,22 +966,20 @@ void np_draw(void)
         /* the column is centred: the heart before the title's first line, the artist after its
          * last line when it fits there (bottoms aligned), else on a line of its own */
         char tl[3][128];
-        const int CX = LX + LW / 2, HW = fav_is_current ? 14 : 0;
-        int n = title_split(title, LW - HW, LW, tl);
+        const int CX = LX + LW / 2;               /* the heart takes no room: it sits in the margin */
+        int n = title_split(title, LW, LW, tl);
         int aw = (artist && *artist) ? text_width(1, artist) : 0;
         int inl = 0, y = 28;
         if (n) {
-            int lw = text_width(1, tl[n - 1]) * 3 / 2 + (n == 1 ? HW : 0);
+            int lw = text_width(1, tl[n - 1]) * 3 / 2;
             inl = aw && lw + 10 + aw <= LW;
         }
         for (int i = 0; i < n; i++) {
             int wl = text_width(1, tl[i]) * 3 / 2;
-            int lw = wl + (i == 0 ? HW : 0) + (i == n - 1 && inl ? 10 + aw : 0);
+            int lw = wl + (i == n - 1 && inl ? 10 + aw : 0);
             int x0 = CX - lw / 2;
-            if (i == 0 && HW) {
-                heart(x0, y + 8);
-                x0 += HW;
-            }
+            if (i == 0 && fav_is_current)          /* left of the first line, in the free space */
+                heart(x0 - 14 > 0 ? x0 - 14 : 0, y + 8);
             text_scaled_line(-x0, y, 0, 0, tl[i], c_title, 3);
             if (i == n - 1 && inl)
                 text_at(1, x0 + wl + 10, y + 15, artist, aw + 1, c_art);
