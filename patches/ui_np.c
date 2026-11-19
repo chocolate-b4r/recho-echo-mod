@@ -102,9 +102,17 @@ static const char *output_name(void)
         return "BT";
     u32 j = jacks();
     if (j & 2u)
+#ifdef ECHO_PORT
         return "4.4 mm";
+#else
+        return "4.4mm";
+#endif
     if (j & 1u)
+#ifdef ECHO_PORT
         return "3.5 mm";
+#else
+        return "3.5mm";
+#endif
     return 0;
 }
 
@@ -567,7 +575,8 @@ static void heart(int x, int y_top)
 }
 extern const char *lyrics_line(void);
 #define FB_PX PTR(volatile u16 *, 0x03008A00)
-/* draw "a" then "b" (either may be 0) in the large font scaled, centred on cx, top at y_top */
+/* draw "a" then "b" (either may be 0) in the large font scaled, centred on cx (or from -cx when
+ * cx < 0), top at y_top. num / 2 = scale; num 2 = 1x in 2 px strokes, as 1.5x draws them */
 static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char *b, u32 cb, int num)
 {
     /* num / 2 = scale: 4 -> 2x, 3 -> 1.5x. Rendered at 1x into scratch rows 0..h of the frame
@@ -589,8 +598,8 @@ static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char
     }
     if (wb)
         draw_text(1, x, sy, b, wb + 1, cb, -1);
-    int dw = w * num / 2, dh = h * num / 2, x0 = cx - dw / 2;
-    if (num == 3) {
+    int dw = w * num / 2, dh = h * num / 2, x0 = cx >= 0 ? cx - dw / 2 : -cx;
+    if (num <= 3) {
         /* 1.5x: each lit source pixel becomes a 2 x 2 block at its 1.5x place, so every stroke is
          * 2 px wide (copying by nearest pixel made one side of a letter 1 px and the other 2 px) */
         for (int r = 0; r < h; r++) {
@@ -599,7 +608,7 @@ static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char
                 u16 px = src[c];
                 if (!px)
                     continue;
-                volatile u16 *dst = FB_PX + (y_top + r * 3 / 2) * W + x0 + c * 3 / 2;
+                volatile u16 *dst = FB_PX + (y_top + r * num / 2) * W + x0 + c * num / 2;
                 dst[0] = px;
                 dst[1] = px;
                 dst[W] = px;
@@ -622,6 +631,7 @@ static int text_scaled_line(int cx, int y_top, const char *a, u32 ca, const char
 /* The lyric being sung, always at 1.5x (rows 118..169). A line too wide for one row is split at
  * the space that balances the two halves best; only lines too long even for two rows of 1.5x
  * fall back to two rows of the large font (then the small one). */
+#ifdef ECHO_PORT                          /* the Mini draws its lyric with big_line */
 static void lyric_block(const char *ly, u32 c, int dy)
 {
     char a[128], b[128];
@@ -666,8 +676,39 @@ static void lyric_block(const char *ly, u32 c, int dy)
         text_centred(f, W / 2, 158 + dy, b, 304, c);
     }
 }
+#endif
 
 #ifndef ECHO_PORT
+/* One line in 2 px strokes: 1.5x when it fits maxw, else 1x, else cut with "..". At cx (centred)
+ * or from -cx (left), rows y_top..y_top+23. Returns the width drawn. */
+static int big_line(int cx, int y_top, const char *s, u32 c, int maxw)
+{
+    if (!s || !*s)
+        return 0;
+    int w = text_width(1, s);
+    if (w * 3 / 2 <= maxw) {
+        text_scaled_line(cx, y_top, 0, 0, s, c, 3);
+        return w * 3 / 2;
+    }
+    char buf[128];
+    int n = 0;
+    while (s[n] && n < 120) {
+        buf[n] = s[n];
+        n++;
+    }
+    buf[n] = 0;
+    while (n > 1 && text_width(1, buf) > maxw) {   /* cut on a letter boundary (UTF-8) */
+        n--;
+        while (n > 1 && ((unsigned char)buf[n] & 0xC0u) == 0x80u)
+            n--;
+        buf[n] = '.';
+        buf[n + 1] = '.';
+        buf[n + 2] = 0;
+    }
+    text_scaled_line(cx, y_top + 4, 0, 0, buf, c, 2);
+    return text_width(1, buf);
+}
+
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
  * The upcoming entries in play order (RECHO's own "next", 0x3065FE4), named from the queue
  * store as the Echo's Up Next does (0x3064B64: one 36-byte index read per entry). Read one
@@ -775,39 +816,6 @@ static void upnext_draw(int x, int y0, int w, int paused, u32 rows)
     }
 }
 
-/* s in two lines of at most maxw (font f), split at the most even space; 0 if it fits in one */
-static int split_two(const char *s, int f, int maxw, char *a, char *b, int cap)
-{
-    if (!s || text_width(f, s) <= maxw)
-        return 0;
-    int n = 0;
-    while (s[n] && n < cap - 1)
-        n++;
-    int best = -1, best_w = 1 << 30;
-    for (int i = 1; i < n - 1; i++) {
-        if (s[i] != ' ')
-            continue;
-        for (int k = 0; k < i; k++)
-            a[k] = s[k];
-        a[i] = 0;
-        int wa = text_width(f, a), wb = text_width(f, s + i + 1);
-        int m = wa > wb ? wa : wb;
-        if (m < best_w) {
-            best_w = m;
-            best = i;
-        }
-    }
-    if (best < 0)
-        return 0;
-    for (int k = 0; k < best; k++)
-        a[k] = s[k];
-    a[best] = 0;
-    int j = 0;
-    for (const char *q = s + best + 1; *q && j < cap - 1; q++)
-        b[j++] = *q;
-    b[j] = 0;
-    return 1;
-}
 #endif
 
 void np_draw(void)
@@ -900,31 +908,20 @@ void np_draw(void)
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
-        int y = 36;
+        int tw = big_line(-LX, 28, title, c_title, LW);   /* one line, rows 28..51 */
+        if (fav_is_current)
+            heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, 36);
+        int y = 63;
         if (artist && *artist) {
             text_at(1, LX, y, artist, LW, c_art);
             y += 20;
         }
-        char l1[96], l2[96];
-        int tw, ty;                               /* the title's last line: for the heart */
-        if (split_two(title, 1, LW, l1, l2, sizeof l1)) {
-            text_at(1, LX, y, l1, LW, c_title);
-            tw = text_at(1, LX, y + 18, l2, LW, c_title);
-            ty = y + 18;
-            y += 38;
-        } else {
-            tw = text_at(1, LX, y, title, LW, c_title);
-            ty = y;
-            y += 20;
-        }
-        if (fav_is_current)
-            heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, ty - 4);
         fill_rect(160, 28, 160, lyr ? 102 : 143, RULE);
         upnext_draw(168, 33, 144, paused, lyr ? 6u : (u32)UPN_N);   /* rows 33, 46, ... */
         format_left(LX, y, LW, lyr ? 96 : 140, paused);
         const char *ly = lyr ? lyrics_line() : 0;
         if (ly)
-            lyric_block(ly, paused ? GREY : WHITE, -21);   /* rows 103..149 */
+            big_line(W / 2, 116, ly, paused ? GREY : WHITE, 304);   /* rows 116..139 */
     }
     progress_at(Y_PROGRESS, paused);
     top_bar_3(qpos, out, right_colour, pct, pct_colour());
@@ -1125,8 +1122,13 @@ static const char *output_label(char *buf, int n, u32 *colour)
         p = put_num(p, (u32)(db + 90 > 0 ? db + 90 : 0), e);
         p = put_str(p, " dB", e);
     }
+#ifdef ECHO_PORT
+#define OSEP SEP
+#else
+#define OSEP "\xee\x80\xa1"                    /* Mini: "62 dB·3.5mm", the dot close on both sides */
+#endif
     if (bt_state == BT_CONNECTED && bt_conn_name[0]) {
-        p = put_str(p, SEP, e);
+        p = put_str(p, OSEP, e);
 #ifdef ECHO_PORT
         p = put_str(p, "BT ", e);
 #endif
@@ -1135,7 +1137,7 @@ static const char *output_label(char *buf, int n, u32 *colour)
     } else if (queue_loaded()) {
         const char *o = output_name();
         if (o && *o) {
-            p = put_str(p, SEP, e);
+            p = put_str(p, OSEP, e);
             p = put_str(p, o, e);
         }
     }

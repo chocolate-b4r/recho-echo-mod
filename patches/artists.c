@@ -256,8 +256,19 @@ int art_key(const unsigned char *ev, int dir)
         return 1;
     }
     if (dir && (ev[1] == 1u || ev[1] == 4u) && art_count) {
-        u32 c = art_cursor;
-        art_cursor = dir > 0 ? (c + 1u < art_count ? c + 1u : 0u) : (c ? c - 1u : art_count - 1u);
+        u32 c = art_cursor;                    /* press: one row; held (repeat): the next letter */
+        int first = lower((u8)IDX[c * ART_LEN]);
+        for (u32 k = 0; k < art_count; k++) {
+            c = dir > 0 ? (c + 1u < art_count ? c + 1u : 0u) : (c ? c - 1u : art_count - 1u);
+            if (ev[1] == 1u || lower((u8)IDX[c * ART_LEN]) != first)
+                break;
+        }
+        if (ev[1] == 4u && dir < 0) {          /* going up: land on the letter's first artist */
+            int l = lower((u8)IDX[c * ART_LEN]);
+            while (c && lower((u8)IDX[(c - 1u) * ART_LEN]) == l)
+                c--;
+        }
+        art_cursor = c;
         screen_redraw(BROWSE_DESC);
     }
     return 1;
