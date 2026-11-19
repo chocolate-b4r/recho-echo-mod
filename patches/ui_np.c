@@ -694,12 +694,12 @@ static void lyric_block(const char *ly, u32 c, int dy)
 #ifndef ECHO_PORT
 /* One line in 2 px strokes: 1.5x when it fits maxw, else 1x, else cut with "..". At cx (centred)
  * or from -cx (left), rows y_top..y_top+23. Returns the width drawn. */
-static int big_line(int cx, int y_top, const char *s, u32 c, int maxw)
+static int big_line(int cx, int y_top, const char *s, u32 c, int maxw, int allow_15)
 {
     if (!s || !*s)
         return 0;
     int w = text_width(1, s);
-    if (w * 3 / 2 <= maxw) {
+    if (allow_15 && w * 3 / 2 <= maxw) {
         text_scaled_line(cx, y_top, 0, 0, s, c, 3);
         return w * 3 / 2;
     }
@@ -764,44 +764,30 @@ static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
     }
 }
 
-/* The song title from x at y_top in 2 px strokes: 1.5x on one or two lines when it fits, else 1x
- * on one or two lines (the second cut with ".." if still too long). Returns the next free row;
- * *last_w = the last line's width (for the heart), *last_y = its top. */
+/* The song title from x at y_top: the large font in 2 px strokes, one size; what does not fit
+ * the first line carries on to a second (cut with ".." if still too long). Returns the next free
+ * row; *last_w = the last line's width (for the heart), *last_y = its top. */
 static int title_lines(int x, int y_top, const char *s, u32 c, int w, int *last_w, int *last_y)
 {
     char a[128];
-    int n = 0;
-    while (s[n] && n < 127)
-        n++;
-    for (int big = 1; big >= 0; big--) {
-        int sw = big ? w * 2 / 3 : w;            /* width at 1x that fits w at this scale */
-        int num = big ? 3 : 2, lh = big ? 24 : 18, dy = big ? 0 : 3;
-        if (text_width(1, s) <= sw) {
-            text_scaled_line(-x, y_top + dy, 0, 0, s, c, num);
-            *last_w = text_width(1, s) * num / 2;
-            *last_y = y_top;
-            return y_top + lh;
-        }
-        int k = fit_words(s, sw);
-        const char *rest = s + k;
-        while (*rest == ' ')
-            rest++;
-        if (!big || text_width(1, rest) <= sw) {
-            for (int i = 0; i < k; i++)
-                a[i] = s[i];
-            a[k] = 0;
-            text_scaled_line(-x, y_top + dy, 0, 0, a, c, num);
-            if (big) {
-                text_scaled_line(-x, y_top + lh, 0, 0, rest, c, num);
-                *last_w = text_width(1, rest) * 3 / 2;
-            } else {
-                *last_w = big_line(-x, y_top + lh - 4 + dy, rest, c, w);   /* 1x here: cut if long */
-            }
-            *last_y = y_top + lh;
-            return y_top + 2 * lh;
-        }
+    const int lh = 19;
+    if (text_width(1, s) <= w) {
+        text_scaled_line(-x, y_top, 0, 0, s, c, 2);
+        *last_w = text_width(1, s);
+        *last_y = y_top;
+        return y_top + lh;
     }
-    return y_top + 24;
+    int k = fit_words(s, w);
+    for (int i = 0; i < k && i < 127; i++)
+        a[i] = s[i];
+    a[k < 127 ? k : 127] = 0;
+    text_scaled_line(-x, y_top, 0, 0, a, c, 2);
+    const char *rest = s + k;
+    while (*rest == ' ')
+        rest++;
+    *last_w = big_line(-x, y_top + lh - 4, rest, c, w, 0);   /* 1x, cut with ".." if long */
+    *last_y = y_top + lh;
+    return y_top + 2 * lh;
 }
 
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
