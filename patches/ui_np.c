@@ -59,6 +59,19 @@ static inline u32 lit(u32 v)
 
 #define W 320
 #define SEP " \xee\x80\xa1 "      /* RECHO's own separator dot glyph (U+E021) */
+#ifdef ECHO_PORT
+#define FSEP SEP
+#define F_GAP "  "
+#define F_KHZ " kHz"
+#define F_KBPS " kbps"
+#define F_BIT " bit"
+#else                                   /* Mini: "MP3 44.1kHz·320kbps" fits the 146 px column */
+#define FSEP "\xee\x80\xa1"
+#define F_GAP " "
+#define F_KHZ "kHz"
+#define F_KBPS "kbps"
+#define F_BIT "bit"
+#endif
 #define BLACK 0x0000u
 #define WHITE 0xF79Eu
 #define SOFT  0xBDD7u
@@ -319,7 +332,7 @@ static void top_bar_3(const char *pre, const char *right, u32 right_colour, cons
         int w = text_width(1, last);
         xr -= w;
         text_at(1, xr, 10, last, 60, last_colour);
-        xr -= 8;
+        xr -= 6;
     }
     if (right && *right) {
         int w = text_width(1, right);
@@ -371,7 +384,7 @@ static void format_line_ex(char *out, int n, int qpos)
     if (dot && *dot) {
         for (const char *q = dot; *q && q - dot < 4 && p < end; q++)
             *p++ = (*q >= 'a' && *q <= 'z') ? (char)(*q - 32) : *q;
-        p = put_str(p, "  ", end);
+        p = put_str(p, F_GAP, end);
     }
     const volatile u32 *f = fmt_info();
     if (f && f[0]) {
@@ -381,15 +394,15 @@ static void format_line_ex(char *out, int n, int qpos)
             *p++ = '.';
             p = put_num(p, (r % 1000u) / 100u, end);
         }
-        p = put_str(p, " kHz", end);
+        p = put_str(p, F_KHZ, end);
         if (f[3]) {
-            p = put_str(p, SEP, end);
+            p = put_str(p, FSEP, end);
             p = put_num(p, f[3], end);
-            p = put_str(p, " kbps", end);
+            p = put_str(p, F_KBPS, end);
         } else if (f[2]) {
-            p = put_str(p, SEP, end);
+            p = put_str(p, FSEP, end);
             p = put_num(p, f[2], end);
-            p = put_str(p, " bit", end);
+            p = put_str(p, F_BIT, end);
 #ifdef ECHO_PORT
             /* lossless: average bitrate from the file size and the length */
             u32 lo = f[4], dur = (lo / r) * 1000u + ((lo % r) * 1000u) / r;
@@ -515,14 +528,14 @@ static int format_left(int x, int y, int w, int y_max, int paused)
     char line[96], cur[96];
     format_line_ex(line, sizeof line, 0);
     u32 c = paused ? DIM : GREY;
-    const int sl = sizeof SEP - 1;
+    const int sl = sizeof FSEP - 1;
     int n = 0;                                   /* chars in cur */
     const char *seg = line;
     while (*seg && y <= y_max) {
         const char *e = seg;                     /* end of this segment: next SEP or the end */
         while (*e) {
             int k = 0;
-            while (k < sl && e[k] == SEP[k])
+            while (k < sl && e[k] == FSEP[k])
                 k++;
             if (k == sl)
                 break;
@@ -534,7 +547,7 @@ static int format_left(int x, int y, int w, int y_max, int paused)
             tryb[t++] = cur[i];
         if (n)
             for (int i = 0; i < sl && t < 95; i++)
-                tryb[t++] = SEP[i];
+                tryb[t++] = FSEP[i];
         for (const char *q = seg; q < e && t < 95; q++)
             tryb[t++] = *q;
         tryb[t] = 0;
@@ -709,42 +722,86 @@ static int big_line(int cx, int y_top, const char *s, u32 c, int maxw)
     return text_width(1, buf);
 }
 
-/* The lyric in the left column: the large font, one line, or two split at the most even space
- * (each cut at w); from y (middle of the first line), not past y_max. */
+/* How many bytes of s fit in w at 1x in the large font: up to the last space that fits, else
+ * (one long word) up to the last letter that fits; at least one letter */
+static int fit_words(const char *s, int w)
+{
+    char buf[128];
+    int n = 0, sp = -1, ok = 0;
+    while (s[n] && n < 127) {
+        buf[n] = s[n];
+        buf[n + 1] = 0;
+        if (((unsigned char)s[n + 1] & 0xC0u) != 0x80u) {   /* at a letter's end (UTF-8) */
+            if (text_width(1, buf) > w)
+                break;
+            ok = n + 1;
+            if (s[n + 1] == ' ' || !s[n + 1])
+                sp = n + 1;
+        }
+        n++;
+    }
+    if (!s[ok])
+        return ok;
+    return sp > 0 ? sp : (ok ? ok : 1);
+}
+
+/* The lyric in the left column: the large font, as many words per line as fit, the rest on the
+ * next lines (a word too long for a line is broken between letters); y = middle of the first
+ * line, lines 18 apart, none past y_max. */
 static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
 {
-    if (!s || !*s || y > y_max)
-        return;
-    if (text_width(1, s) <= w || y + 18 > y_max) {
-        text_at(1, x, y, s, w, c);
-        return;
+    char line[128];
+    while (s && *s && y <= y_max) {
+        int k = fit_words(s, w);
+        for (int i = 0; i < k && i < 127; i++)
+            line[i] = s[i];
+        line[k < 127 ? k : 127] = 0;
+        text_at(1, x, y, line, w + 8, c);
+        s += k;
+        while (*s == ' ')
+            s++;
+        y += 18;
     }
+}
+
+/* The song title from x at y_top in 2 px strokes: 1.5x on one or two lines when it fits, else 1x
+ * on one or two lines (the second cut with ".." if still too long). Returns the next free row;
+ * *last_w = the last line's width (for the heart), *last_y = its top. */
+static int title_lines(int x, int y_top, const char *s, u32 c, int w, int *last_w, int *last_y)
+{
     char a[128];
-    int n = 0, best = -1, best_w = 1 << 30;
+    int n = 0;
     while (s[n] && n < 127)
         n++;
-    for (int i = 1; i < n - 1; i++) {
-        if (s[i] != ' ')
-            continue;
-        for (int k = 0; k < i; k++)
-            a[k] = s[k];
-        a[i] = 0;
-        int wa = text_width(1, a), wb = text_width(1, s + i + 1);
-        int m = wa > wb ? wa : wb;
-        if (m < best_w) {
-            best_w = m;
-            best = i;
+    for (int big = 1; big >= 0; big--) {
+        int sw = big ? w * 2 / 3 : w;            /* width at 1x that fits w at this scale */
+        int num = big ? 3 : 2, lh = big ? 24 : 18, dy = big ? 0 : 3;
+        if (text_width(1, s) <= sw) {
+            text_scaled_line(-x, y_top + dy, 0, 0, s, c, num);
+            *last_w = text_width(1, s) * num / 2;
+            *last_y = y_top;
+            return y_top + lh;
+        }
+        int k = fit_words(s, sw);
+        const char *rest = s + k;
+        while (*rest == ' ')
+            rest++;
+        if (!big || text_width(1, rest) <= sw) {
+            for (int i = 0; i < k; i++)
+                a[i] = s[i];
+            a[k] = 0;
+            text_scaled_line(-x, y_top + dy, 0, 0, a, c, num);
+            if (big) {
+                text_scaled_line(-x, y_top + lh, 0, 0, rest, c, num);
+                *last_w = text_width(1, rest) * 3 / 2;
+            } else {
+                *last_w = big_line(-x, y_top + lh - 4 + dy, rest, c, w);   /* 1x here: cut if long */
+            }
+            *last_y = y_top + lh;
+            return y_top + 2 * lh;
         }
     }
-    if (best < 0) {
-        text_at(1, x, y, s, w, c);
-        return;
-    }
-    for (int k = 0; k < best; k++)
-        a[k] = s[k];
-    a[best] = 0;
-    text_at(1, x, y, a, w, c);
-    text_at(1, x, y + 18, s + best + 1, w, c);
+    return y_top + 24;
 }
 
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
@@ -944,10 +1001,10 @@ void np_draw(void)
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
-        int tw = big_line(-LX, 28, title, c_title, LW);   /* one line, rows 28..51 */
+        int tw = 0, ty = 28;
+        int y = title_lines(LX, 28, title, c_title, LW, &tw, &ty) + 11;   /* then the artist */
         if (fav_is_current)
-            heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, 36);
-        int y = 63;
+            heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, ty + 8);
         if (artist && *artist) {
             text_at(1, LX, y, artist, LW, c_art);
             y += 20;
@@ -1154,7 +1211,11 @@ static const char *output_label(char *buf, int n, u32 *colour)
         p = put_str(p, "muted", e);
     } else {
         p = put_num(p, (u32)(db + 90 > 0 ? db + 90 : 0), e);
+#ifdef ECHO_PORT
         p = put_str(p, " dB", e);
+#else
+        p = put_str(p, "dB", e);
+#endif
     }
 #ifdef ECHO_PORT
 #define OSEP SEP
