@@ -692,36 +692,6 @@ static void lyric_block(const char *ly, u32 c, int dy)
 #endif
 
 #ifndef ECHO_PORT
-/* One line in 2 px strokes: 1.5x when it fits maxw, else 1x, else cut with "..". At cx (centred)
- * or from -cx (left), rows y_top..y_top+23. Returns the width drawn. */
-static int big_line(int cx, int y_top, const char *s, u32 c, int maxw, int allow_15)
-{
-    if (!s || !*s)
-        return 0;
-    int w = text_width(1, s);
-    if (allow_15 && w * 3 / 2 <= maxw) {
-        text_scaled_line(cx, y_top, 0, 0, s, c, 3);
-        return w * 3 / 2;
-    }
-    char buf[128];
-    int n = 0;
-    while (s[n] && n < 120) {
-        buf[n] = s[n];
-        n++;
-    }
-    buf[n] = 0;
-    while (n > 1 && text_width(1, buf) > maxw) {   /* cut on a letter boundary (UTF-8) */
-        n--;
-        while (n > 1 && ((unsigned char)buf[n] & 0xC0u) == 0x80u)
-            n--;
-        buf[n] = '.';
-        buf[n + 1] = '.';
-        buf[n + 2] = 0;
-    }
-    text_scaled_line(cx, y_top + 4, 0, 0, buf, c, 2);
-    return text_width(1, buf);
-}
-
 /* How many bytes of s fit in w at 1x in the large font: up to the last space that fits, else
  * (one long word) up to the last letter that fits; at least one letter */
 static int fit_words(const char *s, int w)
@@ -756,7 +726,7 @@ static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
         for (int i = 0; i < k && i < 127; i++)
             line[i] = s[i];
         line[k < 127 ? k : 127] = 0;
-        text_at(1, x, y, line, w + 8, c);
+        text_centred(1, x + w / 2, y, line, w + 8, c);   /* centred in the column */
         s += k;
         while (*s == ' ')
             s++;
@@ -764,30 +734,50 @@ static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
     }
 }
 
-/* The song title from x at y_top: the large font in 2 px strokes, one size; what does not fit
- * the first line carries on to a second (cut with ".." if still too long). Returns the next free
- * row; *last_w = the last line's width (for the heart), *last_y = its top. */
+/* The song title from x at y_top: the large font at 1.5x in 2 px strokes; what does not fit a line
+ * carries on to the next, up to three lines (only the third is cut with ".." if still too long).
+ * Returns the next free row; *last_w = the last line's width (for the heart), *last_y = its top. */
 static int title_lines(int x, int y_top, const char *s, u32 c, int w, int *last_w, int *last_y)
 {
     char a[128];
-    const int lh = 19;
-    if (text_width(1, s) <= w) {
-        text_scaled_line(-x, y_top, 0, 0, s, c, 2);
-        *last_w = text_width(1, s);
-        *last_y = y_top;
-        return y_top + lh;
+    const int lh = 24, sw = w * 2 / 3;            /* width at 1x that fills w at 1.5x */
+    int y = y_top;
+    for (int line = 0; s && *s && line < 3; line++) {
+        int k = fit_words(s, sw);
+        if (line == 2 && s[k]) {                  /* third line and more left: cut it here */
+            int n = k > 2 ? k - 2 : 0;
+            while (n > 0 && ((unsigned char)s[n] & 0xC0u) == 0x80u)
+                n--;
+            for (int i = 0; i < n; i++)
+                a[i] = s[i];
+            a[n] = '.';
+            a[n + 1] = '.';
+            a[n + 2] = 0;
+            while (n > 0 && text_width(1, a) > sw) {
+                n--;
+                while (n > 0 && ((unsigned char)a[n] & 0xC0u) == 0x80u)
+                    n--;
+                a[n] = '.';
+                a[n + 1] = '.';
+                a[n + 2] = 0;
+            }
+            k = 1 << 20;
+        } else {
+            for (int i = 0; i < k && i < 127; i++)
+                a[i] = s[i];
+            a[k < 127 ? k : 127] = 0;
+        }
+        text_scaled_line(-x, y, 0, 0, a, c, 3);
+        *last_w = text_width(1, a) * 3 / 2;
+        *last_y = y;
+        y += lh;
+        if (k >= (1 << 20))
+            break;
+        s += k;
+        while (*s == ' ')
+            s++;
     }
-    int k = fit_words(s, w);
-    for (int i = 0; i < k && i < 127; i++)
-        a[i] = s[i];
-    a[k < 127 ? k : 127] = 0;
-    text_scaled_line(-x, y_top, 0, 0, a, c, 2);
-    const char *rest = s + k;
-    while (*rest == ' ')
-        rest++;
-    *last_w = big_line(-x, y_top + lh - 4, rest, c, w, 0);   /* 1x, cut with ".." if long */
-    *last_y = y_top + lh;
-    return y_top + 2 * lh;
+    return y;
 }
 
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------

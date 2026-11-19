@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v59 | Mini: the title at 1.5x again; what does not fit a line carries on to the next, up to three lines; lyric lines centred in the left column | built, verified |
 | v58 | Mini: the title is always one size (the large font in 2 px strokes); what does not fit carries on to a second line, the artist under it | built, verified |
 | v57 | Mini: the lyric word-wraps onto as many lines as fit (no dots); file details packed onto one line (`MP3 44.1kHz·320kbps`); a long title wraps to a second line in the same big strokes, the artist moving under it; top bar `62dB·3.5mm`, 2 px closer to the battery % | built, verified |
 | v56 | Mini: the lyric moves to the left column under the file details, in the normal font, up to two lines; Up Next is 9 rows again always | built, verified |
