@@ -726,7 +726,7 @@ static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
         for (int i = 0; i < k && i < 127; i++)
             line[i] = s[i];
         line[k < 127 ? k : 127] = 0;
-        text_centred(1, x + w / 2, y, line, w + 8, c);   /* centred in the column */
+        text_at(1, x, y, line, w + 8, c);
         s += k;
         while (*s == ' ')
             s++;
