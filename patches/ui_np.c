@@ -709,6 +709,44 @@ static int big_line(int cx, int y_top, const char *s, u32 c, int maxw)
     return text_width(1, buf);
 }
 
+/* The lyric in the left column: the large font, one line, or two split at the most even space
+ * (each cut at w); from y (middle of the first line), not past y_max. */
+static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
+{
+    if (!s || !*s || y > y_max)
+        return;
+    if (text_width(1, s) <= w || y + 18 > y_max) {
+        text_at(1, x, y, s, w, c);
+        return;
+    }
+    char a[128];
+    int n = 0, best = -1, best_w = 1 << 30;
+    while (s[n] && n < 127)
+        n++;
+    for (int i = 1; i < n - 1; i++) {
+        if (s[i] != ' ')
+            continue;
+        for (int k = 0; k < i; k++)
+            a[k] = s[k];
+        a[i] = 0;
+        int wa = text_width(1, a), wb = text_width(1, s + i + 1);
+        int m = wa > wb ? wa : wb;
+        if (m < best_w) {
+            best_w = m;
+            best = i;
+        }
+    }
+    if (best < 0) {
+        text_at(1, x, y, s, w, c);
+        return;
+    }
+    for (int k = 0; k < best; k++)
+        a[k] = s[k];
+    a[best] = 0;
+    text_at(1, x, y, a, w, c);
+    text_at(1, x, y + 18, s + best + 1, w, c);
+}
+
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
  * The upcoming entries in play order (RECHO's own "next", 0x3065FE4), named from the queue
  * store as the Echo's Up Next does (0x3064B64: one 36-byte index read per entry). Read one
@@ -898,12 +936,10 @@ void np_draw(void)
     (void)playing;
     return;
 #else
-    /* Mini: left half artist, song (two lines when long), the format line; right half Up Next in
-     * the small font. With lyrics, the line being sung across the screen above the progress bar
-     * and 6 Up Next rows; without, 9. Queue position in the top bar. */
+    /* Mini: left half the song (one line), the artist, the format line, then the lyric being sung
+     * (up to two lines); right half Up Next in the small font (9 songs). Queue position in the
+     * top bar. */
     {
-        extern volatile u32 lrc_count;        /* lyrics.c: timed lines of this song's .lrc */
-        int lyr = lrc_count != 0;
         const char *artist;
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
@@ -916,12 +952,10 @@ void np_draw(void)
             text_at(1, LX, y, artist, LW, c_art);
             y += 20;
         }
-        fill_rect(160, 28, 160, lyr ? 102 : 143, RULE);
-        upnext_draw(168, 33, 144, paused, lyr ? 6u : (u32)UPN_N);   /* rows 33, 46, ... */
-        format_left(LX, y, LW, lyr ? 96 : 140, paused);
-        const char *ly = lyr ? lyrics_line() : 0;
-        if (ly)
-            big_line(W / 2, 116, ly, paused ? GREY : WHITE, 304);   /* rows 116..139 */
+        fill_rect(160, 28, 160, 143, RULE);
+        upnext_draw(168, 33, 144, paused, (u32)UPN_N);   /* rows 33, 46, ... 137 */
+        y = format_left(LX, y, LW, 140, paused);
+        lyric_left(LX, y + 2, LW, 140, lyrics_line(), paused ? GREY : WHITE);
     }
     progress_at(Y_PROGRESS, paused);
     top_bar_3(qpos, out, right_colour, pct, pct_colour());

@@ -192,8 +192,8 @@ The cold entry described there (paperclip reset + keys) is the more reliable one
 |---|---|
 | Top bar | time · date, queue position (grey, "9/1000"), volume and output (over Bluetooth: the headphones' name in green), battery % |
 | Left | artist, song (wraps onto two lines), then the file details: format, sample rate, bits |
-| Right | **Up Next**: the next songs in play order, the next one brighter (9, or 6 when the song has lyrics) |
-| Lyrics | the line being sung, large, across the screen above the progress bar (from a `.lrc` next to the song) |
+| Right | **Up Next**: the next 9 songs in play order, the next one brighter |
+| Lyrics | the line being sung, under the file details, up to two lines (from a `.lrc` next to the song) |
 | Bottom | elapsed time, progress bar, length (red while paused) |
 
 ### Echo: Now Playing
