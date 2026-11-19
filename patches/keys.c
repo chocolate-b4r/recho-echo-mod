@@ -123,6 +123,10 @@ u32 usb_key_exit(void)
     {
         extern volatile u32 timeset_pending;  /* clock.c: a computer may have left TIMESET.TXT */
         timeset_pending = 1;
+#ifndef ECHO_PORT
+        extern volatile u32 art_valid;        /* artists.c: songs may have changed: read them again */
+        art_valid = 0;
+#endif
     }
     return 1;
 }

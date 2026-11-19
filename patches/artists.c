@@ -58,6 +58,8 @@ STATE volatile u32 art_mode = 0;              /* 1 while the artist list shows *
 STATE volatile u32 art_request = 0;           /* 1 read the artists, 2 play the one under the cursor */
 STATE volatile u32 art_count = 0, art_cursor = 0, art_top = 0;
 STATE volatile u32 art_kind = 0;              /* 0 Artists, 1 Favourites (pick the song to start with) */
+STATE volatile u32 art_valid = 0;             /* IDX holds the artists (kept between opens) */
+STATE static void *art_sd = 0;                /* the SD card's volume when they were read */
 extern u32 fav_names(char *dst, u32 max, u32 len);
 extern volatile int fav_play_from;
 extern volatile u32 fav_play_request;
@@ -186,12 +188,19 @@ void art_tick(void)
         return;
     art_request = 0;
     if (r == 1u) {
+        if (!art_kind && art_valid && art_sd == volume_of(1)) {   /* read before: open at once */
+            screen_redraw(BROWSE_DESC);
+            return;
+        }
         art_count = art_cursor = art_top = 0;
+        art_valid = 0;
         if (art_kind) {
             art_count = fav_names(IDX, ART_MAX, ART_LEN);
         } else {
             walk(0, add_artist);
             walk(1, add_artist);
+            art_valid = 1;
+            art_sd = volume_of(1);
         }
         screen_redraw(BROWSE_DESC);
         return;
@@ -290,6 +299,8 @@ int art_key(const unsigned char *ev, int dir)
 
 void art_open(u32 kind)
 {
+    if (kind != art_kind && art_valid)
+        art_cursor = art_top = 0;              /* the other list: from the top */
     art_kind = kind;
     art_mode = 1;
     art_request = 1;
