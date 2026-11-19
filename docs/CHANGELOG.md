@@ -12,6 +12,7 @@ Builds are patched from RECHO 0.10.1 `2d11bdcd`. "Device" means tested on a real
 | v6 | Debug removed from menu; Settings without Show tags / On USB connect / Debug strip; cable chooser Charge only / USB disk, no DAC | device |
 | v7 | no key for 5 s on a cable → power off into the charging screen | device |
 | v8 | button remap: ↩ tap = Back, hold ≡ on Now Playing = Settings; bar labels | built, verified |
+| v62 | Mini: the heart goes before the title; the whole left column (title lines, artist, file details, lyric) is centred | built, verified |
 | v61 | Mini: lyric lines left-aligned in the left column again | built, verified |
 | v60 | Mini: the artist goes on the title's last line, after the title, when it fits there (else on its own line under it) | built, verified |
 | v59 | Mini: the title at 1.5x again; what does not fit a line carries on to the next, up to three lines; lyric lines centred in the left column | built, verified |

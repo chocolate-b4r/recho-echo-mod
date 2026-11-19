@@ -553,7 +553,7 @@ static int format_left(int x, int y, int w, int y_max, int paused)
         tryb[t] = 0;
         if (n && text_width(1, tryb) > w) {      /* flush the line, start a new one with this segment */
             cur[n] = 0;
-            text_at(1, x, y, cur, w, c);
+            text_centred(1, x + w / 2, y, cur, w, c);
             y += 18;
             n = 0;
             for (const char *q = seg; q < e && n < 95; q++)
@@ -566,7 +566,7 @@ static int format_left(int x, int y, int w, int y_max, int paused)
     }
     if (n && y <= y_max) {
         cur[n] = 0;
-        text_at(1, x, y, cur, w, c);
+        text_centred(1, x + w / 2, y, cur, w, c);
         y += 18;
     }
     return y;
@@ -726,7 +726,7 @@ static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
         for (int i = 0; i < k && i < 127; i++)
             line[i] = s[i];
         line[k < 127 ? k : 127] = 0;
-        text_at(1, x, y, line, w + 8, c);
+        text_centred(1, x + w / 2, y, line, w + 8, c);   /* centred in the column */
         s += k;
         while (*s == ' ')
             s++;
@@ -734,50 +734,36 @@ static void lyric_left(int x, int y, int w, int y_max, const char *s, u32 c)
     }
 }
 
-/* The song title from x at y_top: the large font at 1.5x in 2 px strokes; what does not fit a line
- * carries on to the next, up to three lines (only the third is cut with ".." if still too long).
- * Returns the next free row; *last_w = the last line's width (for the heart), *last_y = its top. */
-static int title_lines(int x, int y_top, const char *s, u32 c, int w, int *last_w, int *last_y)
+/* The song title in lines of at most w px at 1.5x (the first line w0): what does not fit a line
+ * carries on to the next, up to three (the third cut with ".." if still too long). Returns n. */
+static int title_split(const char *s, int w0, int w, char out[3][128])
 {
-    char a[128];
-    const int lh = 24, sw = w * 2 / 3;            /* width at 1x that fills w at 1.5x */
-    int y = y_top;
-    for (int line = 0; s && *s && line < 3; line++) {
+    int n = 0;
+    for (; s && *s && n < 3; n++) {
+        int sw = (n ? w : w0) * 2 / 3;           /* width at 1x that fills the line at 1.5x */
         int k = fit_words(s, sw);
-        if (line == 2 && s[k]) {                  /* third line and more left: cut it here */
-            int n = k > 2 ? k - 2 : 0;
-            while (n > 0 && ((unsigned char)s[n] & 0xC0u) == 0x80u)
-                n--;
-            for (int i = 0; i < n; i++)
-                a[i] = s[i];
-            a[n] = '.';
-            a[n + 1] = '.';
-            a[n + 2] = 0;
-            while (n > 0 && text_width(1, a) > sw) {
-                n--;
-                while (n > 0 && ((unsigned char)a[n] & 0xC0u) == 0x80u)
-                    n--;
-                a[n] = '.';
-                a[n + 1] = '.';
-                a[n + 2] = 0;
+        char *a = out[n];
+        int m = k < 127 ? k : 127;
+        for (int i = 0; i < m; i++)
+            a[i] = s[i];
+        a[m] = 0;
+        if (n == 2 && s[k]) {                     /* more left on the third line: cut with ".." */
+            while (m > 0 && text_width(1, a) + text_width(1, "..") > sw) {
+                m--;
+                while (m > 0 && ((unsigned char)a[m] & 0xC0u) == 0x80u)
+                    m--;
+                a[m] = 0;
             }
-            k = 1 << 20;
-        } else {
-            for (int i = 0; i < k && i < 127; i++)
-                a[i] = s[i];
-            a[k < 127 ? k : 127] = 0;
+            a[m] = '.';
+            a[m + 1] = '.';
+            a[m + 2] = 0;
+            return 3;
         }
-        text_scaled_line(-x, y, 0, 0, a, c, 3);
-        *last_w = text_width(1, a) * 3 / 2;
-        *last_y = y;
-        y += lh;
-        if (k >= (1 << 20))
-            break;
         s += k;
         while (*s == ' ')
             s++;
     }
-    return y;
+    return n;
 }
 
 /* ---- Mini Up Next (right half of Now Playing) ----------------------------------------
@@ -977,22 +963,34 @@ void np_draw(void)
         const char *title = track_title(&artist);
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
-        int tw = 0, ty = 28;
-        int y = title_lines(LX, 28, title, c_title, LW, &tw, &ty) + 11;
-        int xe = LX + tw;                          /* end of the title's last line */
-        if (fav_is_current) {
-            heart(xe + 5 > 145 ? 145 : xe + 5, ty + 8);
-            xe += 14;
+        /* the column is centred: the heart before the title's first line, the artist after its
+         * last line when it fits there (bottoms aligned), else on a line of its own */
+        char tl[3][128];
+        const int CX = LX + LW / 2, HW = fav_is_current ? 14 : 0;
+        int n = title_split(title, LW - HW, LW, tl);
+        int aw = (artist && *artist) ? text_width(1, artist) : 0;
+        int inl = 0, y = 28;
+        if (n) {
+            int lw = text_width(1, tl[n - 1]) * 3 / 2 + (n == 1 ? HW : 0);
+            inl = aw && lw + 10 + aw <= LW;
         }
-        if (artist && *artist) {
-            /* the artist on the title's last line when it fits there (bottoms aligned), else under it */
-            int aw = text_width(1, artist);
-            if (xe + 10 + aw <= LX + LW)
-                text_at(1, xe + 10, ty + 15, artist, aw + 1, c_art);
-            else {
-                text_at(1, LX, y, artist, LW, c_art);
-                y += 20;
+        for (int i = 0; i < n; i++) {
+            int wl = text_width(1, tl[i]) * 3 / 2;
+            int lw = wl + (i == 0 ? HW : 0) + (i == n - 1 && inl ? 10 + aw : 0);
+            int x0 = CX - lw / 2;
+            if (i == 0 && HW) {
+                heart(x0, y + 8);
+                x0 += HW;
             }
+            text_scaled_line(-x0, y, 0, 0, tl[i], c_title, 3);
+            if (i == n - 1 && inl)
+                text_at(1, x0 + wl + 10, y + 15, artist, aw + 1, c_art);
+            y += 24;
+        }
+        y += 11;
+        if (aw && !inl) {
+            text_centred(1, CX, y, artist, LW, c_art);
+            y += 20;
         }
         fill_rect(160, 28, 160, 143, RULE);
         upnext_draw(168, 33, 144, paused, (u32)UPN_N);   /* rows 33, 46, ... 137 */
