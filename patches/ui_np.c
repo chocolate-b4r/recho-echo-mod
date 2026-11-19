@@ -978,12 +978,21 @@ void np_draw(void)
         u32 c_title = paused ? GREY : WHITE, c_art = paused ? DIM : SOFT;
         const int LX = 8, LW = 146;
         int tw = 0, ty = 28;
-        int y = title_lines(LX, 28, title, c_title, LW, &tw, &ty) + 11;   /* then the artist */
-        if (fav_is_current)
-            heart(LX + tw + 5 > 145 ? 145 : LX + tw + 5, ty + 8);
+        int y = title_lines(LX, 28, title, c_title, LW, &tw, &ty) + 11;
+        int xe = LX + tw;                          /* end of the title's last line */
+        if (fav_is_current) {
+            heart(xe + 5 > 145 ? 145 : xe + 5, ty + 8);
+            xe += 14;
+        }
         if (artist && *artist) {
-            text_at(1, LX, y, artist, LW, c_art);
-            y += 20;
+            /* the artist on the title's last line when it fits there (bottoms aligned), else under it */
+            int aw = text_width(1, artist);
+            if (xe + 10 + aw <= LX + LW)
+                text_at(1, xe + 10, ty + 15, artist, aw + 1, c_art);
+            else {
+                text_at(1, LX, y, artist, LW, c_art);
+                y += 20;
+            }
         }
         fill_rect(160, 28, 160, 143, RULE);
         upnext_draw(168, 33, 144, paused, (u32)UPN_N);   /* rows 33, 46, ... 137 */
