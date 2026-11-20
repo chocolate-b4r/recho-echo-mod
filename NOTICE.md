@@ -6,14 +6,21 @@
   (build `2d11bdcd`, v0.10.1), the work of its author. It is not a FiiO or Snowsky product, and its
   author is not involved in this project and has not endorsed it.
 - This project patches RECHO. It needs your own copy of RECHO 0.10.1, and almost everything in a
-  patched image is RECHO's: 99.4 % of the Echo Mini image and 99.3 % of the Echo image are RECHO's
-  bytes unchanged. The mod's own code (16 KB for the Mini, 21.5 KB for the Echo) runs inside RECHO
-  and calls 49 / 53 of RECHO's routines to do its work; the routines and addresses it relies on are
+  patched image is RECHO's: 99.3 % of the Echo Mini image and of the Echo image are RECHO's bytes
+  unchanged. The mod's own code (26.8 KB for the Mini, 27.2 KB for the Echo) runs inside RECHO and
+  calls 71 / 72 of RECHO's routines to do its work; the routines and addresses it relies on are
   listed in `docs/02-recho-map.md`.
-- No RECHO image, code or data is distributed here. The patcher reads your copy and writes patch
-  bytes plus the compiled hook code from `patches/`. (Until v47 the build also extracted 32 glyphs of
-  RECHO's large font from your copy for the boot screen; the boot screen is now a black frame and
-  nothing is extracted.)
+- **What is distributed, and what is not:**
+  - The source code, tools and documentation in this repository contain no RECHO code or data. The
+    patcher reads your own copy of RECHO and writes patch bytes plus the compiled hook code from
+    `patches/`. (Until v47 the build also extracted 32 glyphs of RECHO's large font from your copy
+    for the boot screen; the boot screen is now a black frame and nothing is extracted.)
+  - The GitHub releases contain the mod's own files only (compiled hook code, patcher, verifier,
+    icons) and the checksums of the images they produce. They contain no RECHO image.
+  - **`docs/img/echo mini.zip` and `docs/img/echo.zip` are complete patched firmware images.** They
+    contain RECHO's firmware (about 99.3 % of each image is RECHO's bytes unchanged). They were
+    added to the repository by its owner. No permission from RECHO's author to redistribute RECHO is
+    recorded here; if you are RECHO's author and want them removed, open an issue and they will be.
 - **Correction:** commit `062c438` added those glyphs to the repository as `patches/boot_font.h`
   (32 characters of RECHO's large font, about 1 KB). Commit `3a7a4b6` removed the file and moved the
   extraction into the build; the earlier commit is still in the history.

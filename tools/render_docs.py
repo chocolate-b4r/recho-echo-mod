@@ -5,6 +5,10 @@
 
   controls.png          button cheat sheet (both players)
   now-playing-mini.png  Echo Mini Now Playing, 320 x 170, zones from patches/ui_np.c
+  menu-mini.png         Echo Mini main menu (pixel-art tabs read from patches/ui_np.c)
+  files-mini.png        Files: Internal, SD card, Favourites, Artists; time | date in the header
+  artists-mini.png      Files -> Artists (Echo Mini)
+  favourites-mini.png   Files -> Favourites: pick the song to start with (Echo Mini)
   now-playing-echo.png  Echo Now Playing, 480 x 222 panel: picture, player strip, Up Next
 
 Layouts use the coordinates in the C sources. RECHO's two bitmap fonts live in the firmware, so
@@ -85,22 +89,129 @@ QUEUE = ["Next Artist - Opening Track", "Next Artist - Second Song", "Another Ba
          "Duo - Morning", "Trio - Encore", "Trio - Outro", "Solo - Last One"]
 
 
+DOT = "\u00b7"
+
+
+def top_bar_mini(sc, pre, right, last="87%", right_c=SOFT):
+    """time | date left; pre (grey), right, last (battery) on the right, as top_bar_3"""
+    top_bar(sc, 0, right, right_c, last=last)
+    if pre:
+        xr = 320 - 8 - sc.width(1, last) - 6 - sc.width(1, right) - 10
+        sc.text(1, xr, 10, pre, GREY, "rm")
+    sc.rect(0, 21, 319, 21, RULE)
+
+
+def heart(sc, x, y):
+    rows = [".##...##.", "####.####", "#########", "#########", ".#######.", "..#####..", "...###...", "....#...."]
+    for ry, row in enumerate(rows):
+        for rx, ch in enumerate(row):
+            if ch == "#":
+                sc.rect(x + rx, y + ry, x + rx, y + ry, (248, 0, 0))
+
+
 def now_playing_mini():
     sc = Screen(320, 170)
-    top_bar(sc, 0, "62 dB \u00b7 3.5 mm", last="87%")
-    sc.text("sym", 320 - 8 - sc.width(1, "87%") - 8 - sc.width(1, "62 dB \u00b7 3.5 mm") - 6, 10, "\u21c4", SOFT, "rm")
-    y = 36
-    sc.text(1, 8, y, "Artist Name", SOFT)
-    sc.text(1, 8, y + 20, "A Song Title That", WHITE)
-    sc.text(1, 8, y + 38, "Wraps Onto Two Lines", WHITE)
-    sc.text(1, 8, y + 58, "Album Name", GREY)
-    sc.text(1, 8, y + 78, "FLAC  44.1 kHz \u00b7 24 bit", GREY)
-    sc.text(1, 8, y + 96, "9/10", GREY)
+    top_bar_mini(sc, "9/1000", "62dB" + DOT + "3.5mm")
+    cx = 8 + 146 // 2
+    big = 3                                       # the title at 1.5x, wrapped, centred
+    l1, l2, artist = "For the First", "Time", "Mac DeMarco"
+    w1 = sc.width(big, l1)
+    sc.text(big, cx, 40, l1, WHITE, "mm")
+    heart(sc, cx - int(w1 / 2) - 14, 36)          # in the margin: the title does not move
+    w2, wa = sc.width(big, l2), sc.width(1, artist)
+    x0 = cx - int((w2 + 10 + wa) / 2)
+    sc.text(big, x0, 64, l2, WHITE, "lm")
+    sc.text(1, x0 + w2 + 10, 67, artist, SOFT, "lm")
+    sc.text(1, cx, 87, "FLAC 44.1kHz" + DOT + "24bit", GREY, "mm")
+    sc.text(1, cx, 108, "the line being sung,", WHITE, "mm")
+    sc.text(1, cx, 126, "wrapped onto two lines", WHITE, "mm")
     sc.rect(160, 28, 160, 143, RULE)
     for i in range(9):
         sc.text(0, 168, 33 + 13 * i, QUEUE[i], NEXT1 if i == 0 else NEXTN, maxw=144)
     progress(sc, 0, 158)
     sc.save(os.path.join(OUT, "now-playing-mini.png"))
+
+
+def c_bitmap(name):
+    src = open(os.path.join(ROOT, "patches", "ui_np.c"), encoding="utf-8").read()
+    m = re.search(r"static const char \*const " + name + r"\[\d+\] = \{(.*?)\};", src, re.S)
+    return re.findall(r'"([.#]+)"', m.group(1))
+
+
+def bitmap(sc, rows, x0, y0, c):
+    for ry, row in enumerate(rows):
+        for rx, ch in enumerate(row):
+            if ch == "#":
+                sc.rect(x0 + rx, y0 + ry, x0 + rx, y0 + ry, c)
+
+
+def menu_mini():
+    sc = Screen(320, 170)
+    top_bar_mini(sc, "", "62dB" + DOT + "3.5mm")
+    sc.text("sym", 320 - 8 - sc.width(1, "87%") - 6 - sc.width(1, "62dB" + DOT + "3.5mm") - 6, 10, "\u21c4", SOFT, "rm")
+    big = font("segoeui.ttf", 28 * S)
+    sc.f["big"] = big
+    sc.text("big", 16, 44, "Now playing", WHITE)
+    sc.text(0, 16, 70, "Mac DeMarco - For the First Time", SOFT)
+    sc.text(0, 16, 87, "Playing", GREY)
+    tabs = [("TAB_FOLDER", -8, -7), ("TAB_SYS", -10, -4), ("TAB_DISC", -8, -8), ("TAB_BT", -6, -8),
+            ("TAB_WRENCH", -8, -7)]
+    for i, (name, dx, dy) in enumerate(tabs):
+        cx, cy = i * 64 + 32, 125
+        on = i == 2
+        bitmap(sc, c_bitmap(name), cx + dx, cy + dy, WHITE if on else GREY)
+        if on:
+            sc.text(1, cx - 24, cy, "<", WHITE)
+            sc.text(1, cx + 14, cy, ">", WHITE)
+    progress(sc, 0, 158)
+    sc.save(os.path.join(OUT, "menu-mini.png"))
+
+
+def header(sc, title):
+    """RECHO's screen header with the mod's time | date where its icon was"""
+    sc.text(1, 8, 10, "21:47", WHITE)
+    w = sc.width(1, "21:47")
+    sc.rect(8 + w + 5, 4, 8 + w + 5, 16, GREY)
+    sc.text(1, 8 + w + 11, 10, "Fri 13 Nov", SOFT)
+    x = 8 + w + 11 + sc.width(1, "Fri 13 Nov") + 10
+    sc.text(1, x, 10, title, WHITE)
+    sc.text(1, 312, 10, "87%", WHITE, "rm")
+    sc.text(1, 312 - sc.width(1, "87%") - 8, 10, "62 dB", WHITE, "rm")
+
+
+def list_rows(sc, rows, sel, chevron=False):
+    for i, label in enumerate(rows):
+        y = 22 + 20 * i
+        fg = WHITE
+        if i == sel:
+            sc.rect(8, y, 311, y + 19, rgb565(0x24DF))
+            fg = (0, 0, 0)
+        sc.text(1, 12, y + 10, label, fg)
+        if chevron:
+            sc.text(1, 308, y + 10, "\u203a", fg, "rm")
+
+
+def files_mini():
+    sc = Screen(320, 170)
+    header(sc, "Files")
+    list_rows(sc, ["Internal", "SD card", "Favourites", "Artists"], 3, chevron=True)
+    sc.save(os.path.join(OUT, "files-mini.png"))
+
+
+def artists_mini():
+    sc = Screen(320, 170)
+    header(sc, "Files")
+    list_rows(sc, ["Halsey", "Joji", "Lamp", "Mac DeMarco", "Mitski", "Palace", "Tame Impala"], 3)
+    sc.save(os.path.join(OUT, "artists-mini.png"))
+
+
+def favourites_mini():
+    sc = Screen(320, 170)
+    header(sc, "Files")
+    list_rows(sc, ["Flora Cash - What Is Wrong", "Mac DeMarco - Heart To Heart", "Palace - Bitter",
+                   "Tame Impala - New Person, Same Old Mistakes", "Tinariwen - Sagherat Assani",
+                   "Mitski - I Will", "Joji - Strange Home"], 1)
+    sc.save(os.path.join(OUT, "favourites-mini.png"))
 
 
 def now_playing_echo():
@@ -213,4 +324,9 @@ if __name__ == "__main__":
     controls()
     now_playing_mini()
     now_playing_echo()
-    print("docs/img: controls.png now-playing-mini.png now-playing-echo.png")
+    menu_mini()
+    files_mini()
+    artists_mini()
+    favourites_mini()
+    print("docs/img: controls.png now-playing-mini.png now-playing-echo.png menu-mini.png files-mini.png"
+          " artists-mini.png favourites-mini.png")

@@ -4,13 +4,23 @@ Binary patches for **[RECHO](https://recho.atzkey.workers.dev/) 0.10.1** (build 
 custom firmware for the FiiO / Snowsky **Echo Mini**, plus a port of it to the full-size **Snowsky Echo**.
 RECHO is not made by FiiO or Snowsky; they make the players and their stock firmware.
 
-Everything here is a script, C source or document. **No firmware image is included.** You patch your
-own copy of RECHO 0.10.1 and get a new image that a verifier checks byte by byte before you flash it.
+The source code is scripts, C and documents, with no RECHO code. You patch your own copy of
+RECHO 0.10.1 and get a new image that a verifier checks byte by byte before you flash it. The
+[releases](https://github.com/chocolate-b4r/recho-echo-mod/releases) hold the mod's own files only.
+(Two zips in `docs/img/` are complete patched images and do contain RECHO: see [NOTICE.md](NOTICE.md).)
 
 <table>
 <tr>
 <td width="50%"><img src="docs/img/now-playing-mini.png" alt="Echo Mini Now Playing"><br><sub><b>Echo Mini</b>: song on the left, Up Next on the right</sub></td>
 <td width="50%"><img src="docs/img/now-playing-echo.png" alt="Echo Now Playing"><br><sub><b>Echo</b>: big title, file details, live lyrics, Up Next column</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/img/menu-mini.png" alt="Main menu"><br><sub><b>Main menu</b>: pixel-art tabs, the song playing</sub></td>
+<td width="50%"><img src="docs/img/files-mini.png" alt="Files"><br><sub><b>Files</b>: time · date on top; Internal, SD card, Favourites, Artists</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/img/artists-mini.png" alt="Artists"><br><sub><b>Artists</b> (Echo Mini): every artist, A to Z; ▶‖ plays them</sub></td>
+<td width="50%"><img src="docs/img/favourites-mini.png" alt="Favourites"><br><sub><b>Favourites</b> (Echo Mini): pick the song to start with</sub></td>
 </tr>
 </table>
 
@@ -25,13 +35,13 @@ calling RECHO's own routines.
 
 | | Echo Mini image | Echo image |
 |---|---:|---:|
-| bytes that differ from RECHO 0.10.1 | 28,715 of 5,242,884 (0.55 %) | 34,136 of 5,242,884 (0.65 %) |
-| of which the mod's own code (in a free area of RECHO's image) | 16,147 | 21,519 |
+| bytes that differ from RECHO 0.10.1 | 35,412 of 5,242,884 (0.68 %) | 35,791 of 5,242,884 (0.68 %) |
+| of which the mod's own code (in a free area of RECHO's image) | 26,800 | 27,200 |
 | of which two RECHO modules blanked (Spectrum, Debug) | 11,516 | 11,516 |
-| RECHO routines the mod's code calls | 49 | 53 |
+| RECHO routines the mod's code calls | 71 | 72 |
 
-Even the new screens are drawn with RECHO's text and rectangle routines and RECHO's fonts; the
-boot screen's 32 glyphs are copied out of RECHO's large font at build time. The full-size Echo port
+Even the new screens are drawn with RECHO's text and rectangle routines and RECHO's fonts. The
+full-size Echo port
 runs RECHO's unchanged player on different hardware. RECHO is the work of its author, who is not
 involved in this project and has not endorsed it. If you like what the players do, the credit
 belongs to RECHO first: get it from [its site](https://recho.atzkey.workers.dev/).

@@ -188,12 +188,16 @@ The cold entry described there (paperclip reset + keys) is the more reliable one
 
 ![Echo Mini Now Playing](img/now-playing-mini.png)
 
+| Main menu | Files | Artists | Favourites |
+|---|---|---|---|
+| ![](img/menu-mini.png) | ![](img/files-mini.png) | ![](img/artists-mini.png) | ![](img/favourites-mini.png) |
+
 | Area | Shows |
 |---|---|
 | Top bar | time · date, queue position (grey, "9/1000"), volume and output (over Bluetooth: the headphones' name in green), battery % |
-| Left | artist, song (wraps onto two lines), then the file details: format, sample rate, bits |
+| Left (centred) | the song title, large, wrapping onto more lines; the artist after its last line (or under a one-line title); the heart in the margin before it; file details |
 | Right | **Up Next**: the next 9 songs in play order, the next one brighter |
-| Lyrics | the line being sung, under the file details, up to two lines (from a `.lrc` next to the song) |
+| Lyrics | the line being sung, under the file details, word-wrapped (from a `.lrc` next to the song) |
 | Bottom | elapsed time, progress bar, length (red while paused) |
 
 ### Echo: Now Playing
