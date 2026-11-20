@@ -136,6 +136,7 @@ the top of the internal drive with one line, `YYYY-MM-DD HH:MM:SS`, then leave U
 | <kbd>⏻</kbd> | screen on | power off |
 | <kbd>▶‖</kbd> | play / pause | next track |
 | <kbd>↩</kbd> | | previous track |
+| <kbd>≡</kbd> | | **add the song to favourites, or take it off** |
 | <kbd>+</kbd> <kbd>−</kbd> | volume | keeps changing |
 
 These are RECHO's own; the mod's menu gestures only work while the screen is on. Hold <kbd>≡</kbd>

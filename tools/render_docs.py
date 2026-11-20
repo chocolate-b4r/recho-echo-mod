@@ -240,8 +240,8 @@ def now_playing_echo():
 
 # ---------------------------------------------------------------- controls cheat sheet ----
 BG, CARD, EDGE, INK, MUTED, ACCENT = (17, 18, 22), (28, 30, 36), (52, 56, 66), (236, 238, 242), (150, 156, 168), (122, 162, 255)
-KEYS = {"play": "\u25b6\u2016", "menu": "\u2261", "back": "\u21a9", "vol+": "+", "vol-": "\u2212",
-        "power": "\u23fb"}
+KEYS = {"play": "▶‖", "menu": "≡", "back": "↩", "vol+": "+", "vol-": "−",
+        "power": "⏻", "mid": "●"}
 
 SECTIONS = [
     ("Now Playing", [
@@ -254,20 +254,36 @@ SECTIONS = [
         (["play"], "hold on Files", "play every song on the player"),
         (["menu"], "tap / hold", "Files, from any screen (never selects)")]),
     ("Lists (Files, Settings)", [
-        (["vol+", "vol-"], "tap", "move"), (["play"], "tap", "select / play the folder"),
-        (["play"], "hold on a folder", "play the folder and all folders in it"),
-        (["play"], "on Favourites", "play your favourites"),
+        (["vol+", "vol-"], "tap", "move (the drive list wraps round)"),
+        (["vol+", "vol-"], "hold", "fast, letter by letter"),
+        (["play"], "tap", "select / play the folder"),
+        (["play"], "hold on a folder", "play it and every folder in it"),
         (["back"], "tap", "back")]),
+    ("Favourites and Artists (Files)", [
+        (["play"], "on Favourites", "Mini: pick the song to start with"),
+        ([], "", "Echo: play all your favourites"),
+        (["play"], "on Artists", "Mini: every artist, A to Z"),
+        (["play"], "on a name", "play from that song / that artist"),
+        (["vol+", "vol-"], "hold", "jump to the next letter"),
+        (["back"], "tap", "back to Internal / SD card")]),
+    ("Settings → Clock", [
+        (["vol+", "vol-"], "tap", "change the number"), (["play"], "tap", "next field"),
+        (["back"], "tap", "save the clock and leave")]),
     ("Screen off", [
         (["play"], "tap", "play / pause"), (["play"], "hold", "next track"),
-        (["back"], "hold", "previous track"), (["power"], "tap", "screen on")]),
+        (["back"], "hold", "previous track"), (["menu"], "hold", "favourite: add or take off"),
+        (["vol+", "vol-"], "tap / hold", "volume"), (["power"], "tap", "screen on")]),
     ("Power and cable", [
         (["power"], "tap", "screen on / off"), (["power"], "hold", "power off"),
         (["back"], "tap in USB disk", "leave USB disk (screen stays on)"),
         (["vol+", "vol-"], "cable chooser", "pick Charge only or USB disk"),
         ([], "no key for 5 s", "chooser: off into the charging screen")]),
     ("Echo only", [
-        (["menu"], "hold 10 s", "maskrom (USB recovery mode)")]),
+        (["menu"], "hold 10 s", "maskrom (USB recovery mode)"),
+        (["mid"], "headset, 1 tap", "play / pause"),
+        (["mid"], "2 / 3 taps", "next / previous track"),
+        (["vol+", "vol-"], "headset tap", "volume"),
+        (["vol+", "vol-"], "headset hold", "next / previous track")]),
 ]
 
 
